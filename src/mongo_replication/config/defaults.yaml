@@ -1,0 +1,248 @@
+# MongoDB Replication Tool - Default Configuration
+# 
+# This file defines all default values used by the replication tool.
+# These defaults are loaded first, then overridden by:
+#   1. Job-specific configuration files (e.g., config/qa_db_config.yaml)
+#   2. CLI arguments and options
+#
+# DO NOT modify this file directly. Instead, override values in your
+# job-specific configuration files.
+
+# =============================================================================
+# PII ANONYMIZATION STRATEGIES
+# =============================================================================
+#
+# The tool supports multiple anonymization strategies:
+#
+# 1. fake: Generate realistic fake data using Mimesis
+#    - Best for: email, phone, name, address
+#    - Pros: Realistic, maintains data utility
+#    - Cons: Not deterministic (same input → different output)
+#
+# 2. redact: Smart format-preserving redaction
+#    - Best for: SSN, credit cards, any structured PII
+#    - Pros: Shows partial data, maintains format
+#    - Example: john.doe@corp.com → jo30f6oe@corp.com (preserves domain)
+#
+# 3. hash: SHA-256 hashing
+#    - Best for: IDs, usernames, any value needing referential integrity
+#    - Pros: Deterministic (same input → same output), irreversible
+#    - Cons: Doesn't maintain data utility
+#
+# 4. mask: Replace with asterisks
+#    - Best for: Completely obscuring values
+#    - Example: "sensitive" → "********"
+#
+# 5. null: Replace with null/None
+#    - Best for: Removing PII completely
+#    - Use when field is not needed in destination
+
+# =============================================================================
+# SCAN DEFAULTS
+# =============================================================================
+
+scan:
+  # Collection Discovery
+  # --------------------
+  # Controls which collections are scanned for PII
+
+  discovery:
+    include_patterns: []
+    # List of regex patterns for collections to include in scan
+    # Example: ["^user_", "^customer_"]
+    # Empty list means scan all collections
+
+    exclude_patterns: []
+    # List of regex patterns for collections to exclude from scan
+    # Example: ["^tmp_", "^cache_", "_audit$"]
+
+  # PII Detection
+  # -------------
+  # Configuration for automatic PII detection using Presidio
+
+  pii:
+    enabled: true
+    # Whether to run PII detection during scan
+
+    confidence_threshold: 0.85
+    # Minimum confidence score for PII detection (0.0-1.0)
+    # Higher = fewer false positives but might miss some PII
+    # Recommended range: 0.75-0.95
+
+    entity_types:
+      # List of PII entity types to detect
+      # Supported types from Presidio analyzer
+      - EMAIL_ADDRESS
+      - PHONE_NUMBER
+      - PERSON
+      - US_SSN
+      - CREDIT_CARD
+      - IBAN_CODE
+      - IP_ADDRESS
+      - URL
+
+    sample_size: 1000
+    # Number of documents to sample per collection for PII detection
+    # Larger samples = more accurate but slower
+    # Recommended range: 500-5000
+
+    sample_strategy: "stratified"
+    # Sampling strategy for PII detection
+    # Options:
+    #   - "random": Random sampling (faster)
+    #   - "stratified": Ensures diverse sample across collection
+
+    default_strategies:
+      # Default anonymization strategy per PII entity type
+      # Options: "fake", "redact", "hash", "mask", "null"
+      EMAIL_ADDRESS: "fake"    # Replace with realistic fake email
+      PHONE_NUMBER: "fake"     # Replace with realistic fake phone
+      PERSON: "hash"           # Hash the name (preserves uniqueness)
+      US_SSN: "redact"         # Partial redaction (e.g., ***-**-6789)
+      CREDIT_CARD: "redact"    # Partial redaction
+      IBAN_CODE: "redact"      # Partial redaction
+      IP_ADDRESS: "hash"       # Hash the IP address
+      URL: "hash"              # Hash the URL
+
+    allowlist: []
+    # Field patterns to exclude from PII detection
+    # Example: ["metadata.*", "*.created_at", "*.updated_at"]
+    # Useful for excluding known safe fields
+
+# =============================================================================
+# REPLICATION DEFAULTS
+# =============================================================================
+
+replication:
+  # Collection Discovery & Filtering
+  # ---------------------------------
+  # Controls which collections are automatically discovered and replicated
+  
+  replicate_all: true
+  # If true, auto-discover all collections not explicitly configured
+  # If false, only replicate explicitly configured collections
+  
+  include_patterns: []
+  # List of regex patterns for collections to include
+  # Example: ["^user_", "^order_"]
+  # Empty list means include all collections
+  
+  exclude_patterns: []
+  # List of regex patterns for collections to exclude
+  # Example: ["^tmp_", "^test_", "_backup$"]
+  # Applied after include_patterns
+  
+  # Write Strategies
+  # ----------------
+  # Default write strategy for collections
+  
+  write_disposition: "merge"
+  # Options:
+  #   - "merge": Upsert based on primary_key (incremental updates)
+  #   - "append": Insert new documents only (fails on duplicates)
+  #   - "replace": Drop and recreate collection (full refresh)
+  
+  # Cursor & Incremental Loading
+  # -----------------------------
+  # Controls how the tool tracks replication progress
+  
+  fallback_cursor: "_id"
+  # Field to use for incremental loading when cursor_field is not set
+  # or doesn't exist in the collection
+  
+  initial_value: "2020-01-01T00:00:00Z"
+  # Initial cursor value for first-time replication
+  # Used when no previous state exists
+  
+  # Performance Settings
+  # --------------------
+  # Controls parallelism and batch processing
+  
+  max_parallel_collections: 5
+  # Maximum number of collections to replicate concurrently
+  # Higher values = faster but more resource intensive
+  # Recommended range: 3-10
+  
+  batch_size: 1000
+  # Number of documents to process in each batch
+  # Larger batches = fewer round trips but more memory
+  # Recommended range: 500-5000
+  
+  # Transformation Error Handling
+  # ------------------------------
+  # How to handle errors during field transformations
+  
+  transform_error_mode: "skip"
+  # Options:
+  #   - "skip": Log error and continue with the original value
+  #   - "fail": Raise exception and stop replication
+  
+  # State Management
+  # ----------------
+  # Configuration for replication state tracking
+  
+  state:
+    runs_collection: "_rep_runs"
+    # Collection name for storing job run history
+    # Each document represents one complete replication job run
+    
+    state_collection: "_rep_state"
+    # Collection name for storing per-collection replication state
+    # Each document represents the replication state for one collection
+    # Used for incremental loading (cursor tracking) and status monitoring
+  
+  # =============================================================================
+  # SCHEMA (Optional)
+  # =============================================================================
+  # Define parent-child relationships between collections for cascading replication.
+  # 
+  # When using the --select option, the tool will:
+  #   1. Replicate records from the root collection matching your filter
+  #   2. Find related records in child collections based on relationships
+  #   3. Cascade through the entire relationship chain
+  #
+  # Example configuration:
+  #   schema:
+  #     - parent: customers
+  #       child: orders
+  #       parent_field: _id           # Field in customers (primary key)
+  #       child_field: customerId     # Field in orders (foreign key)
+  #     
+  #     - parent: orders
+  #       child: order_items
+  #       parent_field: _id           # Field in orders (primary key)
+  #       child_field: orderId        # Field in order_items (foreign key)
+  #
+  # Usage with CLI:
+  #   rep run prod_db --select customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+  #
+  # This will replicate:
+  #   - Customers with _id IN (507f1f77bcf86cd799439011, 507f191e810c19729de860ea)
+  #   - Orders where customerId IN (507f1f77bcf86cd799439011, 507f191e810c19729de860ea)
+  #   - Order_items where orderId IN (...order IDs from above...)
+  #
+  # Important notes:
+  #   - Relationships are directional (parent -> child)
+  #   - Each child can only have ONE parent collection
+  #   - Multiple levels of cascading are supported
+  #   - All IDs must be valid ObjectIds (24-character hex strings)
+#   - With --select, all collections use "merge" (upsert) write strategy
+#   - Incremental cursor-based replication is disabled with --select
+#   - Collections with zero matching records are skipped
+
+# =============================================================================
+# OVERRIDE EXAMPLES
+# =============================================================================
+#
+# In your job-specific config file (e.g., config/prod_db_config.yaml):
+#
+# replication:
+#   defaults:
+#     max_parallel_collections: 10  # Override default of 5
+#     batch_size: 2000               # Override default of 1000
+#     write_disposition: replace     # Override default of merge
+#
+# scan:
+#   pii:
+#     confidence_threshold: 0.90     # Override default of 0.85
+#     sample_size: 2000              # Override default of 1000
