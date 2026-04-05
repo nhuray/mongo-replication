@@ -36,8 +36,8 @@ dependencies = [
     "mimesis>=19.0.0",
 ]
 
-[project.optional-dependencies]
-dev = [
+[tool.uv]
+dev-dependencies = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
@@ -47,13 +47,13 @@ dev = [
 ]
 
 [project.scripts]
-mongo-replication = "mongo_replication.cli.main:app"
+rep = "mongo_replication.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/nicolasgriseydemengel/mongo-replication"
-Documentation = "https://github.com/nicolasgriseydemengel/mongo-replication#readme"
-Repository = "https://github.com/nicolasgriseydemengel/mongo-replication"
-Issues = "https://github.com/nicolasgriseydemengel/mongo-replication/issues"
+Homepage = "https://github.com/nhuray/mongo-replication"
+Documentation = "https://github.com/nhuray/mongo-replication#readme"
+Repository = "https://github.com/nhuray/mongo-replication"
+Issues = "https://github.com/nhuray/mongo-replication/issues"
 
 [build-system]
 requires = ["hatchling"]
