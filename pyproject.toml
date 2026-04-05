@@ -43,16 +43,17 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+    "mongomock>=4.0.0",
 ]
 
 [project.scripts]
-rep = "mongo_replication.cli.main:app"
+mongo-replication = "mongo_replication.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/nhuray/mongo-replication"
-Documentation = "https://github.com/nhuray/mongo-replication#readme"
-Repository = "https://github.com/nhuray/mongo-replication"
-Issues = "https://github.com/nhuray/mongo-replication/issues"
+Homepage = "https://github.com/nicolasgriseydemengel/mongo-replication"
+Documentation = "https://github.com/nicolasgriseydemengel/mongo-replication#readme"
+Repository = "https://github.com/nicolasgriseydemengel/mongo-replication"
+Issues = "https://github.com/nicolasgriseydemengel/mongo-replication/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -74,3 +75,39 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--cov=mongo_replication",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests (require MongoDB)",
+]
+
+[tool.coverage.run]
+source = ["src/mongo_replication"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
