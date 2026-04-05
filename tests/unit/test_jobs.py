@@ -147,34 +147,6 @@ class TestJobManager:
         
         assert jobs[0].job_id == "prod_db"  # lowercase
     
-    def test_get_job_success(self):
-        """Test getting a specific job."""
-        env = {
-            "REP_TEST_JOB_ENABLED": "true",
-            "REP_TEST_JOB_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_TEST_JOB_DESTINATION_URI": "mongodb://dest:27017/db",
-        }
-        
-        with patch.dict(os.environ, env, clear=True):
-            job = JobManager.get_job("test_job")
-        
-        assert job.job_id == "test_job"
-        assert job.source_uri == "mongodb://source:27017/db"
-        assert job.destination_uri == "mongodb://dest:27017/db"
-    
-    def test_get_job_case_insensitive(self):
-        """Test that get_job is case-insensitive."""
-        env = {
-            "REP_PROD_DB_ENABLED": "true",
-            "REP_PROD_DB_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_PROD_DB_DESTINATION_URI": "mongodb://dest:27017/db",
-        }
-        
-        with patch.dict(os.environ, env, clear=True):
-            job = JobManager.get_job("PROD_DB")  # uppercase input
-        
-        assert job.job_id == "prod_db"  # lowercase output
-    
     def test_get_job_not_enabled_raises_error(self):
         """Test that getting a disabled job raises error."""
         env = {

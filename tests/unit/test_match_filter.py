@@ -139,7 +139,7 @@ class TestMatchFilterIntegration:
         
         # Mock necessary methods to avoid full replication
         self.cursor_validator.validate_cursor_field.return_value = "updatedAt"
-        self.state_manager.create_load_id.return_value = "load_123"
+        self.state_manager.create_run.return_value = "run_123"
         self.state_manager.get_last_cursor_value.return_value = None
         
         # Mock source.find() to return empty cursor
@@ -151,7 +151,8 @@ class TestMatchFilterIntegration:
         self.source_collection.find.return_value = mock_cursor
         
         # Call replicate with match_filter
-        result = self.replicator.replicate(
+        self.replicator.replicate(
+            state_id="state_123",
             cursor_field="updatedAt",
             write_disposition="merge",
             primary_key="_id",
@@ -173,7 +174,7 @@ class TestMatchFilterIntegration:
         """Test that replicate() works without match_filter (backward compatible)."""
         # Mock necessary methods
         self.cursor_validator.validate_cursor_field.return_value = "updatedAt"
-        self.state_manager.create_load_id.return_value = "load_123"
+        self.state_manager.create_run.return_value = "run_123"
         self.state_manager.get_last_cursor_value.return_value = None
         
         # Mock source.find()
@@ -185,7 +186,8 @@ class TestMatchFilterIntegration:
         self.source_collection.find.return_value = mock_cursor
         
         # Call replicate WITHOUT match_filter
-        result = self.replicator.replicate(
+        self.replicator.replicate(
+            state_id="state_123",
             cursor_field="updatedAt",
             write_disposition="merge",
             primary_key="_id",
