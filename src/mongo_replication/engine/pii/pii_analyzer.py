@@ -82,6 +82,7 @@ class PIIAnalysisEngine:
         prevalence_threshold: float = 0.10,  # Skip fields with <10% prevalence
         allowlist_fields: Optional[List[str]] = None,
         entity_types: Optional[List[str]] = None,
+        presidio_config: Optional[str] = None,
     ):
         """
         Initialize PII analysis engine.
@@ -92,12 +93,14 @@ class PIIAnalysisEngine:
             prevalence_threshold: Minimum prevalence (0.0-1.0) to include field
             allowlist_fields: Field patterns to exclude from detection
             entity_types: Specific entity types to detect (None or [] = all types)
+            presidio_config: Optional path to Presidio YAML configuration file
         """
         self.confidence_threshold = confidence_threshold
         self.language = language
         self.prevalence_threshold = prevalence_threshold
         self.allowlist_fields = allowlist_fields or ["_id", "meta.*", "*.id"]
         self.entity_types = entity_types if entity_types else None  # Empty list -> None (all types)
+        self.presidio_config = presidio_config
 
         # Lazy load analyzer
         self._analyzer: Optional[PresidioAnalyzer] = None
@@ -105,7 +108,13 @@ class PIIAnalysisEngine:
     def get_analyzer(self) -> PresidioAnalyzer:
         """Lazy load Presidio analyzer."""
         if self._analyzer is None:
-            logger.info(f"🔍 Initializing Presidio analyzer (language={self.language})...")
+            if self.presidio_config:
+                logger.info(
+                    f"🔍 Initializing Presidio analyzer with config: {self.presidio_config} "
+                    f"(language={self.language})..."
+                )
+            else:
+                logger.info(f"🔍 Initializing Presidio analyzer (language={self.language})...")
             self._analyzer = PresidioAnalyzer()
         return self._analyzer
 
@@ -156,6 +165,7 @@ class PIIAnalysisEngine:
                 confidence_threshold=self.confidence_threshold,
                 allowlist_fields=self.allowlist_fields,
                 entity_types=self.entity_types,
+                presidio_config_path=self.presidio_config,
             )
 
             # Aggregate detections (normalize array paths)

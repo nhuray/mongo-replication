@@ -1,0 +1,393 @@
+# Presidio Analyzer Engine Configuration
+# ========================================
+# This file configures the Presidio PII detection engine for MongoDB Replication Tool.
+#
+# Configuration sections:
+# 1. nlp_configuration: NLP engine and models to use
+# 2. supported_languages: Languages supported by this configuration
+# 3. default_score_threshold: Minimum confidence score (0.0-1.0) for detections
+# 4. recognizer_registry: Custom and predefined PII recognizers
+#
+# Documentation: https://microsoft.github.io/presidio/analyzer/customizing_nlp_models/
+# Adding recognizers: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
+
+# =============================================================================
+# NLP Engine Configuration
+# =============================================================================
+# Presidio uses NLP models to improve PII detection accuracy through:
+# - Named Entity Recognition (NER)
+# - Part-of-speech tagging
+# - Dependency parsing
+# - Lemmatization
+#
+# The spaCy en_core_web_lg model provides robust entity detection.
+# Make sure to install it: python -m spacy download en_core_web_lg
+
+nlp_configuration:
+  nlp_engine_name: spacy
+  models:
+    - lang_code: en
+      model_name: en_core_web_lg
+
+# =============================================================================
+# Global Analyzer Settings
+# =============================================================================
+
+# Languages supported by this configuration
+supported_languages:
+  - en
+
+# Default minimum confidence score for PII detections (0.0-1.0)
+# This can be overridden by the confidence_threshold in ScanPIIConfig
+default_score_threshold: 0.35
+
+# =============================================================================
+# PII Recognizers Configuration
+# =============================================================================
+# Recognizers detect specific types of PII in text.
+#
+# Types of recognizers:
+# 1. Predefined: Built into Presidio (EMAIL_ADDRESS, PHONE_NUMBER, etc.)
+# 2. Custom Pattern: Use regex patterns to detect custom PII types
+# 3. Custom Deny-list: Match against a list of known sensitive values
+#
+# Each recognizer can have:
+# - supported_entity: The PII type this recognizer detects
+# - supported_languages: Languages this recognizer supports
+# - patterns: Regex patterns with scores and context words
+# - context: Context words that increase confidence when found nearby
+# - deny_list: Exact string matches to flag as PII
+
+recognizer_registry:
+  recognizers:
+    # ===========================================================================
+    # PREDEFINED RECOGNIZERS (Built into Presidio)
+    # ===========================================================================
+    # These recognizers use Presidio's battle-tested patterns and logic.
+    # They are included here with context enhancement for better accuracy.
+    # ===========================================================================
+
+    # EMAIL ADDRESS DETECTION
+    # Detects email addresses with context awareness
+    - name: EmailRecognizer
+      supported_entity: EMAIL_ADDRESS
+      supported_languages:
+        - en
+      context:
+        - "email"
+        - "e-mail"
+        - "mail"
+        - "contact"
+        - "reach"
+        - "send"
+        - "from"
+        - "to"
+        - "cc"
+        - "bcc"
+
+    # PHONE NUMBER DETECTION
+    # Detects US and international phone numbers
+    - name: PhoneRecognizer
+      supported_entity: PHONE_NUMBER
+      supported_languages:
+        - en
+      context:
+        - "phone"
+        - "telephone"
+        - "cell"
+        - "mobile"
+        - "call"
+        - "contact"
+        - "number"
+        - "tel"
+        - "fax"
+
+  # CREDIT CARD DETECTION
+  # Detects major credit card numbers (Visa, Mastercard, Amex, etc.)
+    - name: CreditCardRecognizer
+      supported_entity: CREDIT_CARD
+      supported_languages:
+        - en
+      context:
+        - "credit"
+        - "card"
+        - "visa"
+        - "mastercard"
+        - "amex"
+        - "american express"
+        - "discover"
+        - "payment"
+        - "cc"
+        - "cvv"
+        - "expiry"
+
+  # US SOCIAL SECURITY NUMBER DETECTION
+  # Detects SSNs in format XXX-XX-XXXX or variations
+    - name: UsSsnRecognizer
+      supported_entity: US_SSN
+      supported_languages:
+        - en
+      context:
+        - "ssn"
+        - "social security"
+        - "social security number"
+        - "ss#"
+        - "ss #"
+
+  # IP ADDRESS DETECTION
+  # Detects IPv4 and IPv6 addresses
+    - name: IpRecognizer
+      supported_entity: IP_ADDRESS
+      supported_languages:
+        - en
+      context:
+        - "ip"
+        - "ip address"
+        - "ipv4"
+        - "ipv6"
+        - "address"
+        - "host"
+        - "server"
+        - "client"
+
+  # URL DETECTION
+  # Detects web URLs and URIs
+    - name: UrlRecognizer
+      supported_entity: URL
+      supported_languages:
+        - en
+      context:
+        - "url"
+        - "link"
+        - "website"
+        - "web"
+        - "http"
+        - "https"
+        - "uri"
+        - "href"
+
+  # IBAN (International Bank Account Number) DETECTION
+  # Detects European bank account numbers
+    - name: IbanRecognizer
+      supported_entity: IBAN_CODE
+      supported_languages:
+        - en
+      context:
+        - "iban"
+        - "international bank"
+        - "bank account"
+        - "account number"
+        - "swift"
+        - "bic"
+
+  # ===========================================================================
+  # CUSTOM RECOGNIZERS (Domain-Specific Patterns)
+  # ===========================================================================
+  # These are examples of custom PII recognizers for your domain.
+  # Uncomment and customize them based on your needs.
+  # ===========================================================================
+
+  # US BANK ACCOUNT NUMBER DETECTION
+  # Detects US routing numbers (9 digits) and account numbers (8-17 digits)
+    - name: UsBankAccountRecognizer
+      supported_entity: US_BANK_ACCOUNT
+      supported_languages:
+        - en
+      patterns:
+      # US Routing Number: 9 digits
+    - name: routing_number_pattern
+      regex: "\\b[0-9]{9}\\b"
+      score: 0.5
+      # US Account Number: 8-17 digits
+    - name: account_number_pattern
+      regex: "\\b[0-9]{8,17}\\b"
+      score: 0.5
+      context:
+        - "routing"
+        - "routing number"
+        - "account"
+        - "account number"
+        - "bank account"
+        - "checking"
+        - "savings"
+        - "aba"
+        - "ach"
+        - "wire"
+        - "direct deposit"
+
+  # ===========================================================================
+  # COMMENTED EXAMPLES - Uncomment and customize for your needs
+  # ===========================================================================
+
+  # # MONGODB OBJECTID DETECTION
+  # # Detects 24-character hexadecimal MongoDB ObjectIds
+  # # Note: You may want to allowlist _id fields instead of detecting as PII
+  # - name: MongoObjectIdRecognizer
+  #   supported_entity: MONGO_OBJECT_ID
+  #   supported_languages:
+  #     - en
+  #   patterns:
+  #     - name: objectid_pattern
+  #       regex: "\\b[0-9a-fA-F]{24}\\b"
+  #       score: 0.6
+  #   context:
+  #     - "objectid"
+  #     - "object id"
+  #     - "_id"
+  #     - "id"
+  #     - "identifier"
+  #     - "reference"
+
+  # # EMPLOYEE ID DETECTION
+  # # Example: Detects employee IDs in format EMP-12345 or E12345
+  # - name: EmployeeIdRecognizer
+  #   supported_entity: EMPLOYEE_ID
+  #   supported_languages:
+  #     - en
+  #   patterns:
+  #     - name: emp_prefix_pattern
+  #       regex: "\\bEMP-\\d{5,8}\\b"
+  #       score: 0.7
+  #     - name: emp_short_pattern
+  #       regex: "\\bE\\d{5,8}\\b"
+  #       score: 0.6
+  #   context:
+  #     - "employee"
+  #     - "employee id"
+  #     - "emp"
+  #     - "staff"
+  #     - "worker"
+  #     - "personnel"
+  #     - "badge"
+
+  # # TITLE DETECTION (using deny-list)
+  # # Detects professional titles that might be considered PII
+  # - name: TitleRecognizer
+  #   supported_entity: TITLE
+  #   supported_languages:
+  #     - en
+  #   deny_list:
+  #     - "Dr."
+  #     - "Mr."
+  #     - "Mrs."
+  #     - "Ms."
+  #     - "Miss"
+  #     - "PhD"
+  #     - "MD"
+  #     - "Esq"
+  #   context:
+  #     - "title"
+  #     - "name"
+  #     - "salutation"
+  #     - "prefix"
+
+  # # CUSTOM PATIENT ID (Healthcare Example)
+  # # Detects patient IDs in format PT-YYYYMMDD-XXXX
+  # - name: PatientIdRecognizer
+  #   supported_entity: PATIENT_ID
+  #   supported_languages:
+  #     - en
+  #   patterns:
+  #     - name: patient_id_pattern
+  #       regex: "\\bPT-\\d{8}-\\d{4}\\b"
+  #       score: 0.8
+  #   context:
+  #     - "patient"
+  #     - "patient id"
+  #     - "medical record"
+  #     - "mrn"
+  #     - "chart"
+
+  # # CUSTOM API KEY DETECTION
+  # # Detects API keys with common prefixes
+  # - name: ApiKeyRecognizer
+  #   supported_entity: API_KEY
+  #   supported_languages:
+  #     - en
+  #   patterns:
+  #     - name: api_key_pattern
+  #       regex: "\\b(api_key|apikey|api-key)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-]{20,})['\"]?"
+  #       score: 0.9
+  #   context:
+  #     - "api"
+  #     - "key"
+  #     - "token"
+  #     - "secret"
+  #     - "credential"
+  #     - "authentication"
+
+  # # CUSTOM LICENSE PLATE (US Format)
+  # # Detects US license plates (simplified pattern)
+  # - name: LicensePlateRecognizer
+  #   supported_entity: LICENSE_PLATE
+  #   supported_languages:
+  #     - en
+  #   patterns:
+  #     - name: license_plate_pattern
+  #       regex: "\\b[A-Z]{2,3}[-\\s]?\\d{3,4}\\b"
+  #       score: 0.6
+  #   context:
+  #     - "license"
+  #     - "plate"
+  #     - "vehicle"
+  #     - "registration"
+  #     - "car"
+
+# =============================================================================
+# USAGE NOTES
+# =============================================================================
+#
+# 1. Customizing for Your Domain:
+#    - Copy this file to your job config directory: config/{job}_presidio.yaml
+#    - Uncomment and modify the example recognizers
+#    - Add your own custom patterns based on your data
+#
+# 2. Regex Pattern Tips:
+#    - Use \\b for word boundaries to avoid partial matches
+#    - Test your regex patterns thoroughly
+#    - Start with lower scores and adjust based on false positives
+#    - Use context words to improve accuracy
+#
+# 3. Context Words:
+#    - Context words increase confidence when found near detected PII
+#    - Add domain-specific terminology
+#    - Include common field names from your MongoDB collections
+#
+# 4. Score Thresholds:
+#    - Pattern score: How confident the pattern match is (0.0-1.0)
+#    - Global threshold: Minimum score to report detection
+#    - Context words can boost the score
+#
+# 5. Performance Considerations:
+#    - Complex regex patterns can slow down scanning
+#    - Use specific patterns rather than broad ones
+#    - Consider using deny-lists for exact matches
+#
+# 6. Testing Your Configuration:
+#    - Run a small scan first to validate your patterns
+#    - Check for false positives in the scan results
+#    - Adjust scores and patterns as needed
+#    - Use the allowlist feature to exclude known safe fields
+#
+# 7. Language Support:
+#    - This default config supports English only
+#    - To add languages, install appropriate spaCy models
+#    - Update supported_languages and add model to nlp_configuration
+#
+# 8. NLP Model Selection:
+#    - en_core_web_lg: Large model, best accuracy, slower
+#    - en_core_web_md: Medium model, good balance
+#    - en_core_web_sm: Small model, faster but less accurate
+#    - Install with: python -m spacy download <model_name>
+#
+# =============================================================================
+# REFERENCES
+# =============================================================================
+#
+# - Presidio Documentation: https://microsoft.github.io/presidio/
+# - YAML Configuration Guide: https://microsoft.github.io/presidio/samples/python/no_code_config/
+# - Adding Custom Recognizers: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
+# - Supported Entity Types: https://microsoft.github.io/presidio/supported_entities/
+# - Regex Pattern Testing: https://regex101.com/
+#
+# =============================================================================

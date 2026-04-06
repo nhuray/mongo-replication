@@ -116,6 +116,31 @@ scan:
     #   - "*.id": Any field ending in "id" (typically foreign keys)
     # Add more patterns as needed for your data model
 
+    presidio_config: null
+    # Path to custom Presidio YAML configuration file
+    # Use this to define domain-specific PII recognizers without writing Python code
+    #
+    # When to use:
+    #   - Detect custom patterns (employee IDs, patient IDs, etc.)
+    #   - Add context words to improve accuracy
+    #   - Override default recognizers
+    #   - Configure different NLP models
+    #
+    # Path resolution (checked in order):
+    #   1. Absolute path (e.g., /path/to/presidio.yaml)
+    #   2. Relative to current working directory
+    #   3. Relative to config/ directory
+    #   4. Default: src/mongo_replication/config/presidio.yaml
+    #
+    # Example: "config/custom_presidio.yaml"
+    #
+    # See documentation:
+    #   - docs/configuration.md (examples and guidance)
+    #   - src/mongo_replication/config/presidio.yaml (default template)
+    #   - https://microsoft.github.io/presidio/samples/python/no_code_config/
+    #
+    # Set to null to use default Presidio configuration with built-in recognizers
+
 # =============================================================================
 # REPLICATION DEFAULTS
 # =============================================================================

@@ -133,7 +133,7 @@ def init_command(
     console.print()
 
     # Step 1: Source URI
-    print_step(1, 6, "Source Database Connection")
+    print_step(1, 8, "Source Database Connection")
     console.print()
 
     source_uri = questionary.text(
@@ -167,7 +167,7 @@ def init_command(
     print_success(f"Connected to source database: {source_db_name}")
 
     # Step 2: Destination URI
-    print_step(2, 6, "Destination Database Connection")
+    print_step(2, 8, "Destination Database Connection")
     console.print()
 
     dest_uri = questionary.text(
@@ -201,7 +201,7 @@ def init_command(
     print_success(f"Connected to destination database: {dest_db_name}")
 
     # Step 3: Collection Discovery
-    print_step(3, 6, "Collection Discovery")
+    print_step(3, 8, "Collection Discovery")
     console.print()
 
     # Get collections from source
@@ -302,7 +302,7 @@ def init_command(
         print_success("Will replicate all collections")
 
     # Step 4: PII Detection Settings
-    print_step(4, 6, "PII Detection Settings")
+    print_step(4, 8, "PII Detection Settings")
     console.print()
 
     enable_pii = questionary.confirm(
@@ -381,7 +381,7 @@ def init_command(
             entity_types = default_entity_types
 
         # Step 5: PII Anonymization Strategies
-        print_step(5, 6, "PII Anonymization Strategies")
+        print_step(5, 8, "PII Anonymization Strategies")
         console.print()
 
         console.print("[dim]Available strategies:[/dim]")
@@ -427,6 +427,84 @@ def init_command(
             # Use defaults
             print_success("Using default strategies")
 
+        # Step 6: Presidio Configuration (Optional)
+        print_step(6, 8, "Presidio Configuration (Optional)")
+        console.print()
+
+        console.print("[dim]Presidio allows custom PII recognizers via YAML configuration.[/dim]")
+        console.print("[dim]Use this to detect domain-specific PII patterns.[/dim]")
+        console.print()
+
+        use_custom_presidio = questionary.confirm(
+            "Use custom Presidio configuration?",
+            default=False,
+            style=custom_style,
+            instruction="(recommended for domain-specific PII patterns)",
+        ).ask()
+
+        presidio_config = None
+        if use_custom_presidio:
+            # Suggest default path
+            default_presidio_path = f"config/{job}_presidio.yaml"
+
+            presidio_path = questionary.text(
+                "Enter Presidio configuration file path:",
+                default=default_presidio_path,
+                style=custom_style,
+                instruction="(relative or absolute path)",
+            ).ask()
+
+            if presidio_path:
+                presidio_config = presidio_path
+                console.print()
+                console.print(
+                    f"[yellow]Note:[/yellow] Copy the default template to get started:\n"
+                    f"  src/mongo_replication/config/presidio.yaml → {presidio_config}"
+                )
+                console.print()
+                console.print("[dim]See docs/configuration.md for examples and guidance.[/dim]")
+            else:
+                print_warning("No path provided, using default Presidio configuration")
+        else:
+            print_success("Using default Presidio configuration")
+
+        # Step 7: Allowlist (Optional)
+        print_step(7, 8, "Field Allowlist (Optional)")
+        console.print()
+
+        console.print("[dim]Allowlist field patterns to exclude from PII detection.[/dim]")
+        console.print("[dim]Default allowlist: _id, meta.*, *.id[/dim]")
+        console.print()
+
+        use_allowlist = questionary.confirm(
+            "Customize field allowlist?",
+            default=False,
+            style=custom_style,
+        ).ask()
+
+        allowlist = ["_id", "meta.*", "*.id"]  # Default allowlist
+        if use_allowlist:
+            console.print()
+            console.print("[dim]Enter field patterns (one per line, empty line to finish):[/dim]")
+            allowlist = []
+            while True:
+                pattern = questionary.text(
+                    "Field pattern:",
+                    style=custom_style,
+                    instruction="(e.g., 'metadata.*' or '*.created_at', empty to finish)",
+                ).ask()
+                if not pattern:
+                    break
+                allowlist.append(pattern)
+
+            if not allowlist:
+                print_warning("No patterns provided, using default allowlist")
+                allowlist = ["_id", "meta.*", "*.id"]
+            else:
+                print_success(f"Allowlist configured with {len(allowlist)} patterns")
+        else:
+            print_success("Using default allowlist")
+
         # Create PII config
         pii_config = ScanPIIConfig(
             enabled=True,
@@ -435,11 +513,12 @@ def init_command(
             sample_size=sample_size,
             sample_strategy=sample_strategy,
             default_strategies=default_strategies,
-            allowlist=[],
+            allowlist=allowlist,
+            presidio_config=presidio_config,
         )
 
-    # Step 6: Save Configuration
-    print_step(6, 6, "Save Configuration")
+    # Step 8: Save Configuration
+    print_step(8, 8, "Save Configuration")
     console.print()
 
     # Determine output path

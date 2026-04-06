@@ -73,6 +73,30 @@ class ScanPIIConfig:
     allowlist: List[str] = field(default_factory=list)
     """Field patterns to exclude from PII detection (e.g., 'metadata.*', '*.created_at')."""
 
+    presidio_config: Optional[str] = None
+    """Path to Presidio YAML configuration file for custom PII recognizers.
+
+    This allows you to:
+    - Define custom PII recognizers using regex patterns or deny-lists
+    - Override default Presidio recognizers with custom settings
+    - Configure NLP models and language support
+    - Add domain-specific PII patterns (e.g., employee IDs, patient IDs)
+
+    Path resolution:
+    - Absolute paths: Used as-is (e.g., '/path/to/presidio.yaml')
+    - Relative paths: Resolved in this order:
+      1. Relative to current working directory
+      2. Relative to config/ directory
+      3. Default: src/mongo_replication/config/presidio.yaml
+
+    Examples:
+    - None: Use default Presidio configuration (built-in recognizers)
+    - "config/custom_presidio.yaml": Use custom config in config/ directory
+    - "/absolute/path/presidio.yaml": Use specific absolute path
+
+    See docs/configuration.md for detailed examples and guidance.
+    """
+
     def __post_init__(self):
         """Validate configuration."""
         if not 0.0 <= self.confidence_threshold <= 1.0:

@@ -374,23 +374,30 @@ def scan_command(
         default_sample_strategy = "stratified"
 
         # Use existing config values if available (preserves user customizations)
+        presidio_config = None
         if existing_config and existing_config.scan and existing_config.scan.pii:
             existing_pii = existing_config.scan.pii
             entity_types = existing_pii.entity_types
             strategies = existing_pii.default_strategies
             allowlist = existing_pii.allowlist
             sample_strategy = existing_pii.sample_strategy
+            presidio_config = existing_pii.presidio_config
         else:
             entity_types = default_entity_types
             strategies = default_strategies
             allowlist = default_allowlist
             sample_strategy = default_sample_strategy
+            presidio_config = None
 
         # Show entity type configuration
         if entity_types:
             print_info(f"Entity types: {', '.join(entity_types)} (from config)")
         else:
             print_info("Entity types: All types (default)")
+
+        # Show Presidio configuration if custom config is being used
+        if presidio_config:
+            print_info(f"Presidio config: {presidio_config}")
 
         console.print()
 
@@ -400,30 +407,38 @@ def scan_command(
             print_step(5, 6, "Analyze PII")
             print_info("This may take a few minutes (loading NLP models + analysis)...")
 
-            analyzer = PIIAnalysisEngine(
-                confidence_threshold=final_confidence,
-                language=final_language,
-                entity_types=entity_types
-                if entity_types
-                else None,  # Pass entity types from config
-                allowlist_fields=allowlist,
-            )
+            try:
+                analyzer = PIIAnalysisEngine(
+                    confidence_threshold=final_confidence,
+                    language=final_language,
+                    entity_types=entity_types
+                    if entity_types
+                    else None,  # Pass entity types from config
+                    allowlist_fields=allowlist,
+                    presidio_config=presidio_config,
+                )
 
-            for collection_name in progress_wrapper(
-                list(sampling_results.keys()),
-                desc="Analyzing",
-                unit="collection",
-            ):
-                sampling_result = sampling_results[collection_name]
-                analysis = analyzer.analyze_collection(sampling_result)
-                pii_analyses[collection_name] = analysis
+                for collection_name in progress_wrapper(
+                    list(sampling_results.keys()),
+                    desc="Analyzing",
+                    unit="collection",
+                ):
+                    sampling_result = sampling_results[collection_name]
+                    analysis = analyzer.analyze_collection(sampling_result)
+                    pii_analyses[collection_name] = analysis
 
-            total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
-            collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
+                total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
+                collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
 
-            print_success(
-                f"Found PII in {collections_with_pii} collections ({total_pii_fields} fields total)"
-            )
+                print_success(
+                    f"Found PII in {collections_with_pii} collections ({total_pii_fields} fields total)"
+                )
+            except FileNotFoundError as e:
+                print_error(f"Presidio configuration error: {e}")
+                raise typer.Exit(code=1)
+            except ValueError as e:
+                print_error(f"Invalid Presidio configuration: {e}")
+                raise typer.Exit(code=1)
 
         # Step 6: Generate configuration file
         print_step(6, 6, "Generate Configuration")
@@ -445,6 +460,7 @@ def scan_command(
                 default_strategies=strategies,
                 allowlist=allowlist,
                 sample_strategy=sample_strategy,
+                presidio_config=presidio_config,
             )
             if not no_pii
             else None,
