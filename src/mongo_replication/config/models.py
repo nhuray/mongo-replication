@@ -165,11 +165,13 @@ class DefaultsReplicationConfig:
     write_disposition: Literal["merge", "append", "replace"] = "merge"
     """Default write strategy: merge (upsert), append (insert), replace (drop/recreate)."""
 
-    cursor_field: Optional[str] = None
-    """Field to use for incremental loading (e.g., updated_at, _id)."""
+    cursor_fields: List[str] = field(
+        default_factory=lambda: ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
+    )
+    """List of field names to try as cursor fields for incremental loading (in priority order)."""
 
     fallback_cursor: str = "_id"
-    """Field to use when cursor_field is not set or doesn't exist."""
+    """Field to use when no cursor_fields match or doesn't exist."""
 
     initial_value: str = "2020-01-01T00:00:00Z"
     """Initial cursor value for first-time replication."""

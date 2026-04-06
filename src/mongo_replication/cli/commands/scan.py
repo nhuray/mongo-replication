@@ -7,7 +7,7 @@ Usage:
 
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import typer
 from typing_extensions import Annotated
@@ -37,6 +37,67 @@ from mongo_replication.config.models import (
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.jobs import JobManager
 from mongo_replication.engine.pii import CollectionSampler, PIIAnalysisEngine
+
+
+def detect_cursor_field(
+    collection_name: str, sample_document: Dict[str, Any], cursor_fields: List[str]
+) -> Optional[str]:
+    """
+    Detect which cursor field exists in a collection by examining a sample document.
+
+    Checks for field existence using case-insensitive matching and various case conventions.
+
+    Args:
+        collection_name: Name of the collection being scanned
+        sample_document: A sample document from the collection
+        cursor_fields: List of cursor field names to try (in priority order)
+
+    Returns:
+        The first matching field name found in the document, or None if no match
+
+    Examples:
+        >>> doc = {"updatedAt": "2024-01-01", "name": "test"}
+        >>> detect_cursor_field("users", doc, ["updated_at", "updatedAt"])
+        "updatedAt"
+
+        >>> doc = {"meta": {"updated_at": "2024-01-01"}}
+        >>> detect_cursor_field("users", doc, ["meta.updated_at", "updatedAt"])
+        "meta.updated_at"
+    """
+    if not sample_document:
+        return None
+
+    def get_nested_field(doc: Dict[str, Any], field_path: str) -> Any:
+        """Get a nested field value from a document using dot notation."""
+        parts = field_path.split(".")
+        current = doc
+
+        for part in parts:
+            if not isinstance(current, dict):
+                return None
+
+            # Try exact match first
+            if part in current:
+                current = current[part]
+                continue
+
+            # Try case-insensitive match
+            for key in current.keys():
+                if key.lower() == part.lower():
+                    current = current[key]
+                    break
+            else:
+                return None
+
+        return current
+
+    # Try each cursor field in priority order
+    for cursor_field in cursor_fields:
+        value = get_nested_field(sample_document, cursor_field)
+        if value is not None:
+            return cursor_field
+
+    return None
 
 
 def scan_command(
@@ -390,17 +451,39 @@ def scan_command(
         )
 
         # Build replication config from PII analysis
+        # Load system defaults first to get cursor_fields
+        system_defaults = load_defaults()
+        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
+        cursor_fields = replication_defaults_raw.get(
+            "cursor_fields", ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
+        )
+
         new_collection_configs = {}
         for collection_name in selected_collections:
             pii_config = {}
             if collection_name in pii_analyses:
                 pii_config = pii_analyses[collection_name].get_pii_config()
 
+            # Detect cursor field from sampled documents
+            detected_cursor_field = None
+            if collection_name in sampling_results:
+                sampling_result = sampling_results[collection_name]
+                if sampling_result.documents:
+                    # Use first document to detect cursor field
+                    sample_doc = sampling_result.documents[0]
+                    detected_cursor_field = detect_cursor_field(
+                        collection_name, sample_doc, cursor_fields
+                    )
+                    if detected_cursor_field:
+                        print_info(
+                            f"Detected cursor field '{detected_cursor_field}' for collection '{collection_name}'"
+                        )
+
             # Add collection to config (even if no PII fields)
             # This ensures all scanned collections get a replication config entry
             new_collection_configs[collection_name] = CollectionConfig(
                 name=collection_name,
-                cursor_field=None,  # Will use defaults
+                cursor_field=detected_cursor_field,  # Use detected field or None
                 write_disposition="merge",
                 primary_key="_id",
                 pii_fields=pii_config,
@@ -408,10 +491,6 @@ def scan_command(
 
         # Merge with existing collections if config exists
         merged_collections = {}
-
-        # Load system defaults
-        system_defaults = load_defaults()
-        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
 
         # Start with system defaults
         defaults = replication_defaults_raw.copy()

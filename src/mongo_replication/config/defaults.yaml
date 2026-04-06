@@ -149,13 +149,19 @@ replication:
     # -----------------------------
     # Controls how the tool tracks replication progress
 
-    cursor_field: null
-    # Field to use for incremental loading (e.g., updated_at, _id)
-    # null means use fallback_cursor
+    cursor_fields:
+      - "updated_at"
+      - "updatedAt"
+      - "meta.updated_at"
+      - "meta.updatedAt"
+    # List of field names to try as cursor fields for incremental loading
+    # The scan command will detect if any of these fields exist in collections
+    # (checking various case variations) and set cursor_field automatically
+    # Priority order: first match wins
 
     fallback_cursor: "_id"
-    # Field to use for incremental loading when cursor_field is not set
-    # or doesn't exist in the collection
+    # Field to use for incremental loading when no cursor_fields match
+    # or don't exist in the collection
 
     initial_value: "2020-01-01T00:00:00Z"
     # Initial cursor value for first-time replication
