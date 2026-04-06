@@ -484,9 +484,9 @@ def scan_command(
             detected_cursor_field = None
             if collection_name in sampling_results:
                 sampling_result = sampling_results[collection_name]
-                if sampling_result.documents:
+                if sampling_result.sample_docs:
                     # Use first document to detect cursor field
-                    sample_doc = sampling_result.documents[0]
+                    sample_doc = sampling_result.sample_docs[0]
                     detected_cursor_field = detect_cursor_field(
                         collection_name, sample_doc, cursor_fields
                     )
