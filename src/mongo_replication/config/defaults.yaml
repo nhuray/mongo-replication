@@ -1,5 +1,5 @@
 # MongoDB Replication Tool - Default Configuration
-# 
+#
 # This file defines all default values used by the replication tool.
 # These defaults are loaded first, then overridden by:
 #   1. Job-specific configuration files (e.g., config/qa_db_config.yaml)
@@ -114,88 +114,99 @@ scan:
 # =============================================================================
 
 replication:
-  # Collection Discovery & Filtering
-  # ---------------------------------
-  # Controls which collections are automatically discovered and replicated
-  
-  replicate_all: true
-  # If true, auto-discover all collections not explicitly configured
-  # If false, only replicate explicitly configured collections
-  
-  include_patterns: []
-  # List of regex patterns for collections to include
-  # Example: ["^user_", "^order_"]
-  # Empty list means include all collections
-  
-  exclude_patterns: []
-  # List of regex patterns for collections to exclude
-  # Example: ["^tmp_", "^test_", "_backup$"]
-  # Applied after include_patterns
-  
-  # Write Strategies
-  # ----------------
-  # Default write strategy for collections
-  
-  write_disposition: "merge"
-  # Options:
-  #   - "merge": Upsert based on primary_key (incremental updates)
-  #   - "append": Insert new documents only (fails on duplicates)
-  #   - "replace": Drop and recreate collection (full refresh)
-  
-  # Cursor & Incremental Loading
-  # -----------------------------
-  # Controls how the tool tracks replication progress
-  
-  fallback_cursor: "_id"
-  # Field to use for incremental loading when cursor_field is not set
-  # or doesn't exist in the collection
-  
-  initial_value: "2020-01-01T00:00:00Z"
-  # Initial cursor value for first-time replication
-  # Used when no previous state exists
-  
-  # Performance Settings
-  # --------------------
-  # Controls parallelism and batch processing
-  
-  max_parallel_collections: 5
-  # Maximum number of collections to replicate concurrently
-  # Higher values = faster but more resource intensive
-  # Recommended range: 3-10
-  
-  batch_size: 1000
-  # Number of documents to process in each batch
-  # Larger batches = fewer round trips but more memory
-  # Recommended range: 500-5000
-  
-  # Transformation Error Handling
-  # ------------------------------
-  # How to handle errors during field transformations
-  
-  transform_error_mode: "skip"
-  # Options:
-  #   - "skip": Log error and continue with the original value
-  #   - "fail": Raise exception and stop replication
-  
-  # State Management
-  # ----------------
-  # Configuration for replication state tracking
-  
-  state:
-    runs_collection: "_rep_runs"
-    # Collection name for storing job run history
-    # Each document represents one complete replication job run
-    
-    state_collection: "_rep_state"
-    # Collection name for storing per-collection replication state
-    # Each document represents the replication state for one collection
-    # Used for incremental loading (cursor tracking) and status monitoring
-  
+  # Default settings for all collections
+  # These can be overridden per collection in the collections section
+  defaults:
+    # Collection Discovery & Filtering
+    # ---------------------------------
+    # Controls which collections are automatically discovered and replicated
+
+    replicate_all: true
+    # If true, auto-discover all collections not explicitly configured
+    # If false, only replicate explicitly configured collections
+
+    include_patterns: []
+    # List of regex patterns for collections to include
+    # Example: ["^user_", "^order_"]
+    # Empty list means include all collections
+
+    exclude_patterns: []
+    # List of regex patterns for collections to exclude
+    # Example: ["^tmp_", "^test_", "_backup$"]
+    # Applied after include_patterns
+
+    # Write Strategies
+    # ----------------
+    # Default write strategy for collections
+
+    write_disposition: "merge"
+    # Options:
+    #   - "merge": Upsert based on primary_key (incremental updates)
+    #   - "append": Insert new documents only (fails on duplicates)
+    #   - "replace": Drop and recreate collection (full refresh)
+
+    # Cursor & Incremental Loading
+    # -----------------------------
+    # Controls how the tool tracks replication progress
+
+    cursor_field: null
+    # Field to use for incremental loading (e.g., updated_at, _id)
+    # null means use fallback_cursor
+
+    fallback_cursor: "_id"
+    # Field to use for incremental loading when cursor_field is not set
+    # or doesn't exist in the collection
+
+    initial_value: "2020-01-01T00:00:00Z"
+    # Initial cursor value for first-time replication
+    # Used when no previous state exists
+
+    # Performance Settings
+    # --------------------
+    # Controls parallelism and batch processing
+
+    max_parallel_collections: 5
+    # Maximum number of collections to replicate concurrently
+    # Higher values = faster but more resource intensive
+    # Recommended range: 3-10
+
+    batch_size: 1000
+    # Number of documents to process in each batch
+    # Larger batches = fewer round trips but more memory
+    # Recommended range: 500-5000
+
+    # Transformation Error Handling
+    # ------------------------------
+    # How to handle errors during field transformations
+
+    transform_error_mode: "skip"
+    # Options:
+    #   - "skip": Log error and continue with the original value
+    #   - "fail": Raise exception and stop replication
+
+    # State Management
+    # ----------------
+    # Configuration for replication state tracking
+
+    state:
+      runs_collection: "_rep_runs"
+      # Collection name for storing job run history
+      # Each document represents one complete replication job run
+
+      state_collection: "_rep_state"
+      # Collection name for storing per-collection replication state
+      # Each document represents the replication state for one collection
+      # Used for incremental loading (cursor tracking) and status monitoring
+
+  # Collection-specific configuration
+  # Override defaults and specify PII fields for each collection
+  collections: {}
+
   # =============================================================================
   # SCHEMA (Optional)
   # =============================================================================
   # Define parent-child relationships between collections for cascading replication.
-  # 
+  #
   # When using the --select option, the tool will:
   #   1. Replicate records from the root collection matching your filter
   #   2. Find related records in child collections based on relationships
@@ -207,7 +218,7 @@ replication:
   #       child: orders
   #       parent_field: _id           # Field in customers (primary key)
   #       child_field: customerId     # Field in orders (foreign key)
-  #     
+  #
   #     - parent: orders
   #       child: order_items
   #       parent_field: _id           # Field in orders (primary key)
@@ -226,9 +237,11 @@ replication:
   #   - Each child can only have ONE parent collection
   #   - Multiple levels of cascading are supported
   #   - All IDs must be valid ObjectIds (24-character hex strings)
-#   - With --select, all collections use "merge" (upsert) write strategy
-#   - Incremental cursor-based replication is disabled with --select
-#   - Collections with zero matching records are skipped
+  #   - With --select, all collections use "merge" (upsert) write strategy
+  #   - Incremental cursor-based replication is disabled with --select
+  #   - Collections with zero matching records are skipped
+
+  schema: []
 
 # =============================================================================
 # OVERRIDE EXAMPLES

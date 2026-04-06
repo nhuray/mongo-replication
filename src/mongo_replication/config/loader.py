@@ -776,6 +776,18 @@ def save_config(config: Config, output_path: Path) -> None:
 
             rep_data["collections"][coll_name] = coll_data
 
+        # Add schema section if it exists
+        if config.replication.schema:
+            rep_data["schema"] = [
+                {
+                    "parent": rel.parent,
+                    "child": rel.child,
+                    "parent_field": rel.parent_field,
+                    "child_field": rel.child_field,
+                }
+                for rel in config.replication.schema
+            ]
+
         data["replication"] = rep_data
 
     # Write to file with comments

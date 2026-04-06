@@ -23,7 +23,7 @@ from mongo_replication.cli.utils.output import (
     print_step,
     console,
 )
-from mongo_replication.config.loader import save_config
+from mongo_replication.config.loader import save_config, load_defaults, ReplicationConfig
 from mongo_replication.config.models import ScanConfig, ScanDiscoveryConfig, ScanPIIConfig, Config
 
 # Custom style for questionary
@@ -466,7 +466,16 @@ def init_command(
         pii=pii_config,
     )
 
-    rep_config = Config(scan=scan_config)
+    # Load system defaults for replication
+    system_defaults = load_defaults()
+    replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
+
+    # Build replication config with defaults
+    replication_config = ReplicationConfig(
+        defaults=replication_defaults_raw, collections={}, schema=[]
+    )
+
+    rep_config = Config(scan=scan_config, replication=replication_config)
 
     # Save config
     try:

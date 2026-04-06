@@ -25,7 +25,12 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.loader import save_config, CollectionConfig, ReplicationConfig
+from mongo_replication.config.loader import (
+    save_config,
+    CollectionConfig,
+    ReplicationConfig,
+    load_defaults,
+)
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
@@ -394,31 +399,31 @@ def scan_command(
             if collection_name in pii_analyses:
                 pii_config = pii_analyses[collection_name].get_pii_config()
 
-            # Only add collection if it has PII fields to configure
-            if pii_config:
-                new_collection_configs[collection_name] = CollectionConfig(
-                    name=collection_name,
-                    cursor_field=None,  # Will use defaults
-                    write_disposition="merge",
-                    primary_key="_id",
-                    pii_fields=pii_config,
-                )
+            # Add collection to config (even if no PII fields)
+            # This ensures all scanned collections get a replication config entry
+            new_collection_configs[collection_name] = CollectionConfig(
+                name=collection_name,
+                cursor_field=None,  # Will use defaults
+                write_disposition="merge",
+                primary_key="_id",
+                pii_fields=pii_config,
+            )
 
         # Merge with existing collections if config exists
         merged_collections = {}
-        defaults = {
-            "replicate_all": True,
-            "batch_size": 1000,
-            "max_parallel_collections": 5,
-            "cursor_field": None,  # Will auto-detect
-            "write_disposition": "merge",
-        }
+
+        # Load system defaults
+        system_defaults = load_defaults()
+        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
+
+        # Start with system defaults
+        defaults = replication_defaults_raw.copy()
 
         if existing_config and existing_config.replication:
             # Start with existing collections
             merged_collections = dict(existing_config.replication.collections)
-            # Keep existing defaults
-            defaults = existing_config.replication.defaults
+            # Merge existing defaults with system defaults (existing takes precedence)
+            defaults = {**replication_defaults_raw, **existing_config.replication.defaults}
 
             # Update/add newly scanned collections
             for coll_name, coll_config in new_collection_configs.items():
