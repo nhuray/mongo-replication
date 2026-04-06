@@ -1,34 +1,44 @@
 default_language_version:
-    python: python3.10
+  python: python3.10
 
-default_stages: [ commit, push ]
+default_stages: [ pre-commit, pre-push ]
 
 repos:
-    # Common Hooks
-    -   repo: https://github.com/pre-commit/pre-commit-hooks
-        rev: v6.0.0
-        hooks:
-            -   id: check-merge-conflict
-            -   id: trailing-whitespace
-            -   id: end-of-file-fixer
-            -   id: check-added-large-files
-                args: [ '--maxkb=25000' ]
-            -   id: check-case-conflict
-            -   id: check-docstring-first
-            -   id: check-ast
-            -   id: check-yaml
-            -   id: check-json
+  # Common Hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: [ '--maxkb=25000' ]
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-ast
+      - id: check-yaml
+      - id: check-json
 
-    # Formatter (black)
-    -   repo: https://github.com/ambv/black
-        rev: 26.3.1
-        hooks:
-            -   id: black
-                name: Format python code
-                language_version: python3.10
+  # Lock uv
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.11.3
+    hooks:
+      - id: uv-lock
 
-    # Linter (ruff)
-    -   repo: https://github.com/charliermarsh/ruff-pre-commit
-        rev: v0.15.9
-        hooks:
-            -   id: ruff
+  # Linter (ruff)
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+        name: Lint python code
+        language_version: python3.10
+
+  # Formatter (ruff)
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.15.9
+    hooks:
+      - id: ruff-format
+        name: Format python code
+        language_version: python3.10
