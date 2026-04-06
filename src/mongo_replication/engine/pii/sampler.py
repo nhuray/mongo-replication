@@ -89,7 +89,7 @@ class CollectionSampler:
         
         # Small collection - get all documents
         if total_docs == 0:
-            logger.info(f"   ⚠️  Empty collection - no samples")
+            logger.info("   ⚠️  Empty collection - no samples")
             return SamplingResult(
                 collection_name=collection_name,
                 total_documents=0,
@@ -124,7 +124,7 @@ class CollectionSampler:
             )
         
         # Fallback to random sampling
-        logger.info(f"   🎲 Using random sampling (no date field found)")
+        logger.info("   🎲 Using random sampling (no date field found)")
         docs = self._random_sample(collection)
         return SamplingResult(
             collection_name=collection_name,

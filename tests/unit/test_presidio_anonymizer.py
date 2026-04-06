@@ -545,21 +545,21 @@ class TestSmartRedaction:
         anonymizer = PresidioAnonymizer()
         
         # SSN detection
-        assert anonymizer._is_ssn_format("123-45-6789") == True
-        assert anonymizer._is_ssn_format("123456789") == True
-        assert anonymizer._is_ssn_format("12-345-6789") == False
+        assert anonymizer._is_ssn_format("123-45-6789")
+        assert anonymizer._is_ssn_format("123456789")
+        assert anonymizer._is_ssn_format("12-345-6789")
         
         # Phone detection
-        assert anonymizer._is_phone_format("555-123-4567") == True
-        assert anonymizer._is_phone_format("(555) 123-4567") == True
-        assert anonymizer._is_phone_format("5551234567") == True
-        assert anonymizer._is_phone_format("123") == False
+        assert anonymizer._is_phone_format("555-123-4567")
+        assert anonymizer._is_phone_format("(555) 123-4567")
+        assert anonymizer._is_phone_format("5551234567")
+        assert anonymizer._is_phone_format("123")
         
         # IP detection
-        assert anonymizer._is_ip_format("192.168.1.1") == True
-        assert anonymizer._is_ip_format("10.0.0.255") == True
-        assert anonymizer._is_ip_format("999.999.999.999") == True  # Format-wise valid
-        assert anonymizer._is_ip_format("192.168.1") == False
+        assert anonymizer._is_ip_format("192.168.1.1")
+        assert anonymizer._is_ip_format("10.0.0.255")
+        assert anonymizer._is_ip_format("999.999.999.999")   # Format-wise valid
+        assert anonymizer._is_ip_format("192.168.1")
     
     def test_end_to_end_redaction(self):
         """Test end-to-end redaction with real PII."""

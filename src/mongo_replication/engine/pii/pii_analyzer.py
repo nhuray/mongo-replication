@@ -129,7 +129,7 @@ class PIIAnalysisEngine:
         sample_docs = sampling_result.sample_docs
         
         if not sample_docs:
-            logger.info(f"   ⚠️  No samples to analyze")
+            logger.info("   ⚠️  No samples to analyze")
             return CollectionPIIAnalysis(
                 collection_name=collection_name,
                 total_samples=0,
@@ -246,7 +246,7 @@ class PIIAnalysisEngine:
                         f"   ✅ Found PII in {analysis.pii_field_count} fields"
                     )
                 else:
-                    logger.info(f"   ℹ️  No PII detected")
+                    logger.info("   ℹ️  No PII detected")
                     
             except Exception as e:
                 logger.error(f"   ❌ Analysis failed: {e}")

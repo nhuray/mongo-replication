@@ -253,7 +253,7 @@ class IndexManager:
             descriptions.append("compound")
         
         # Check for special index types (text, geospatial, hashed)
-        for field, index_type in index_info.keys:
+        for _, index_type in index_info.keys:
             if index_type == 'text':
                 descriptions.append("text")
                 break

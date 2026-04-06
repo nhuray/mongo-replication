@@ -488,12 +488,12 @@ def init_command(
         console.print(f"  • Exclude patterns: {len(exclude_patterns)}")
     
     if pii_config:
-        console.print(f"  • PII detection: [green]Enabled[/green]")
+        console.print("  • PII detection: [green]Enabled[/green]")
         console.print(f"    - Confidence: {pii_config.confidence_threshold}")
         console.print(f"    - Sample size: {pii_config.sample_size}")
         console.print(f"    - Entity types: {len(pii_config.entity_types)}")
     else:
-        console.print(f"  • PII detection: [yellow]Disabled[/yellow]")
+        console.print("  • PII detection: [yellow]Disabled[/yellow]")
     
     console.print()
     console.rule(style="green")
@@ -508,12 +508,12 @@ def init_command(
     console.print(f"     [dim]export REP_{job.upper()}_DESTINATION_URI=\"{dest_uri}\"[/dim]")
     console.print(f"     [dim]export REP_{job.upper()}_CONFIG_PATH=\"{output}\"[/dim]")
     console.print()
-    console.print(f"  2. Run scan to analyze collections:")
+    console.print("  2. Run scan to analyze collections:")
     console.print(f"     [dim]mongo-replication scan {job}[/dim]")
     console.print()
-    console.print(f"  3. Review PII report and update config as needed:")
+    console.print("  3. Review PII report and update config as needed:")
     console.print(f"     [dim]cat config/{job}_pii_report.md[/dim]")
     console.print()
-    console.print(f"  4. Run replication:")
+    console.print("  4. Run replication:")
     console.print(f"     [dim]mongo-replication run {job}[/dim]")
     console.print()

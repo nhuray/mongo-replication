@@ -42,10 +42,8 @@ def _summarize_bulk_write_error(error: BulkWriteError, collection_name: str) -> 
     
     n_inserted = details.get('nInserted', 0)
     n_upserted = details.get('nUpserted', 0)
-    n_matched = details.get('nMatched', 0)
     n_modified = details.get('nModified', 0)
-    n_removed = details.get('nRemoved', 0)
-    
+
     error_summary = []
     
     # Regex to remove document data from error messages
@@ -476,7 +474,7 @@ class CollectionReplicator:
         ]
         
         try:
-            result = self.dest.bulk_write(operations, ordered=False)
+            self.dest.bulk_write(operations, ordered=False)
             # Return number of documents processed (batch size)
             # Note: modified_count can be 0 if data is identical, so we count operations
             return len(documents)

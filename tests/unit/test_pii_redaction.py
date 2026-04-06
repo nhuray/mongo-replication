@@ -1,6 +1,5 @@
 """Tests for PII redaction with array field support."""
 
-import pytest
 from mongo_replication.engine.pii import PIIRedactor
 
 

@@ -1,6 +1,6 @@
 """Tree visualization for cascade replication."""
 
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 from rich.tree import Tree
 from rich.text import Text
 
@@ -155,7 +155,7 @@ class CascadeTreeBuilder:
             elif collection in failed:
                 icon = "❌"
                 label = Text(f"{icon} {collection} ", style="red bold")
-                label.append(f"(failed)", style="red")
+                label.append("(failed)", style="red")
             elif collection in skipped:
                 icon = "⊘"
                 label = Text(f"{icon} {collection} ", style="dim")

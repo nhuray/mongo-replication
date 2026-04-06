@@ -273,8 +273,8 @@ def run_command(
                 # Check if schema (relationships) are defined
                 if not replication_config.schema:
                     print_error(
-                        f"No schema defined in config. "
-                        f"Cascade replication requires a 'replication.schema' section."
+                        "No schema defined in config. "
+                        "Cascade replication requires a 'replication.schema' section."
                     )
                     print_info(f"See config file: {config_file}")
                     raise typer.Exit(code=1)
@@ -573,7 +573,7 @@ def run_command(
                 if total_collections > 0:
                     table.add_row(
                         "📊",
-                        f"[bold]Overall Progress[/bold]",
+                        "[bold]Overall Progress[/bold]",
                         f"{total_processed}/{total_collections} collections"
                     )
                     table.add_row("", "", "")  # Spacer

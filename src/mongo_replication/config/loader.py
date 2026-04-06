@@ -627,9 +627,9 @@ def _write_yaml_with_comments(data: Dict[str, Any], file_path: Path) -> None:
             for rel in data["relationships"]:
                 f.write(f"  - parent: {rel['parent']}\n")
                 f.write(f"    child: {rel['child']}\n")
-                f.write(f"    # Field in parent collection (usually _id)\n")
+                f.write("    # Field in parent collection (usually _id)\n")
                 f.write(f"    parent_field: {rel['parent_field']}\n")
-                f.write(f"    # Field in child that references parent\n")
+                f.write("    # Field in child that references parent\n")
                 f.write(f"    child_field: {rel['child_field']}\n")
                 f.write("\n")
 

@@ -85,7 +85,8 @@ class StateManager:
             # Drop old indexes if they exist (from previous schema)
             try:
                 self.state_collection.drop_index("collection_name_unique")
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to drop old collection_name_unique index: {e}")
                 pass  # Index doesn't exist, that's fine
             
             # Runs collection indexes

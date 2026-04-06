@@ -1,7 +1,7 @@
 """Unit tests for cascade replication feature."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 from bson import ObjectId
 
 from mongo_replication.config.models import RelationshipConfig

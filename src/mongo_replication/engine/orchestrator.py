@@ -12,9 +12,8 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional
 
-from pymongo.database import Database
 
 from mongo_replication.config import CollectionConfig, ReplicationConfig
 from mongo_replication.engine.connection import ConnectionManager

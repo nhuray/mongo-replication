@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from mimesis import Person, Address
 from presidio_anonymizer import AnonymizerEngine
-from presidio_anonymizer.entities import OperatorConfig
 
 logger = logging.getLogger(__name__)
 

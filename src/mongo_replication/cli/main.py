@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 import typer
 from rich.console import Console
-from typing_extensions import Annotated
+from mongo_replication.cli.commands import init, scan, run
 
 # Load environment variables from .env file if it exists
 try:
@@ -43,9 +43,6 @@ def main():
     """
     pass
 
-
-# Import commands after app is created to avoid circular imports
-from mongo_replication.cli.commands import init, scan, run
 
 app.command(name="init")(init.init_command)
 app.command(name="scan")(scan.scan_command)

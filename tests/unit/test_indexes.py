@@ -1,7 +1,6 @@
 """Unit tests for IndexManager."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from pymongo.errors import OperationFailure
 
 from mongo_replication.engine.indexes import IndexInfo, IndexManager

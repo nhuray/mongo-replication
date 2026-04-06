@@ -1,8 +1,6 @@
 """Tests for the init command."""
 
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from pymongo.errors import ConnectionFailure
 
 from mongo_replication.cli.commands.init import validate_connection, get_collections_from_source

@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Set
 from pymongo.database import Database
 from bson import ObjectId
 
-from mongo_replication.engine.relationships import RelationshipGraph, Relationship
+from mongo_replication.engine.relationships import RelationshipGraph
 
 logger = logging.getLogger(__name__)
 

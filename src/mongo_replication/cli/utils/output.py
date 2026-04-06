@@ -4,7 +4,6 @@ Utilities for colored console output using rich.
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
 
 console = Console()
 
