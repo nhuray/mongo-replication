@@ -8,6 +8,9 @@ Command-line interface for MongoDB replication with PII detection and anonymizat
 # Install
 pip install -e .
 
+# Initialize a new job (interactive wizard)
+mongorep init prod
+
 # Scan collections and detect PII
 mongorep scan prod --sample-size 1000
 
@@ -18,6 +21,53 @@ mongorep run prod
 ---
 
 ## Commands
+
+### `mongorep init` - Initialize New Job Configuration
+
+Initialize a new replication job with an interactive wizard that guides you through the setup process.
+
+**Usage:**
+```bash
+mongorep init <job> [OPTIONS]
+```
+
+**Arguments:**
+- `job` - Job ID to initialize (e.g., 'prod', 'staging', 'backup')
+
+**Options:**
+- `--output, -o PATH` - Output config file path (default: `config/<job>_config.yaml`)
+
+**Examples:**
+```bash
+# Basic initialization
+mongorep init prod
+
+# Custom output location
+mongorep init prod --output /path/to/custom_config.yaml
+```
+
+**What the wizard does:**
+1. **Prompt for source MongoDB URI** - Enter source database connection string
+2. **Validate source connection** - Test connectivity to source database
+3. **Prompt for destination MongoDB URI** - Enter destination database connection string
+4. **Validate destination connection** - Test connectivity to destination database
+5. **Configure collection discovery** - Set include/exclude patterns for collections
+6. **Set up PII detection** - Configure confidence threshold, entity types, and sample size
+7. **Select anonymization strategies** - Choose how to handle each PII entity type (fake, hash, redact, etc.)
+8. **Choose collections to replicate** - Select all, use patterns, or manually pick collections
+9. **Generate configuration file** - Create config file at specified path
+10. **Display environment variables** - Show environment variables to add to `.env` file
+
+**Output:**
+- Configuration file: `config/<job>_config.yaml`
+- Environment variable template (displayed in console)
+
+**Next steps after `init`:**
+- Run `mongorep scan <job>` to analyze collections and detect PII
+- Run `mongorep run <job>` to start replication
+- Edit the generated config file to fine-tune settings
+
+---
 
 ### `mongorep scan` - Discover Collections & Analyze PII
 
@@ -88,6 +138,8 @@ mongorep run <job> [OPTIONS]
 - `--dry-run` - Preview what would be replicated without executing
 - `--parallel, -p N` - Maximum number of parallel collections (default: 5)
 - `--batch-size, -b N` - Batch size for document processing
+- `--ids TEXT` - Cascade replication from specific document IDs (format: `collection=id1,id2,id3`)
+- `--query TEXT` - Cascade replication from MongoDB query (format: `collection='{"field": "value"}'`)
 
 **Examples:**
 ```bash
@@ -105,7 +157,25 @@ mongorep run prod --interactive
 
 # High-performance replication
 mongorep run prod --parallel 10 --batch-size 2000
+
+# Cascade replication by specific IDs
+mongorep run prod --ids customers=507f1f77bcf86cd799439011
+
+# Cascade replication by query
+mongorep run prod --query customers='{"plan": "Basic", "status": "active"}'
+
+# Multiple document IDs
+mongorep run prod --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
 ```
+
+**Cascade Replication:**
+When using `--ids` or `--query`, the tool will:
+1. Find documents in the root collection matching your filter
+2. Find related documents in child collections based on defined relationships (see schema configuration)
+3. Cascade through the entire relationship chain
+4. Replicate all matching documents
+
+Note: `--ids` and `--query` cannot be used together. Both are mutually exclusive with `--collections` and `--interactive`.
 
 ---
 
@@ -204,16 +274,50 @@ replication:
 ```
 
 **PII Anonymization Strategies:**
-- `fake` - Replace with realistic fake data (via Faker library)
+- `fake` - Replace with realistic fake data (via Mimesis library)
 - `hash` - One-way hash (consistent, can't reverse)
-- `redact` - Replace with `***REDACTED***`
-- `mask` - Partial masking (e.g., `***-**-1234`)
+- `redact` - Smart format-preserving redaction
+- `mask` - Replace with asterisks
+- `null` - Replace with null/None
+
+**Schema Configuration (for cascade replication):**
+
+```yaml
+replication:
+  schema:
+    - parent: customers
+      child: orders
+      parent_field: _id
+      child_field: customer_id
+
+    - parent: orders
+      child: order_items
+      parent_field: _id
+      child_field: order_id
+```
+
+Define parent-child relationships for cascade replication. Use with `--ids` or `--query` options to replicate related documents across collections.
 
 ---
 
 ## Typical Workflow
 
-### 1. Set up environment variables
+### 1. Initialize a new job (Recommended)
+
+Run the interactive wizard to set up your job:
+
+```bash
+mongorep init prod
+```
+
+The wizard will:
+- Prompt for source and destination MongoDB URIs
+- Validate connections
+- Configure collection discovery and PII detection settings
+- Generate configuration file
+- Display environment variables to add to `.env`
+
+**OR manually set up environment variables:**
 
 Create a `.env` file or export variables:
 
@@ -224,15 +328,19 @@ export MONGOREP_PROD_DESTINATION_URI=mongodb://localhost:27017/analytics_db
 export MONGOREP_PROD_CONFIG_PATH=config/prod_config.yaml
 ```
 
-### 2. Scan for collections and PII
+### 2. Scan for collections and PII (Optional)
+
+If you want to update the configuration with automatic PII detection:
 
 ```bash
 mongorep scan prod --sample-size 1000 --confidence 0.85
 ```
 
 This generates:
-- `config/prod_config.yaml` - Configuration file
+- `config/prod_config.yaml` - Configuration file (updated)
 - `config/prod_pii_report.md` - Detailed PII analysis report
+
+**Note:** If you used `mongorep init`, a basic configuration is already created. The `scan` command will enhance it with PII detection results.
 
 ### 3. Review and adjust configuration
 
@@ -331,6 +439,52 @@ Color-coded output with:
 ---
 
 ## Advanced Usage
+
+### Cascade Replication
+
+Replicate related documents across collections based on defined relationships.
+
+**Define relationships in configuration:**
+
+```yaml
+replication:
+  schema:
+    - parent: customers
+      child: orders
+      parent_field: _id
+      child_field: customer_id
+
+    - parent: orders
+      child: order_items
+      parent_field: _id
+      child_field: order_id
+```
+
+**Replicate by specific IDs:**
+
+```bash
+# Replicate specific customers and all related orders, order_items
+mongorep run prod --ids customers=507f1f77bcf86cd799439011
+
+# Multiple IDs
+mongorep run prod --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+```
+
+**Replicate by query:**
+
+```bash
+# Replicate customers matching query and all related data
+mongorep run prod --query customers='{"plan": "Basic"}'
+
+# Complex queries
+mongorep run prod --query customers='{"status": "active", "createdAt": {"$gte": "2024-01-01"}}'
+```
+
+The tool will:
+1. Find documents in root collection matching filter
+2. Find related documents in child collections
+3. Cascade through entire relationship chain
+4. Replicate all matching documents
 
 ### Collection Filtering
 
