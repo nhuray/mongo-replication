@@ -9,23 +9,23 @@ Command-line interface for MongoDB replication with PII detection and anonymizat
 pip install -e .
 
 # Scan collections and detect PII
-rep scan prod --sample-size 1000
+mongorepscan prod --sample-size 1000
 
 # Run replication
-rep run prod
+mongoreprun prod
 ```
 
 ---
 
 ## Commands
 
-### `rep scan` - Discover Collections & Analyze PII
+### `mongorepscan` - Discover Collections & Analyze PII
 
 Scan a MongoDB database to discover collections and analyze for PII (Personally Identifiable Information).
 
 **Usage:**
 ```bash
-rep scan <job> [OPTIONS]
+mongorepscan <job> [OPTIONS]
 ```
 
 **Arguments:**
@@ -43,25 +43,25 @@ rep scan <job> [OPTIONS]
 **Examples:**
 ```bash
 # Basic scan
-rep scan prod
+mongorepscan prod
 
 # Scan specific collections only
-rep scan prod --collections users,orders,customers
+mongorepscan prod --collections users,orders,customers
 
 # High-accuracy scan with more samples
-rep scan prod --sample-size 2000 --confidence 0.9
+mongorepscan prod --sample-size 2000 --confidence 0.9
 
 # Interactive collection selection
-rep scan prod --interactive
+mongorepscan prod --interactive
 
 # Skip PII analysis (fast collection discovery only)
-rep scan prod --no-pii
+mongorepscan prod --no-pii
 
 # Custom output location
-rep scan prod --output configs/prod_full_config.yaml
+mongorepscan prod --output configs/prod_full_config.yaml
 
 # French language PII detection
-rep scan prod_fr --language fr
+mongorepscan prod_fr --language fr
 ```
 
 **Output:**
@@ -70,13 +70,13 @@ rep scan prod_fr --language fr
 
 ---
 
-### `rep run` - Execute Replication
+### `mongoreprun` - Execute Replication
 
 Execute replication job from source to destination MongoDB.
 
 **Usage:**
 ```bash
-rep run <job> [OPTIONS]
+mongoreprun <job> [OPTIONS]
 ```
 
 **Arguments:**
@@ -92,19 +92,19 @@ rep run <job> [OPTIONS]
 **Examples:**
 ```bash
 # Basic replication
-rep run prod
+mongoreprun prod
 
 # Replicate specific collections only
-rep run prod --collections users,orders
+mongoreprun prod --collections users,orders
 
 # Dry run to preview
-rep run prod --dry-run
+mongoreprun prod --dry-run
 
 # Interactive collection selection
-rep run prod --interactive
+mongoreprun prod --interactive
 
 # High-performance replication
-rep run prod --parallel 10 --batch-size 2000
+mongoreprun prod --parallel 10 --batch-size 2000
 ```
 
 ---
@@ -161,7 +161,7 @@ scan:
     exclude_patterns:
       - "^system\\."
       - "^_dlt_.*"
-  
+
   # PII detection settings
   pii:
     enabled: true
@@ -190,7 +190,7 @@ replication:
     batch_size: 1000
     max_parallel_collections: 5
     write_disposition: merge
-  
+
   # Per-collection configuration
   collections:
     users:
@@ -227,7 +227,7 @@ export REP_PROD_CONFIG_PATH=config/prod_config.yaml
 ### 2. Scan for collections and PII
 
 ```bash
-rep scan prod --sample-size 1000 --confidence 0.85
+mongorepscan prod --sample-size 1000 --confidence 0.85
 ```
 
 This generates:
@@ -247,13 +247,13 @@ vim config/prod_config.yaml
 ### 4. Test with dry-run
 
 ```bash
-rep run prod --dry-run
+mongoreprun prod --dry-run
 ```
 
 ### 5. Execute replication
 
 ```bash
-rep run prod
+mongoreprun prod
 ```
 
 ---
@@ -276,11 +276,11 @@ REP_PROD_TO_BACKUP_DESTINATION_URI=mongodb://backup:27017/backup_db
 REP_PROD_TO_BACKUP_CONFIG_PATH=config/prod_to_backup.yaml
 
 # Run them
-rep scan prod_to_analytics
-rep run prod_to_analytics
+mongorepscan prod_to_analytics
+mongoreprun prod_to_analytics
 
-rep scan prod_to_backup
-rep run prod_to_backup
+mongorepscan prod_to_backup
+mongoreprun prod_to_backup
 ```
 
 ---
@@ -292,8 +292,8 @@ rep run prod_to_backup
 Use `--interactive` to select collections with a checkbox UI:
 
 ```bash
-rep scan prod --interactive
-rep run prod --interactive
+mongorepscan prod --interactive
+mongoreprun prod --interactive
 ```
 
 Navigate with arrow keys, select with Space, confirm with Enter.
@@ -365,10 +365,10 @@ Control parallelism for performance tuning:
 
 ```bash
 # More parallel workers (faster, more memory)
-rep run prod --parallel 10
+mongoreprun prod --parallel 10
 
 # Fewer parallel workers (slower, less memory)
-rep run prod --parallel 2
+mongoreprun prod --parallel 2
 ```
 
 ### Batch Size Tuning
@@ -377,10 +377,10 @@ Adjust batch size based on document size:
 
 ```bash
 # Large batches for small documents
-rep run prod --batch-size 5000
+mongoreprun prod --batch-size 5000
 
 # Small batches for large documents
-rep run prod --batch-size 100
+mongoreprun prod --batch-size 100
 ```
 
 ---
@@ -403,10 +403,10 @@ export REP_PROD_SOURCE_URI=mongodb://...
 
 ```bash
 ✗ Config file not found: config/prod_config.yaml
-ℹ Run 'rep scan prod' to generate the config file.
+ℹ Run 'mongorepscan prod' to generate the config file.
 ```
 
-**Solution:** Run `rep scan prod` first or create the config manually.
+**Solution:** Run `mongorepscan prod` first or create the config manually.
 
 ### No collections selected (interactive mode)
 
@@ -422,7 +422,7 @@ export REP_PROD_SOURCE_URI=mongodb://...
 ✗ Failed to connect to MongoDB
 ```
 
-**Solution:** 
+**Solution:**
 - Check MongoDB URI is correct
 - Ensure MongoDB is running
 - Verify network connectivity
@@ -434,11 +434,11 @@ export REP_PROD_SOURCE_URI=mongodb://...
 
 ```bash
 # General help
-rep --help
+mongorep--help
 
 # Command-specific help
-rep scan --help
-rep run --help
+mongorepscan --help
+mongoreprun --help
 ```
 
 For more information:

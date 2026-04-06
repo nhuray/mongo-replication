@@ -39,7 +39,7 @@ uv sync
 ### 1. Initialize a New Job
 
 ```bash
-rep init my_job
+mongorepinit my_job
 ```
 
 This creates:
@@ -62,26 +62,26 @@ REP_MY_JOB_ENABLED=true
 Auto-discover collections and generate configuration:
 
 ```bash
-rep scan my_job
+mongorepscan my_job
 ```
 
 ### 4. Run Replication
 
 ```bash
 # Replicate all configured collections
-rep run my_job
+mongoreprun my_job
 
 # Replicate specific collections
-rep run my_job --collections users,orders
+mongoreprun my_job --collections users,orders
 
 # Cascade replication from a root document
-rep run my_job --select customers=507f1f77bcf86cd799439011
+mongoreprun my_job --select customers=507f1f77bcf86cd799439011
 
 # Interactive mode
-rep run my_job --interactive
+mongoreprun my_job --interactive
 
 # Dry run (preview without executing)
-rep run my_job --dry-run
+mongoreprun my_job --dry-run
 ```
 
 ## Configuration
@@ -95,12 +95,12 @@ defaults:
   batch_size: 1000
   max_parallel_collections: 5
   fallback_cursor: _id
-  
+
   # State management
   state:
     runs_collection: _rep_runs
     state_collection: _rep_state
-  
+
   # Collection filtering
   include_patterns: []
   exclude_patterns:
@@ -112,13 +112,13 @@ collections:
     cursor_field: updated_at
     write_disposition: merge
     primary_key: _id
-    
+
   orders:
     cursor_field: created_at
     write_disposition: append
     match:
       status: { $in: ["completed", "shipped"] }
-    
+
     # PII redaction
     pii:
       enabled: true
@@ -138,17 +138,17 @@ See [Configuration Documentation](docs/configuration.md) for complete reference.
 ### `init` - Initialize a New Job
 
 ```bash
-rep init <job_name> [OPTIONS]
+mongorepinit <job_name> [OPTIONS]
 
 Options:
  --output  -o      PATH  Output config file path (default: config/<job>_config.yaml)                                                                                                                             │
- --help                  Show this message and exit. 
+ --help                  Show this message and exit.
 ```
 
 ### `scan` - Auto-Discover Collections
 
 ```bash
-rep scan <job_name> [OPTIONS]
+mongorepscan <job_name> [OPTIONS]
 
 Options:
  --output       -o      TEXT     Output path for config file (default: config/<job>_config.yaml)                                                                                                                 │
@@ -158,13 +158,13 @@ Options:
  --confidence   -c      FLOAT    Minimum confidence for PII detection (default: from config or 0.85)                                                                                                             │
  --language     -l      TEXT     Language for NLP analysis (default: en)                                                                                                                                         │
  --no-pii                        Skip PII analysis (only discover collections)                                                                                                                                   │
- --help                          Show this message and exit.  
+ --help                          Show this message and exit.
 ```
 
 ### `run` - Execute Replication
 
 ```bash
-rep run <job_name> [OPTIONS]
+mongoreprun <job_name> [OPTIONS]
 
 Options:
  --collections          TEXT     Comma-separated list of collections to replicate (default: all configured)                                                                                                      │
@@ -173,7 +173,7 @@ Options:
  --parallel     -p      INTEGER  Maximum number of parallel collections (default: from config or 5)                                                                                                              │
  --batch-size   -b      INTEGER  Batch size for document processing                                                                                                                                              │
  --select               TEXT     Cascade replication from specific records. Format: collection=id1,id2,id3 (e.g., --select customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)                          │
- --help                          Show this message and exit.  
+ --help                          Show this message and exit.
 ```
 
 ## Advanced Usage
@@ -184,7 +184,7 @@ Replicate related documents across collections:
 
 ```bash
 # Replicate customer and all related orders, invoices, etc.
-rep run my_job --select customers=507f1f77bcf86cd799439011
+mongoreprun my_job --select customers=507f1f77bcf86cd799439011
 ```
 
 Define schema relationships in configuration:
@@ -196,7 +196,7 @@ replication:
        target_collection: orders
        source_field: _id
        target_field: customer_id
-       
+
      - source_collection: orders
        target_collection: order_items
        source_field: _id
@@ -237,7 +237,7 @@ replication:
          - field: total_amount
            operation: multiply
            value: 1.1  # Add 10% tax
-           
+
          - field: status
            operation: map
            mapping:
@@ -343,13 +343,13 @@ See [Technical Design Documentation](docs/technical-design.md) for:
 **State collection conflicts**
 ```bash
 # Reset state for a collection
-rep run my_job --reset users
+mongoreprun my_job --reset users
 ```
 
 **Performance issues**
 ```bash
 # Reduce parallel processing
-rep run my_job --max-parallel 2 --batch-size 500
+mongoreprun my_job --max-parallel 2 --batch-size 500
 ```
 
 **Connection timeouts**

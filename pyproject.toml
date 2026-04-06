@@ -50,7 +50,7 @@ dev-dependencies = [
 ]
 
 [project.scripts]
-rep = "mongo_replication.cli.main:app"
+mongorep = "mongo_replication.cli.main:app"
 
 [project.urls]
 Homepage = "https://github.com/nhuray/mongo-replication"
