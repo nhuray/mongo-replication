@@ -7,7 +7,7 @@ from bson import ObjectId
 from mongo_replication.config.models import RelationshipConfig
 from mongo_replication.engine.relationships import Relationship, RelationshipGraph
 from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
-from mongo_replication.cli.commands.run import parse_select_option
+from mongo_replication.cli.commands.run import parse_ids_option, parse_query_option
 
 
 class TestRelationshipConfig:
@@ -364,12 +364,12 @@ class TestCascadeFilterBuilder:
         assert "order_items" in result.skipped_collections
 
 
-class TestParseSelectOption:
-    """Tests for parse_select_option CLI helper."""
+class TestParseIdsOption:
+    """Tests for parse_ids_option CLI helper."""
 
     def test_valid_single_id(self):
         """Test parsing with single ID."""
-        collection, ids = parse_select_option("customers=507f1f77bcf86cd799439011")
+        collection, ids = parse_ids_option("customers=507f1f77bcf86cd799439011")
 
         assert collection == "customers"
         assert len(ids) == 1
@@ -377,7 +377,7 @@ class TestParseSelectOption:
 
     def test_valid_multiple_ids(self):
         """Test parsing with multiple IDs."""
-        collection, ids = parse_select_option(
+        collection, ids = parse_ids_option(
             "orders=507f1f77bcf86cd799439011,507f191e810c19729de860ea"
         )
 
@@ -388,7 +388,7 @@ class TestParseSelectOption:
 
     def test_with_whitespace(self):
         """Test parsing handles whitespace."""
-        collection, ids = parse_select_option("users = id1 , id2 , id3 ")
+        collection, ids = parse_ids_option("users = id1 , id2 , id3 ")
 
         assert collection == "users"
         assert len(ids) == 3
@@ -396,23 +396,91 @@ class TestParseSelectOption:
 
     def test_missing_equals_raises_error(self):
         """Test error when equals sign is missing."""
-        with pytest.raises(ValueError, match="Invalid --select format"):
-            parse_select_option("customers")
+        with pytest.raises(ValueError, match="Invalid --ids format"):
+            parse_ids_option("customers")
 
     def test_empty_collection_raises_error(self):
         """Test error when collection name is empty."""
         with pytest.raises(ValueError, match="Collection name cannot be empty"):
-            parse_select_option("=id1,id2")
+            parse_ids_option("=id1,id2")
 
     def test_empty_ids_raises_error(self):
         """Test error when no IDs provided."""
         with pytest.raises(ValueError, match="No IDs provided"):
-            parse_select_option("customers=")
+            parse_ids_option("customers=")
 
     def test_only_whitespace_ids_raises_error(self):
         """Test error when only whitespace IDs."""
         with pytest.raises(ValueError, match="No valid IDs provided"):
-            parse_select_option("customers= , , ")
+            parse_ids_option("customers= , , ")
+
+
+class TestParseQueryOption:
+    """Tests for parse_query_option CLI helper."""
+
+    def test_valid_simple_query(self):
+        """Test parsing with simple query."""
+        collection, query = parse_query_option('customers={"plan": "Basic"}')
+
+        assert collection == "customers"
+        assert query == {"plan": "Basic"}
+
+    def test_valid_complex_query(self):
+        """Test parsing with complex MongoDB query."""
+        collection, query = parse_query_option('users={"age": {"$gt": 18}, "status": "active"}')
+
+        assert collection == "users"
+        assert query == {"age": {"$gt": 18}, "status": "active"}
+
+    def test_with_whitespace(self):
+        """Test parsing handles whitespace."""
+        collection, query = parse_query_option(' orders = {"total": 100} ')
+
+        assert collection == "orders"
+        assert query == {"total": 100}
+
+    def test_missing_equals_raises_error(self):
+        """Test error when equals sign is missing."""
+        with pytest.raises(ValueError, match="Invalid --query format"):
+            parse_query_option("customers")
+
+    def test_empty_collection_raises_error(self):
+        """Test error when collection name is empty."""
+        with pytest.raises(ValueError, match="Collection name cannot be empty"):
+            parse_query_option('={"plan": "Basic"}')
+
+    def test_empty_query_raises_error(self):
+        """Test error when no query provided."""
+        with pytest.raises(ValueError, match="No query provided"):
+            parse_query_option("customers=")
+
+    def test_invalid_json_raises_error(self):
+        """Test error when JSON is invalid."""
+        with pytest.raises(ValueError, match="Invalid JSON"):
+            parse_query_option('customers={plan: "Basic"}')  # Missing quotes on key
+
+    def test_non_dict_json_raises_error(self):
+        """Test error when JSON is not a dict."""
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            parse_query_option('customers=["item1", "item2"]')  # Array instead of object
+
+    def test_nested_query(self):
+        """Test parsing with nested MongoDB operators."""
+        collection, query = parse_query_option(
+            'products={"$and": [{"price": {"$gte": 100}}, {"category": "electronics"}]}'
+        )
+
+        assert collection == "products"
+        assert query == {"$and": [{"price": {"$gte": 100}}, {"category": "electronics"}]}
+
+    def test_query_with_special_characters(self):
+        """Test parsing query with special characters."""
+        collection, query = parse_query_option(
+            'users={"email": "test@example.com", "name": "John O\'Neil"}'
+        )
+
+        assert collection == "users"
+        assert query == {"email": "test@example.com", "name": "John O'Neil"}
 
 
 class TestCascadeIntegration:

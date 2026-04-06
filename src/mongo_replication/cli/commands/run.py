@@ -6,8 +6,9 @@ Usage:
 """
 
 import time
+import json
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 import typer
 from pymongo import MongoClient
@@ -37,12 +38,12 @@ from mongo_replication.engine.relationships import RelationshipGraph, Relationsh
 from mongo_replication.engine.replicator import ReplicationResult
 
 
-def parse_select_option(select_str: str) -> tuple[str, List[str]]:
+def parse_ids_option(ids_str: str) -> tuple[str, List[str]]:
     """
-    Parse --select option.
+    Parse --ids option.
 
     Args:
-        select_str: Selection string (e.g., "customers=id1,id2,id3")
+        ids_str: IDs string (e.g., "customers=id1,id2,id3")
 
     Returns:
         Tuple of (collection_name, list_of_ids)
@@ -54,29 +55,73 @@ def parse_select_option(select_str: str) -> tuple[str, List[str]]:
         "customers=id1,id2" -> ("customers", ["id1", "id2"])
         "users=abc123" -> ("users", ["abc123"])
     """
-    if "=" not in select_str:
+    if "=" not in ids_str:
         raise ValueError(
-            f"Invalid --select format: '{select_str}'. Expected format: collection=id1,id2,id3"
+            f"Invalid --ids format: '{ids_str}'. Expected format: collection=id1,id2,id3"
         )
 
-    parts = select_str.split("=", 1)
+    parts = ids_str.split("=", 1)
     collection = parts[0].strip()
-    ids_str = parts[1].strip()
+    ids_value = parts[1].strip()
 
     if not collection:
-        raise ValueError("Collection name cannot be empty in --select")
+        raise ValueError("Collection name cannot be empty in --ids")
 
-    if not ids_str:
+    if not ids_value:
         raise ValueError(f"No IDs provided for collection '{collection}'")
 
     # Split by comma and strip whitespace
-    ids = [id.strip() for id in ids_str.split(",")]
+    ids = [id.strip() for id in ids_value.split(",")]
     ids = [id for id in ids if id]  # Remove empty strings
 
     if not ids:
         raise ValueError(f"No valid IDs provided for collection '{collection}'")
 
     return collection, ids
+
+
+def parse_query_option(query_str: str) -> tuple[str, Dict[str, Any]]:
+    """
+    Parse --query option.
+
+    Args:
+        query_str: Query string (e.g., 'customers={"plan": "Basic"}')
+
+    Returns:
+        Tuple of (collection_name, mongodb_query_dict)
+
+    Raises:
+        ValueError: If format is invalid or JSON parsing fails
+
+    Examples:
+        'customers={"plan": "Basic"}' -> ("customers", {"plan": "Basic"})
+        'users={"age": {"$gt": 18}}' -> ("users", {"age": {"$gt": 18}})
+    """
+    if "=" not in query_str:
+        raise ValueError(
+            f'Invalid --query format: \'{query_str}\'. Expected format: collection={{"field": "value"}}'
+        )
+
+    parts = query_str.split("=", 1)
+    collection = parts[0].strip()
+    query_json = parts[1].strip()
+
+    if not collection:
+        raise ValueError("Collection name cannot be empty in --query")
+
+    if not query_json:
+        raise ValueError(f"No query provided for collection '{collection}'")
+
+    # Parse JSON query
+    try:
+        query_dict = json.loads(query_json)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in query for collection '{collection}': {e}")
+
+    if not isinstance(query_dict, dict):
+        raise ValueError(f"Query must be a JSON object (dict), got {type(query_dict).__name__}")
+
+    return collection, query_dict
 
 
 def run_command(
@@ -119,14 +164,25 @@ def run_command(
             help="Batch size for document processing",
         ),
     ] = None,
-    select: Annotated[
+    ids: Annotated[
         Optional[str],
         typer.Option(
-            "--select",
+            "--ids",
             help=(
-                "Cascade replication from specific records. "
+                "Cascade replication from specific documents IDs. "
                 "Format: collection=id1,id2,id3 "
-                "(e.g., --select customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)"
+                "(e.g., --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)"
+            ),
+        ),
+    ] = None,
+    query: Annotated[
+        Optional[str],
+        typer.Option(
+            "--query",
+            help=(
+                "Cascade replication from documents matching a MongoDB query. "
+                'Format: collection={"field": "value"} '
+                '(e.g., --query customers={"plan": "Basic"})'
             ),
         ),
     ] = None,
@@ -149,16 +205,25 @@ def run_command(
         # Dry run to preview
         mongo-replication run prod_db --dry-run
 
-        # Cascade replication from specific customer records
-        mongo-replication run prod_db --select customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+        # Cascade replication from specific customer IDs
+        mongo-replication run prod_db --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+
+        # Cascade replication from documents matching a query
+        mongo-replication run prod_db --query customers='{"plan": "Basic"}'
     """
     start_time = time.time()
 
     # Validate mutually exclusive options
-    if select and (collections or interactive):
+    if ids and query:
         print_error(
-            "--select cannot be used with --collections or --interactive. "
-            "The --select option automatically selects all related collections."
+            "--ids and --query cannot be used together. Choose one cascade replication method."
+        )
+        raise typer.Exit(code=1)
+
+    if (ids or query) and (collections or interactive):
+        print_error(
+            "--ids/--query cannot be used with --collections or --interactive. "
+            "Cascade options automatically select all related collections."
         )
         raise typer.Exit(code=1)
 
@@ -256,19 +321,19 @@ def run_command(
         configured_collections = list(replication_config.collections.keys())
         print_success(f"Loaded configuration with {len(configured_collections)} collections")
 
-        # Initialize cascade mode variables (will be populated if --select is used)
+        # Initialize cascade mode variables (will be populated if --ids is used)
         graph = None
         root_collection = None
         cascade_result = None
 
-        # Handle cascade replication with --select option
-        if select:
+        # Handle cascade replication with --ids option
+        if ids:
             console.print()
             print_step("2a", 4, "Build Cascade Filters")
 
             try:
-                # Parse the select option
-                root_collection, root_ids = parse_select_option(select)
+                # Parse the ids option
+                root_collection, root_ids = parse_ids_option(ids)
                 print_info(f"Root collection: {root_collection}")
                 print_info(f"Root IDs: {len(root_ids)} provided")
 
@@ -407,7 +472,127 @@ def run_command(
                 # console.print()
 
             except ValueError as e:
-                print_error(f"Invalid --select option: {e}")
+                print_error(f"Invalid --ids option: {e}")
+                raise typer.Exit(code=1)
+            except Exception as e:
+                print_error(f"Cascade filter building failed: {e}")
+                raise typer.Exit(code=1)
+
+        # Handle cascade replication with --query option
+        elif query:
+            console.print()
+            print_step("2a", 4, "Build Cascade Filters")
+
+            try:
+                # Parse the query option
+                root_collection, root_query = parse_query_option(query)
+                print_info(f"Root collection: {root_collection}")
+                print_info(f"Query: {json.dumps(root_query, default=str)}")
+
+                # Check if schema (relationships) are defined
+                if not replication_config.schema:
+                    print_error(
+                        "No schema defined in config. "
+                        "Cascade replication requires a 'replication.schema' section."
+                    )
+                    print_info(f"See config file: {config_file}")
+                    raise typer.Exit(code=1)
+
+                # Build relationship graph from schema
+                relationships = [
+                    Relationship(
+                        parent=rel.parent,
+                        child=rel.child,
+                        parent_field=rel.parent_field,
+                        child_field=rel.child_field,
+                    )
+                    for rel in replication_config.schema
+                ]
+
+                graph = RelationshipGraph(relationships)
+                print_success(f"Loaded {len(relationships)} relationships from schema")
+
+                # Validate graph has no cycles
+                if graph.has_cycles():
+                    print_error(
+                        "Circular dependencies detected in relationships. "
+                        "Cascade replication requires a DAG (directed acyclic graph)."
+                    )
+                    raise typer.Exit(code=1)
+
+                # Connect to source DB temporarily for filter building
+                print_info("Connecting to source database...")
+                source_db_name = job_config.source_uri.split("/")[-1].split("?")[0]
+                source_client = MongoClient(job_config.source_uri)
+                source_db = source_client[source_db_name]
+
+                # Validate collections exist in source
+                try:
+                    existing_collections = set(source_db.list_collection_names())
+                    graph.validate_collections(existing_collections)
+                except ValueError as e:
+                    print_error(str(e))
+                    source_client.close()
+                    raise typer.Exit(code=1)
+
+                # Build cascade filters from query
+                print_info("Building cascade filters from query...")
+                builder = CascadeFilterBuilder(source_db, graph)
+
+                try:
+                    cascade_result: CascadeResult = builder.build_filters_from_query(
+                        root_collection, root_query
+                    )
+                except ValueError as e:
+                    print_error(f"Filter building failed: {e}")
+                    source_client.close()
+                    raise typer.Exit(code=1)
+
+                source_client.close()
+
+                # Apply filters to collection configs
+                affected_collections = set(cascade_result.filters.keys())
+                print_success(f"Built filters for {len(affected_collections)} collections")
+
+                # Remove collections not in cascade
+                for coll_name in list(replication_config.collections.keys()):
+                    if coll_name not in affected_collections:
+                        del replication_config.collections[coll_name]
+
+                # Add or update collection configurations for cascade mode
+                for coll_name in affected_collections:
+                    if coll_name in cascade_result.skipped_collections:
+                        # Skip collections with 0 documents
+                        continue
+
+                    # Get or create collection config
+                    if coll_name in replication_config.collections:
+                        coll_config = replication_config.collections[coll_name]
+                    else:
+                        # Create new CollectionConfig with defaults
+                        coll_config = CollectionConfig(
+                            name=coll_name,
+                            cursor_field=None,
+                            write_disposition="replace",
+                            primary_key="_id",
+                            pii_fields={},
+                            match=None,
+                            field_transforms=[],
+                            fields_exclude=[],
+                            transform_error_mode="skip",
+                        )
+                        replication_config.collections[coll_name] = coll_config
+
+                    # Set match filter from cascade
+                    coll_config.match = cascade_result.filters[coll_name]
+
+                print_success(
+                    f"Configured {len(affected_collections) - len(cascade_result.skipped_collections)} "
+                    f"collections with cascade filters"
+                )
+
+            except ValueError as e:
+                print_error(f"Invalid --query option: {e}")
                 raise typer.Exit(code=1)
             except Exception as e:
                 print_error(f"Cascade filter building failed: {e}")
@@ -464,7 +649,7 @@ def run_command(
             console.rule("[bold]Dry Run - Collections to Replicate[/bold]", style="yellow")
             console.print()
 
-            if select:
+            if ids or query:
                 # Show tree visualization for cascade mode
                 tree_structure = graph.get_tree_structure(root_collection)
                 tree = CascadeTreeBuilder.build_dry_run_tree(
@@ -530,7 +715,7 @@ def run_command(
 
         def create_progress_display():
             """Create progress display (table or tree based on mode)."""
-            if select:
+            if ids or query:
                 # Cascade mode: use tree visualization
                 # Build status map and error map
                 status_map = {}

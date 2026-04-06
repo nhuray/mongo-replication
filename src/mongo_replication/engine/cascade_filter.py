@@ -140,15 +140,16 @@ class CascadeFilterBuilder:
             parent_ids = id_cache.get(parent_rel.parent, [])
 
             if not parent_ids:
-                logger.warning(f"No parent IDs found for {collection}, will skip this collection")
+                logger.warning(f"No parent IDs found for {collection}, skipping")
                 result.add_collection(collection, {"_id": {"$in": []}}, 0)
                 id_cache[collection] = []
                 continue
 
-            # Build filter for child using parent IDs
-            child_filter = {parent_rel.child_field: {"$in": parent_ids}}
+            # Build child filter
+            child_field = parent_rel.child_field
+            child_filter = {child_field: {"$in": parent_ids}}
 
-            # Count documents matching filter
+            # Count matching documents
             doc_count = self.source_db[collection].count_documents(child_filter)
             result.add_collection(collection, child_filter, doc_count)
 
@@ -169,6 +170,127 @@ class CascadeFilterBuilder:
             primary_key_field = (
                 parent_rel.parent_field
             )  # Use parent_field as PK for this collection
+
+            id_cache[collection] = self._query_field_values(
+                collection, child_filter, primary_key_field
+            )
+
+        return result
+
+    def build_filters_from_query(
+        self, root_collection: str, root_query: Dict[str, Any]
+    ) -> CascadeResult:
+        """
+        Build match filters for all collections starting from a MongoDB query.
+
+        Args:
+            root_collection: Starting collection (e.g., "customers")
+            root_query: MongoDB query to filter root collection (e.g., {"plan": "Basic"})
+
+        Returns:
+            CascadeResult with filters, document counts, and skipped collections
+
+        Example:
+            build_filters_from_query("customers", {"plan": "Basic"})
+            => CascadeResult with:
+                filters = {
+                    "customers": {"plan": "Basic"},
+                    "orders": {"customerId": {"$in": [ObjectId("id1"), ObjectId("id2")]}},
+                    "order_items": {"orderId": {"$in": [ObjectId("ord1"), ...]}}
+                }
+                doc_counts = {"customers": 15, "orders": 48, "order_items": 103}
+                skipped = set()
+
+        Raises:
+            ValueError: If collections don't exist or query is invalid
+        """
+        result = CascadeResult()
+        id_cache = {}  # Cache IDs per collection: {collection: [ids...]}
+
+        # Get all descendants in order
+        collections = self.graph.get_descendants(root_collection)
+
+        logger.info(
+            f"Building cascade filters from query for {len(collections)} collections: {collections}"
+        )
+
+        # Validate all collections exist in source DB
+        existing_collections = set(self.source_db.list_collection_names())
+        self.graph.validate_collections(existing_collections)
+
+        # Process root collection
+        logger.info(f"Processing root collection: {root_collection}")
+
+        # Use provided query directly for root collection
+        root_filter = root_query
+
+        # Query and cache root document count
+        try:
+            root_count = self.source_db[root_collection].count_documents(root_filter)
+        except Exception as e:
+            raise ValueError(f"Invalid query for collection '{root_collection}': {e}")
+
+        result.add_collection(root_collection, root_filter, root_count)
+
+        if root_count == 0:
+            logger.warning(
+                f"No documents found in {root_collection} matching query. "
+                f"Cascade will replicate zero records."
+            )
+            # Mark all descendants as skipped too
+            for collection in collections[1:]:
+                result.add_collection(collection, {"_id": {"$in": []}}, 0)
+            return result
+        else:
+            logger.info(f"Found {root_count} documents in {root_collection}")
+
+        # Extract IDs from root collection for cascading to children
+        id_cache[root_collection] = self._query_field_values(root_collection, root_filter, "_id")
+
+        # Process each descendant collection (same logic as build_filters)
+        for collection in collections[1:]:  # Skip root (already processed)
+            logger.debug(f"Processing child collection: {collection}")
+
+            # Find parent relationship
+            parent_rel = self.graph.get_parent_relationship(collection)
+
+            if not parent_rel:
+                raise ValueError(
+                    f"No parent relationship found for collection '{collection}' "
+                    f"in cascade chain from '{root_collection}'"
+                )
+
+            # Get parent IDs from cache
+            parent_ids = id_cache.get(parent_rel.parent, [])
+
+            if not parent_ids:
+                logger.warning(f"No parent IDs found for {collection}, skipping")
+                result.add_collection(collection, {"_id": {"$in": []}}, 0)
+                id_cache[collection] = []
+                continue
+
+            # Build child filter
+            child_field = parent_rel.child_field
+            child_filter = {child_field: {"$in": parent_ids}}
+
+            # Count matching documents
+            doc_count = self.source_db[collection].count_documents(child_filter)
+            result.add_collection(collection, child_filter, doc_count)
+
+            if doc_count == 0:
+                logger.info(
+                    f"No documents in {collection} related to {parent_rel.parent}, "
+                    f"collection will be skipped"
+                )
+                id_cache[collection] = []
+                continue
+
+            logger.info(
+                f"Found {doc_count} documents in {collection} related to {parent_rel.parent}"
+            )
+
+            # Query child collection and cache primary key values for next level
+            primary_key_field = parent_rel.parent_field
 
             id_cache[collection] = self._query_field_values(
                 collection, child_filter, primary_key_field
