@@ -104,10 +104,17 @@ scan:
       IP_ADDRESS: "hash"       # Hash the IP address
       URL: "hash"              # Hash the URL
 
-    allowlist: []
+    allowlist:
+      - "_id"
+      - "meta.*"
+      - "*.id"
     # Field patterns to exclude from PII detection
-    # Example: ["metadata.*", "*.created_at", "*.updated_at"]
-    # Useful for excluding known safe fields
+    # Supports wildcard patterns (e.g., "metadata.*", "*.created_at")
+    # Default patterns:
+    #   - "_id": MongoDB document identifier (never PII)
+    #   - "meta.*": Metadata fields (timestamps, system info)
+    #   - "*.id": Any field ending in "id" (typically foreign keys)
+    # Add more patterns as needed for your data model
 
 # =============================================================================
 # REPLICATION DEFAULTS

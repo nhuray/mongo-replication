@@ -370,7 +370,7 @@ def scan_command(
             "CRYPTO": "hash",
             "IBAN_CODE": "hash",
         }
-        default_allowlist = []
+        default_allowlist = ["_id", "meta.*", "*.id"]
         default_sample_strategy = "stratified"
 
         # Use existing config values if available (preserves user customizations)
