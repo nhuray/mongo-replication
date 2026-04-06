@@ -77,7 +77,7 @@ class PresidioAnalyzer:
         allowlist_fields: Optional[List[str]] = None,
     ) -> Dict[str, Tuple[str, float]]:
         """
-        Analyze a MongoDB document to detect PII fields automatically.
+        Analyze a MongoDB document to detect PII fields.
 
         Args:
             document: The MongoDB document to analyze
