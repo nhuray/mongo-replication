@@ -23,7 +23,7 @@ from mongo_replication.cli.utils.output import (
     print_step,
     console,
 )
-from mongo_replication.config.loader import save_config, load_defaults
+from mongo_replication.config.manager import save_config, load_defaults
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,

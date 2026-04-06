@@ -1,6 +1,6 @@
 """Configuration management for MongoDB replication."""
 
-from .loader import (
+from .manager import (
     get_collection_config,
     get_mongodb_connection_string,
 )

@@ -1,4 +1,9 @@
-"""Configuration loading and parsing for MongoDB replication."""
+"""Configuration management for MongoDB replication.
+
+This module provides functions for loading, saving, and managing configuration
+files for MongoDB replication jobs. It handles both scan and replication configs,
+with support for defaults merging and validation.
+"""
 
 import logging
 import os

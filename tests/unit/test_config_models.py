@@ -10,7 +10,7 @@ from mongo_replication.config.models import (
     ScanPIIConfig,
     Config,
 )
-from mongo_replication.config.loader import (
+from mongo_replication.config.manager import (
     load_config,
     load_scan_config,
     load_replication_config,

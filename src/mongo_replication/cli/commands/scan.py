@@ -25,7 +25,7 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.loader import save_config, load_defaults
+from mongo_replication.config.manager import save_config, load_defaults
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
@@ -147,7 +147,7 @@ def scan_command(
 
         if output_path.exists():
             try:
-                from mongo_replication.config.loader import load_config
+                from mongo_replication.config.manager import load_config
 
                 existing_config = load_config(output_path)
                 print_info(f"Loaded existing config from {output_path}")

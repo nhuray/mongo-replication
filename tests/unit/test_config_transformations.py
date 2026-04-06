@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from mongo_replication.config.loader import (
+from mongo_replication.config.models import (
     FieldTransformConfig,
     CollectionConfig,
 )
