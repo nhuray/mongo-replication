@@ -5,22 +5,22 @@ Each job represents a complete replication pipeline with its own source, destina
 and configuration.
 
 Environment Variable Pattern:
-    REP_<JOB>_ENABLED=true|false
-    REP_<JOB>_SOURCE_URI=mongodb://...
-    REP_<JOB>_DESTINATION_URI=mongodb://...
-    REP_<JOB>_CONFIG_PATH=/path/to/config.yaml
+    MONGOREP_<JOB>_ENABLED=true|false
+    MONGOREP_<JOB>_SOURCE_URI=mongodb://...
+    MONGOREP_<JOB>_DESTINATION_URI=mongodb://...
+    MONGOREP_<JOB>_CONFIG_PATH=/path/to/config.yaml
 
 Examples:
     # Production to Analytics job
-    REP_PROD_DB_ENABLED=true
-    REP_PROD_DB_SOURCE_URI=mongodb://prod-host:27017/prod_db
-    REP_PROD_DB_DESTINATION_URI=mongodb://analytics-host:27017/analytics_db
-    REP_PROD_DB_CONFIG_PATH=config/prod_db.yaml
+    MONGOREP_PROD_DB_ENABLED=true
+    MONGOREP_PROD_DB_SOURCE_URI=mongodb://prod-host:27017/prod_db
+    MONGOREP_PROD_DB_DESTINATION_URI=mongodb://analytics-host:27017/analytics_db
+    MONGOREP_PROD_DB_CONFIG_PATH=config/prod_db.yaml
 
     # Backup job
-    REP_BACKUP_ENABLED=true
-    REP_BACKUP_SOURCE_URI=mongodb://prod-host:27017/prod_db
-    REP_BACKUP_DESTINATION_URI=mongodb://backup-host:27017/backup_db
+    MONGOREP_BACKUP_ENABLED=true
+    MONGOREP_BACKUP_SOURCE_URI=mongodb://prod-host:27017/prod_db
+    MONGOREP_BACKUP_DESTINATION_URI=mongodb://backup-host:27017/backup_db
 """
 
 import logging
@@ -63,18 +63,20 @@ class JobConfig:
 class JobManager:
     """Manager for discovering and accessing replication jobs from environment variables."""
 
-    # Pattern to match job environment variables: REP_<JOB>_<SUFFIX>
-    JOB_PATTERN = re.compile(r"^REP_([A-Z0-9_]+)_(ENABLED|SOURCE_URI|DESTINATION_URI|CONFIG_PATH)$")
+    # Pattern to match job environment variables: MONGOREP_<JOB>_<SUFFIX>
+    JOB_PATTERN = re.compile(
+        r"^MONGOREP_([A-Z0-9_]+)_(ENABLED|SOURCE_URI|DESTINATION_URI|CONFIG_PATH)$"
+    )
 
     @staticmethod
     def discover_jobs() -> List[JobConfig]:
         """Discover all enabled replication jobs from environment variables.
 
         Scans environment for variables matching the pattern:
-            REP_<JOB>_ENABLED=true
-            REP_<JOB>_SOURCE_URI=mongodb://...
-            REP_<JOB>_DESTINATION_URI=mongodb://...
-            REP_<JOB>_CONFIG_PATH=/path/to/config.yaml (optional)
+            MONGOREP_<JOB>_ENABLED=true
+            MONGOREP_<JOB>_SOURCE_URI=mongodb://...
+            MONGOREP_<JOB>_DESTINATION_URI=mongodb://...
+            MONGOREP_<JOB>_CONFIG_PATH=/path/to/config.yaml (optional)
 
         Returns:
             List of JobConfig objects for enabled jobs
@@ -100,7 +102,7 @@ class JobManager:
             raise ValueError(
                 "No replication jobs found in environment. "
                 "Please set environment variables with pattern: "
-                "REP_<JOB>_ENABLED=true, REP_<JOB>_SOURCE_URI=..., REP_<JOB>_DESTINATION_URI=..."
+                "MONGOREP_<JOB>_ENABLED=true, MONGOREP_<JOB>_SOURCE_URI=..., MONGOREP_<JOB>_DESTINATION_URI=..."
             )
 
         # Create JobConfig objects for enabled jobs
@@ -116,14 +118,14 @@ class JobManager:
             source_uri = vars.get("SOURCE_URI")
             if not source_uri:
                 logger.warning(
-                    f"Job {job_id} is enabled but missing REP_{job_id}_SOURCE_URI. Skipping."
+                    f"Job {job_id} is enabled but missing MONGOREP_{job_id}_SOURCE_URI. Skipping."
                 )
                 continue
 
             destination_uri = vars.get("DESTINATION_URI")
             if not destination_uri:
                 logger.warning(
-                    f"Job {job_id} is enabled but missing REP_{job_id}_DESTINATION_URI. Skipping."
+                    f"Job {job_id} is enabled but missing MONGOREP_{job_id}_DESTINATION_URI. Skipping."
                 )
                 continue
 
@@ -144,7 +146,9 @@ class JobManager:
             logger.info(f"Discovered job: {job.job_id}")
 
         if not jobs:
-            raise ValueError("No enabled jobs found. Set REP_<JOB>_ENABLED=true to enable a job.")
+            raise ValueError(
+                "No enabled jobs found. Set MONGOREP_<JOB>_ENABLED=true to enable a job."
+            )
 
         return jobs
 
@@ -165,7 +169,7 @@ class JobManager:
         job_id_upper = job_id.upper()
 
         # Check if job is enabled
-        enabled_key = f"REP_{job_id_upper}_ENABLED"
+        enabled_key = f"MONGOREP_{job_id_upper}_ENABLED"
         enabled = os.environ.get(enabled_key, "false").lower() in ("true", "1", "yes")
 
         if not enabled:
@@ -174,14 +178,14 @@ class JobManager:
             )
 
         # Get required URIs
-        source_uri_key = f"REP_{job_id_upper}_SOURCE_URI"
+        source_uri_key = f"MONGOREP_{job_id_upper}_SOURCE_URI"
         source_uri = os.environ.get(source_uri_key)
         if not source_uri:
             raise ValueError(
                 f"Job '{job_id}' is missing source URI. Set {source_uri_key}=mongodb://..."
             )
 
-        destination_uri_key = f"REP_{job_id_upper}_DESTINATION_URI"
+        destination_uri_key = f"MONGOREP_{job_id_upper}_DESTINATION_URI"
         destination_uri = os.environ.get(destination_uri_key)
         if not destination_uri:
             raise ValueError(
@@ -190,7 +194,7 @@ class JobManager:
             )
 
         # Get optional config path
-        config_path_key = f"REP_{job_id_upper}_CONFIG_PATH"
+        config_path_key = f"MONGOREP_{job_id_upper}_CONFIG_PATH"
         config_path = os.environ.get(config_path_key)
         if not config_path:
             raise ValueError(

@@ -38,8 +38,8 @@ def mock_env(monkeypatch):
     Usage:
         def test_something(mock_env):
             mock_env({
-                "REP_SOURCE_TEST_ENABLED": "true",
-                "REP_SOURCE_TEST_MONGODB_URI": "mongodb://localhost/test"
+                "MONGOREP_SOURCE_TEST_ENABLED": "true",
+                "MONGOREP_SOURCE_TEST_MONGODB_URI": "mongodb://localhost/test"
             })
     """
 
@@ -52,7 +52,7 @@ def mock_env(monkeypatch):
 
 @pytest.fixture
 def clear_rep_env(monkeypatch):
-    """Clear all REP_* environment variables."""
+    """Clear all MONGOREP_* environment variables."""
     for key in list(os.environ.keys()):
-        if key.startswith("REP_"):
+        if key.startswith("MONGOREP_"):
             monkeypatch.delenv(key, raising=False)

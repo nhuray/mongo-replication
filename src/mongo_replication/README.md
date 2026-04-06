@@ -117,25 +117,25 @@ Each job requires these environment variables:
 
 ```bash
 # Enable the job
-REP_<JOB>_ENABLED=true
+MONGOREP_<JOB>_ENABLED=true
 
 # Source MongoDB URI
-REP_<JOB>_SOURCE_URI=mongodb://localhost:27017/source_db
+MONGOREP_<JOB>_SOURCE_URI=mongodb://localhost:27017/source_db
 
 # Destination MongoDB URI
-REP_<JOB>_DESTINATION_URI=mongodb://localhost:27017/dest_db
+MONGOREP_<JOB>_DESTINATION_URI=mongodb://localhost:27017/dest_db
 
 # Configuration file path
-REP_<JOB>_CONFIG_PATH=config/job_config.yaml
+MONGOREP_<JOB>_CONFIG_PATH=config/job_config.yaml
 ```
 
 **Example:**
 ```bash
 # Production to Analytics job
-REP_PROD_ENABLED=true
-REP_PROD_SOURCE_URI=mongodb://prod-host:27017/prod_db
-REP_PROD_DESTINATION_URI=mongodb://analytics-host:27017/analytics_db
-REP_PROD_CONFIG_PATH=config/prod_config.yaml
+MONGOREP_PROD_ENABLED=true
+MONGOREP_PROD_SOURCE_URI=mongodb://prod-host:27017/prod_db
+MONGOREP_PROD_DESTINATION_URI=mongodb://analytics-host:27017/analytics_db
+MONGOREP_PROD_CONFIG_PATH=config/prod_config.yaml
 ```
 
 **Job Naming Rules:**
@@ -218,10 +218,10 @@ replication:
 Create a `.env` file or export variables:
 
 ```bash
-export REP_PROD_ENABLED=true
-export REP_PROD_SOURCE_URI=mongodb://localhost:27017/prod_db
-export REP_PROD_DESTINATION_URI=mongodb://localhost:27017/analytics_db
-export REP_PROD_CONFIG_PATH=config/prod_config.yaml
+export MONGOREP_PROD_ENABLED=true
+export MONGOREP_PROD_SOURCE_URI=mongodb://localhost:27017/prod_db
+export MONGOREP_PROD_DESTINATION_URI=mongodb://localhost:27017/analytics_db
+export MONGOREP_PROD_CONFIG_PATH=config/prod_config.yaml
 ```
 
 ### 2. Scan for collections and PII
@@ -264,16 +264,16 @@ You can configure multiple jobs for different replication scenarios:
 
 ```bash
 # Job 1: Production to Analytics
-REP_PROD_TO_ANALYTICS_ENABLED=true
-REP_PROD_TO_ANALYTICS_SOURCE_URI=mongodb://prod:27017/prod_db
-REP_PROD_TO_ANALYTICS_DESTINATION_URI=mongodb://analytics:27017/analytics_db
-REP_PROD_TO_ANALYTICS_CONFIG_PATH=config/prod_to_analytics.yaml
+MONGOREP_PROD_TO_ANALYTICS_ENABLED=true
+MONGOREP_PROD_TO_ANALYTICS_SOURCE_URI=mongodb://prod:27017/prod_db
+MONGOREP_PROD_TO_ANALYTICS_DESTINATION_URI=mongodb://analytics:27017/analytics_db
+MONGOREP_PROD_TO_ANALYTICS_CONFIG_PATH=config/prod_to_analytics.yaml
 
 # Job 2: Production to Backup
-REP_PROD_TO_BACKUP_ENABLED=true
-REP_PROD_TO_BACKUP_SOURCE_URI=mongodb://prod:27017/prod_db
-REP_PROD_TO_BACKUP_DESTINATION_URI=mongodb://backup:27017/backup_db
-REP_PROD_TO_BACKUP_CONFIG_PATH=config/prod_to_backup.yaml
+MONGOREP_PROD_TO_BACKUP_ENABLED=true
+MONGOREP_PROD_TO_BACKUP_SOURCE_URI=mongodb://prod:27017/prod_db
+MONGOREP_PROD_TO_BACKUP_DESTINATION_URI=mongodb://backup:27017/backup_db
+MONGOREP_PROD_TO_BACKUP_CONFIG_PATH=config/prod_to_backup.yaml
 
 # Run them
 mongorep scan prod_to_analytics
@@ -395,8 +395,8 @@ mongorep run prod --batch-size 100
 
 **Solution:** Set environment variables:
 ```bash
-export REP_PROD_ENABLED=true
-export REP_PROD_SOURCE_URI=mongodb://...
+export MONGOREP_PROD_ENABLED=true
+export MONGOREP_PROD_SOURCE_URI=mongodb://...
 ```
 
 ### Config file not found

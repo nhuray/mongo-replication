@@ -692,14 +692,14 @@ Configure jobs via environment variables (useful for CI/CD):
 
 ```bash
 # Enable the job
-export REP_MY_JOB_ENABLED=true
+export MONGOREP_MY_JOB_ENABLED=true
 
 # Connection URIs
-export REP_MY_JOB_SOURCE_URI="mongodb://user:pass@source:27017/source_db?authSource=admin"
-export REP_MY_JOB_DESTINATION_URI="mongodb://user:pass@dest:27017/dest_db?authSource=admin"
+export MONGOREP_MY_JOB_SOURCE_URI="mongodb://user:pass@source:27017/source_db?authSource=admin"
+export MONGOREP_MY_JOB_DESTINATION_URI="mongodb://user:pass@dest:27017/dest_db?authSource=admin"
 
 # Configuration file path
-export REP_MY_JOB_CONFIG_PATH="config/my_job_config.yaml"
+export MONGOREP_MY_JOB_CONFIG_PATH="config/my_job_config.yaml"
 ```
 
 ### Connection URI Options

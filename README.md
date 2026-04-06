@@ -38,32 +38,48 @@ uv sync
 
 ### 1. Initialize a New Job
 
+The `init` command launches an interactive wizard that guides you through the setup process:
+
 ```bash
 mongorep init my_job
 ```
 
-This creates:
-- A configuration file at `config/my_job_config.yaml`
-- Environment variable template to set in `.env`
+The wizard will:
+- Prompt for source and destination MongoDB URIs
+- Validate connections to both databases
+- Configure collection discovery patterns
+- Set up PII detection settings
+- Select anonymization strategies
+- Choose which collections to replicate
+- Generate configuration file at `config/my_job_config.yaml`
+- Display environment variables to add to `.env`
 
-### 2. Configure Environment Variables
+**Note:** The `init` command can configure both source and destination connections interactively. You can skip the environment variables step if you provide URIs during initialization.
 
-Add to your `.env` file:
+### 2. Configure Environment Variables (Alternative)
+
+If you prefer to configure via environment variables instead of the interactive wizard, add to your `.env` file:
 
 ```env
-REP_MY_JOB_SOURCE_URI=mongodb://source-host:27017/source_db
-REP_MY_JOB_DESTINATION_URI=mongodb://dest-host:27017/dest_db
-REP_MY_JOB_CONFIG_PATH=config/my_job_config.yaml
-REP_MY_JOB_ENABLED=true
+MONGOREP_MY_JOB_SOURCE_URI=mongodb://source-host:27017/source_db
+MONGOREP_MY_JOB_DESTINATION_URI=mongodb://dest-host:27017/dest_db
+MONGOREP_MY_JOB_CONFIG_PATH=config/my_job_config.yaml
+MONGOREP_MY_JOB_ENABLED=true
 ```
 
 ### 3. Scan Collections (Optional)
 
-Auto-discover collections and generate configuration:
+After initialization, optionally run scan to analyze collections and detect PII:
 
 ```bash
 mongorep scan my_job
 ```
+
+This will:
+- Analyze document schemas
+- Detect PII fields automatically using Presidio
+- Update configuration with findings
+- Generate PII detection report
 
 ### 4. Run Replication
 
@@ -74,16 +90,16 @@ mongorep run my_job
 # Replicate specific collections
 mongorep run my_job --collections users,orders
 
-# Cascade replication from a root document ids
+# Cascade replication from specific document IDs
 mongorep run my_job --ids customers=507f1f77bcf86cd799439011
 
-# Cascade replication from a query
-mongorep run my_job --query customers={active: true}
+# Cascade replication from a MongoDB query
+mongorep run my_job --query customers='{"plan": "Basic"}'
 
-# Interactive mode
+# Interactive mode - select collections to replicate
 mongorep run my_job --interactive
 
-# Dry run (preview without executing)
+# Dry run - preview without executing
 mongorep run my_job --dry-run
 ```
 
@@ -215,13 +231,45 @@ See [Configuration Documentation](docs/configuration.md) for complete reference.
 
 ### `init` - Initialize a New Job
 
+The `init` command provides an interactive wizard to set up a new replication job. It guides you through:
+- Configuring source and destination MongoDB connections
+- Setting up collection discovery (include/exclude patterns)
+- Configuring PII detection settings
+- Selecting anonymization strategies per entity type
+- Choosing which collections to replicate
+
 ```bash
-mongorepinit <job_name> [OPTIONS]
+mongorep init <job_name> [OPTIONS]
+
+Arguments:
+  job_name              Job ID (e.g., 'prod_db', 'staging_db')
 
 Options:
- --output  -o      PATH  Output config file path (default: config/<job>_config.yaml)                                                                                                                             │
- --help                  Show this message and exit.
+  --output  -o  PATH    Output config file path (default: config/<job>_config.yaml)
+  --help                Show this message and exit.
+
+Examples:
+  # Initialize configuration for prod_db job
+  mongorep init prod_db
+
+  # Specify custom output path
+  mongorep init prod_db --output /custom/path/config.yaml
 ```
+
+The wizard will:
+1. **Prompt for source MongoDB URI** and validate the connection
+2. **Prompt for destination MongoDB URI** and validate the connection
+3. **Configure collection discovery** with include/exclude patterns
+4. **Set up PII detection** (confidence threshold, entity types, sample size)
+5. **Configure anonymization strategies** for each PII entity type
+6. **Select collections to replicate** (all, specific patterns, or manual selection)
+7. **Generate configuration file** at the specified path
+8. **Display environment variables** to add to your `.env` file
+
+After running `init`, you can:
+- Run `mongorep scan <job_name>` to analyze collections and detect PII
+- Run `mongorep run <job_name>` to start replication
+- Manually edit the generated config file to fine-tune settings
 
 ### `scan` - Auto-Discover Collections
 
@@ -245,41 +293,84 @@ Options:
 mongorep run <job_name> [OPTIONS]
 
 Options:
- --collections          TEXT     Comma-separated list of collections to replicate (default: all configured)                                                                                                      │
- --interactive  -i               Interactively select collections to replicate                                                                                                                                   │
- --dry-run                       Preview what would be replicated without executing                                                                                                                              │
- --parallel     -p      INTEGER  Maximum number of parallel collections (default: from config or 5)                                                                                                              │
- --batch-size   -b      INTEGER  Batch size for document processing                                                                                                                                              │
-│ --ids                  TEXT     Cascade replication from specific documents IDs. Format: collection=id1,id2,id3 (e.g., --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)                                                                                                                                                                                                                                        │
- --help                          Show this message and exit.
+  --collections          TEXT     Comma-separated list of collections to replicate (default: all configured)
+  --interactive  -i               Interactively select collections to replicate
+  --dry-run                       Preview what would be replicated without executing
+  --parallel     -p      INTEGER  Maximum number of parallel collections (default: from config or 5)
+  --batch-size   -b      INTEGER  Batch size for document processing
+  --ids                  TEXT     Cascade replication from specific document IDs.
+                                  Format: collection=id1,id2,id3
+                                  Example: --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+  --query                TEXT     Cascade replication from MongoDB query.
+                                  Format: collection='{"field": "value"}'
+                                  Example: --query customers='{"plan": "Basic"}'
+  --help                          Show this message and exit.
+
+Examples:
+  # Replicate all configured collections
+  mongorep run my_job
+
+  # Replicate specific collections
+  mongorep run my_job --collections users,orders
+
+  # Cascade replication by IDs
+  mongorep run my_job --ids customers=507f1f77bcf86cd799439011
+
+  # Cascade replication by query
+  mongorep run my_job --query customers='{"plan": "Basic", "status": "active"}'
+
+  # Interactive mode
+  mongorep run my_job --interactive
+
+  # Dry run
+  mongorep run my_job --dry-run
 ```
 
 ## Advanced Usage
 
 ### Cascade Replication
 
-Replicate related documents across collections:
+Replicate related documents across collections using defined relationships. You can filter the root collection by IDs or by query.
 
+**By Specific IDs:**
 ```bash
-# Replicate customer and all related orders, invoices, etc.
+# Replicate specific customers and all related orders, invoices, etc.
 mongorep run my_job --ids customers=507f1f77bcf86cd799439011
+
+# Multiple IDs
+mongorep run my_job --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
 ```
 
-Define schema relationships in configuration:
+**By MongoDB Query:**
+```bash
+# Replicate customers matching a query and all related data
+mongorep run my_job --query customers='{"plan": "Basic"}'
+
+# Complex queries
+mongorep run my_job --query customers='{"status": "active", "createdAt": {"$gte": "2024-01-01"}}'
+```
+
+**Define Relationships in Configuration:**
 
 ```yaml
 replication:
-   schema:
-     - source_collection: customers
-       target_collection: orders
-       source_field: _id
-       target_field: customer_id
+  schema:
+    - parent: customers
+      child: orders
+      parent_field: _id
+      child_field: customer_id
 
-     - source_collection: orders
-       target_collection: order_items
-       source_field: _id
-       target_field: order_id
+    - parent: orders
+      child: order_items
+      parent_field: _id
+      child_field: order_id
 ```
+
+The tool will:
+1. Find documents in the root collection matching your filter (IDs or query)
+2. Find related documents in child collections based on relationships
+3. Cascade through the entire relationship chain
+4. Replicate all matching documents
 
 ### PII Redaction
 

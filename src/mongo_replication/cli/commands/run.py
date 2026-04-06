@@ -245,7 +245,7 @@ def run_command(
         if not job_config.config_path:
             print_error(
                 f"No config path set for job '{job}'. "
-                f"Set REP_{job.upper()}_CONFIG_PATH environment variable."
+                f"Set MONGOREP_{job.upper()}_CONFIG_PATH environment variable."
             )
             raise typer.Exit(code=1)
 

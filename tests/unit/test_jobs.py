@@ -56,12 +56,12 @@ class TestJobManager:
     def test_discover_jobs_success(self):
         """Test discovering jobs from environment."""
         env = {
-            "REP_PROD_DB_ENABLED": "true",
-            "REP_PROD_DB_SOURCE_URI": "mongodb://prod:27017/db",
-            "REP_PROD_DB_DESTINATION_URI": "mongodb://analytics:27017/db",
-            "REP_BACKUP_ENABLED": "true",
-            "REP_BACKUP_SOURCE_URI": "mongodb://prod:27017/db",
-            "REP_BACKUP_DESTINATION_URI": "mongodb://backup:27017/db",
+            "MONGOREP_PROD_DB_ENABLED": "true",
+            "MONGOREP_PROD_DB_SOURCE_URI": "mongodb://prod:27017/db",
+            "MONGOREP_PROD_DB_DESTINATION_URI": "mongodb://analytics:27017/db",
+            "MONGOREP_BACKUP_ENABLED": "true",
+            "MONGOREP_BACKUP_SOURCE_URI": "mongodb://prod:27017/db",
+            "MONGOREP_BACKUP_DESTINATION_URI": "mongodb://backup:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -76,10 +76,10 @@ class TestJobManager:
     def test_discover_jobs_with_config_path(self):
         """Test discovering jobs with config paths."""
         env = {
-            "REP_TEST_ENABLED": "true",
-            "REP_TEST_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_TEST_DESTINATION_URI": "mongodb://dest:27017/db",
-            "REP_TEST_CONFIG_PATH": "/path/to/config.yaml",
+            "MONGOREP_TEST_ENABLED": "true",
+            "MONGOREP_TEST_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_TEST_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_TEST_CONFIG_PATH": "/path/to/config.yaml",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -92,12 +92,12 @@ class TestJobManager:
     def test_discover_jobs_skips_disabled(self):
         """Test that disabled jobs are skipped."""
         env = {
-            "REP_ENABLED_JOB_ENABLED": "true",
-            "REP_ENABLED_JOB_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_ENABLED_JOB_DESTINATION_URI": "mongodb://dest:27017/db",
-            "REP_DISABLED_JOB_ENABLED": "false",
-            "REP_DISABLED_JOB_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_DISABLED_JOB_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_ENABLED_JOB_ENABLED": "true",
+            "MONGOREP_ENABLED_JOB_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_ENABLED_JOB_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_DISABLED_JOB_ENABLED": "false",
+            "MONGOREP_DISABLED_JOB_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_DISABLED_JOB_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -109,8 +109,8 @@ class TestJobManager:
     def test_discover_jobs_skips_missing_source_uri(self):
         """Test that jobs without source URI are skipped with warning."""
         env = {
-            "REP_INCOMPLETE_ENABLED": "true",
-            "REP_INCOMPLETE_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_INCOMPLETE_ENABLED": "true",
+            "MONGOREP_INCOMPLETE_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -120,8 +120,8 @@ class TestJobManager:
     def test_discover_jobs_skips_missing_destination_uri(self):
         """Test that jobs without destination URI are skipped with warning."""
         env = {
-            "REP_INCOMPLETE_ENABLED": "true",
-            "REP_INCOMPLETE_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_INCOMPLETE_ENABLED": "true",
+            "MONGOREP_INCOMPLETE_SOURCE_URI": "mongodb://source:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -137,9 +137,9 @@ class TestJobManager:
     def test_discover_jobs_normalizes_job_id_to_lowercase(self):
         """Test that job IDs are normalized to lowercase."""
         env = {
-            "REP_PROD_DB_ENABLED": "true",
-            "REP_PROD_DB_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_PROD_DB_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_PROD_DB_ENABLED": "true",
+            "MONGOREP_PROD_DB_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_PROD_DB_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -150,9 +150,9 @@ class TestJobManager:
     def test_get_job_not_enabled_raises_error(self):
         """Test that getting a disabled job raises error."""
         env = {
-            "REP_DISABLED_ENABLED": "false",
-            "REP_DISABLED_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_DISABLED_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_DISABLED_ENABLED": "false",
+            "MONGOREP_DISABLED_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_DISABLED_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -162,8 +162,8 @@ class TestJobManager:
     def test_get_job_missing_source_uri_raises_error(self):
         """Test that missing source URI raises error."""
         env = {
-            "REP_INCOMPLETE_ENABLED": "true",
-            "REP_INCOMPLETE_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_INCOMPLETE_ENABLED": "true",
+            "MONGOREP_INCOMPLETE_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -173,8 +173,8 @@ class TestJobManager:
     def test_get_job_missing_destination_uri_raises_error(self):
         """Test that missing destination URI raises error."""
         env = {
-            "REP_INCOMPLETE_ENABLED": "true",
-            "REP_INCOMPLETE_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_INCOMPLETE_ENABLED": "true",
+            "MONGOREP_INCOMPLETE_SOURCE_URI": "mongodb://source:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -184,12 +184,12 @@ class TestJobManager:
     def test_list_jobs(self):
         """Test listing all job IDs."""
         env = {
-            "REP_JOB1_ENABLED": "true",
-            "REP_JOB1_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_JOB1_DESTINATION_URI": "mongodb://dest:27017/db",
-            "REP_JOB2_ENABLED": "true",
-            "REP_JOB2_SOURCE_URI": "mongodb://source:27017/db",
-            "REP_JOB2_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_JOB1_ENABLED": "true",
+            "MONGOREP_JOB1_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_JOB1_DESTINATION_URI": "mongodb://dest:27017/db",
+            "MONGOREP_JOB2_ENABLED": "true",
+            "MONGOREP_JOB2_SOURCE_URI": "mongodb://source:27017/db",
+            "MONGOREP_JOB2_DESTINATION_URI": "mongodb://dest:27017/db",
         }
 
         with patch.dict(os.environ, env, clear=True):
