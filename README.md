@@ -410,14 +410,6 @@ See [Technical Design Documentation](docs/technical-design.md) for:
 
 ## Troubleshooting
 
-### Common Issues
-
-**State collection conflicts**
-```bash
-# Reset state for a collection
-mongorep run my_job --reset users
-```
-
 **Performance issues**
 ```bash
 # Reduce parallel processing
