@@ -229,6 +229,7 @@ def scan_command(
         final_sample_size = sample_size
         final_confidence = confidence_threshold
         final_language = language
+        pii_enabled_from_config = True  # Default to enabled
 
         if existing_config and existing_config.scan and existing_config.scan.pii:
             # Use config values if CLI options not provided
@@ -237,6 +238,9 @@ def scan_command(
             if confidence_threshold is None:
                 final_confidence = existing_config.scan.pii.confidence_threshold
             # Language is always from CLI if provided, otherwise default
+
+            # Check if PII is enabled in config (only if --no-pii not explicitly set)
+            pii_enabled_from_config = existing_config.scan.pii.enabled
 
         # Apply final defaults if still None
         if final_sample_size is None:
@@ -263,14 +267,23 @@ def scan_command(
 
         console.print()
 
+        # Determine if PII analysis will run
+        # Precedence: --no-pii CLI flag > scan.pii.enabled from config > default (enabled)
+        should_analyze_pii = not no_pii and pii_enabled_from_config
+
         # Print banner with final values
+        pii_status = (
+            "Disabled (--no-pii)"
+            if no_pii
+            else ("Disabled (config)" if not pii_enabled_from_config else "Enabled")
+        )
         print_banner(
             "SCAN COLLECTIONS & ANALYZE PII",
             Job=job,
             **{"Sample Size": f"{final_sample_size} docs/collection"},
             **{"Confidence": f"{final_confidence:.0%}"},
             Language=final_language.upper(),
-            **{"PII Analysis": "Disabled" if no_pii else "Enabled"},
+            **{"PII Analysis": pii_status},
             Interactive="Yes" if interactive else "No",
         )
 
@@ -402,8 +415,9 @@ def scan_command(
         console.print()
 
         # Step 5: Analyze PII (optional)
+        # should_analyze_pii was already determined above based on CLI flag and config
         pii_analyses = {}
-        if not no_pii:
+        if should_analyze_pii:
             print_step(5, 6, "Analyze PII")
             print_info("This may take a few minutes (loading NLP models + analysis)...")
 
@@ -439,6 +453,13 @@ def scan_command(
             except ValueError as e:
                 print_error(f"Invalid Presidio configuration: {e}")
                 raise typer.Exit(code=1)
+        else:
+            # PII analysis is disabled
+            if no_pii:
+                print_info("Skipping PII analysis (--no-pii flag set)")
+            else:
+                print_info("Skipping PII analysis (disabled in configuration)")
+            console.print()
 
         # Step 6: Generate configuration file
         print_step(6, 6, "Generate Configuration")
@@ -446,14 +467,19 @@ def scan_command(
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build scan config with precedence-resolved values (already extracted above)
+        # Determine the enabled flag to save:
+        # - If user explicitly passed --no-pii, save enabled=false
+        # - Otherwise, save enabled=true (default behavior)
+        # This means the config will remember the user's preference
+        pii_config_enabled = not no_pii
+
         scan_config = ScanConfig(
             discovery=ScanDiscoveryConfig(
                 include_patterns=include_patterns,
                 exclude_patterns=exclude_patterns,
             ),
             pii=ScanPIIConfig(
-                enabled=not no_pii,
+                enabled=pii_config_enabled,
                 confidence_threshold=final_confidence,  # Already resolved with precedence
                 sample_size=final_sample_size,  # Already resolved with precedence
                 entity_types=entity_types,
@@ -461,9 +487,7 @@ def scan_command(
                 allowlist=allowlist,
                 sample_strategy=sample_strategy,
                 presidio_config=presidio_config,
-            )
-            if not no_pii
-            else None,
+            ),
         )
 
         # Build replication config from PII analysis
