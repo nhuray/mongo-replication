@@ -2,7 +2,7 @@
 Init command - interactive setup for scan configuration.
 
 Usage:
-    rep init <job> [OPTIONS]
+    mongorep init <job> [OPTIONS]
 """
 
 from pathlib import Path
@@ -119,10 +119,10 @@ def init_command(
 
     Examples:
         # Initialize configuration for prod_db job
-        rep init prod_db
+        mongorep init prod_db
 
         # Specify custom output path
-        rep init prod_db --output /path/to/config.yaml
+        mongorep init prod_db --output /path/to/config.yaml
     """
     print_banner("INITIALIZE SCAN CONFIGURATION", Job=job)
 
@@ -527,11 +527,11 @@ def init_command(
     console.print(f'     [dim]export REP_{job.upper()}_CONFIG_PATH="{output}"[/dim]')
     console.print()
     console.print("  2. Run scan to analyze collections:")
-    console.print(f"     [dim]mongo-replication scan {job}[/dim]")
+    console.print(f"     [dim]mongorep scan {job}[/dim]")
     console.print()
     console.print("  3. Review PII report and update config as needed:")
     console.print(f"     [dim]cat config/{job}_pii_report.md[/dim]")
     console.print()
     console.print("  4. Run replication:")
-    console.print(f"     [dim]mongo-replication run {job}[/dim]")
+    console.print(f"     [dim]mongorep run {job}[/dim]")
     console.print()

@@ -3,9 +3,9 @@
 Main CLI entry point for the MongoDB replication tool.
 
 Usage:
-    rep init <job> [OPTIONS]    # Initialize scan configuration
-    mongo-replication scan <job> [OPTIONS]    # Discover collections and PII
-    mongo-replication run <job> [OPTIONS]     # Execute replication job
+    mongorep init <job> [OPTIONS]    # Initialize scan configuration
+    mongorep scan <job> [OPTIONS]    # Discover collections and PII
+    mongorep run <job> [OPTIONS]     # Execute replication job
 """
 
 import sys

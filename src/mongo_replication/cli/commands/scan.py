@@ -2,7 +2,7 @@
 Scan command - discover collections and analyze PII.
 
 Usage:
-    mongo-replication scan <job> [OPTIONS]
+    mongorep scan <job> [OPTIONS]
 """
 
 import time
@@ -164,13 +164,13 @@ def scan_command(
 
     Examples:
         # Scan all collections
-        mongo-replication scan prod_db
+        mongorep scan prod_db
 
         # Scan specific collections
-        mongo-replication scan prod_db --collections users,orders,customers
+        mongorep scan prod_db --collections users,orders,customers
 
         # Interactive mode
-        mongo-replication scan prod_db --interactive
+        mongorep scan prod_db --interactive
     """
     start_time = time.time()
 

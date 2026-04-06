@@ -2,7 +2,7 @@
 Run command - execute replication job.
 
 Usage:
-    mongo-replication run <job> [OPTIONS]
+    mongorep run <job> [OPTIONS]
 """
 
 import time
@@ -194,22 +194,22 @@ def run_command(
 
     Examples:
         # Replicate all configured collections
-        mongo-replication run prod_db
+        mongorep run prod_db
 
         # Replicate specific collections
-        mongo-replication run prod_db --collections users,orders
+        mongorep run prod_db --collections users,orders
 
         # Interactive mode
-        mongo-replication run prod_db --interactive
+        mongorep run prod_db --interactive
 
         # Dry run to preview
-        mongo-replication run prod_db --dry-run
+        mongorep run prod_db --dry-run
 
         # Cascade replication from specific customer IDs
-        mongo-replication run prod_db --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
+        mongorep run prod_db --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea
 
         # Cascade replication from documents matching a query
-        mongo-replication run prod_db --query customers='{"plan": "Basic"}'
+        mongorep run prod_db --query customers='{"plan": "Basic"}'
     """
     start_time = time.time()
 
@@ -252,7 +252,7 @@ def run_command(
         config_file = Path(job_config.config_path)
         if not config_file.exists():
             print_error(f"Config file not found: {config_file}")
-            print_info(f"Run 'mongo-replication scan {job}' to generate the config file.")
+            print_info(f"Run 'mongorep scan {job}' to generate the config file.")
             raise typer.Exit(code=1)
 
         print_success(f"Loaded job '{job}'")
