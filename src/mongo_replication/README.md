@@ -403,10 +403,10 @@ export MONGOREP_PROD_SOURCE_URI=mongodb://...
 
 ```bash
 ✗ Config file not found: config/prod_config.yaml
-ℹ Run 'mongorep scan prod' to generate the config file.
+ℹ Run 'mongorep init prod' to generate the config file.
 ```
 
-**Solution:** Run `mongorep scan prod` first or create the config manually.
+**Solution:** Run `mongorep init prod` first or create the config manually.
 
 ### No collections selected (interactive mode)
 
