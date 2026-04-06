@@ -96,43 +96,45 @@ def scan_command(
 ) -> None:
     """
     Discover collections and analyze PII for a replication job.
-    
+
     Generates a configuration file and PII report for the specified job.
-    
+
     Examples:
         # Scan all collections
         mongo-replication scan prod_db
-        
+
         # Scan specific collections
         mongo-replication scan prod_db --collections users,orders,customers
-        
+
         # Interactive mode
         mongo-replication scan prod_db --interactive
     """
     start_time = time.time()
-    
+
     try:
         # Step 1: Load job configuration and existing scan config
         print_step(1, 6, "Load Job Configuration")
-        
+
         job_manager = JobManager()
-        
+
         try:
             job_config = job_manager.get_job(job)
         except KeyError:
-            print_error(f"Job '{job}' not found. Available jobs: {', '.join(job_manager.list_jobs())}")
+            print_error(
+                f"Job '{job}' not found. Available jobs: {', '.join(job_manager.list_jobs())}"
+            )
             raise typer.Exit(code=1)
-        
+
         print_success(f"Loaded job '{job}'")
         print_info(f"Source: {job_config.source_uri.split('@')[-1]}")
-        
+
         # Load existing config if it exists to use discovery patterns
         # Determine output path first
         if output is None:
             output_path = Path(f"config/{job}_config.yaml")
         else:
             output_path = Path(output)
-        
+
         existing_config = None
         include_patterns = []
         exclude_patterns = []
@@ -140,13 +142,14 @@ def scan_command(
             "system.views",
             "system.buckets",
         ]
-        
+
         if output_path.exists():
             try:
                 from mongo_replication.config.loader import load_config
+
                 existing_config = load_config(output_path)
                 print_info(f"Loaded existing config from {output_path}")
-                
+
                 # Use discovery patterns from existing config
                 if existing_config.scan and existing_config.scan.discovery:
                     include_patterns = existing_config.scan.discovery.include_patterns or []
@@ -157,13 +160,13 @@ def scan_command(
                         print_info(f"Using {len(exclude_patterns)} exclude pattern(s) from config")
             except Exception as e:
                 print_warning(f"Could not load existing config (will create new): {e}")
-        
+
         # Apply precedence: CLI options > Config > Defaults
         # This ensures user can override config settings via CLI
         final_sample_size = sample_size
         final_confidence = confidence_threshold
         final_language = language
-        
+
         if existing_config and existing_config.scan and existing_config.scan.pii:
             # Use config values if CLI options not provided
             if sample_size is None:
@@ -171,7 +174,7 @@ def scan_command(
             if confidence_threshold is None:
                 final_confidence = existing_config.scan.pii.confidence_threshold
             # Language is always from CLI if provided, otherwise default
-        
+
         # Apply final defaults if still None
         if final_sample_size is None:
             final_sample_size = 1000
@@ -179,7 +182,7 @@ def scan_command(
             final_confidence = 0.85
         if final_language is None:
             final_language = "en"
-        
+
         # Show where values came from (for transparency)
         if sample_size is not None:
             print_info(f"Sample size: {final_sample_size} (from CLI)")
@@ -187,16 +190,16 @@ def scan_command(
             print_info(f"Sample size: {final_sample_size} (from config)")
         else:
             print_info(f"Sample size: {final_sample_size} (default)")
-        
+
         if confidence_threshold is not None:
             print_info(f"Confidence threshold: {final_confidence} (from CLI)")
         elif existing_config and existing_config.scan and existing_config.scan.pii:
             print_info(f"Confidence threshold: {final_confidence} (from config)")
         else:
             print_info(f"Confidence threshold: {final_confidence} (default)")
-        
+
         console.print()
-        
+
         # Print banner with final values
         print_banner(
             "SCAN COLLECTIONS & ANALYZE PII",
@@ -207,17 +210,17 @@ def scan_command(
             **{"PII Analysis": "Disabled" if no_pii else "Enabled"},
             Interactive="Yes" if interactive else "No",
         )
-        
+
         # Add default excludes if not already present
         if not exclude_patterns:
             exclude_patterns = default_excludes
-        
+
         # Step 2: Connect to database and discover collections
         print_step(2, 6, "Discover Collections")
-        
+
         # Parse database name from URI
-        db_name = job_config.source_uri.split('/')[-1].split('?')[0]
-        
+        db_name = job_config.source_uri.split("/")[-1].split("?")[0]
+
         conn_mgr = ConnectionManager(
             source_uri=job_config.source_uri,
             dest_uri=job_config.source_uri,  # Not used for scan
@@ -225,23 +228,23 @@ def scan_command(
             dest_db_name="unused",
         )
         source_db = conn_mgr.get_source_db()
-        
+
         # Use CollectionDiscovery to apply include/exclude patterns
         from mongo_replication.engine.discovery import CollectionDiscovery
-        
+
         discovery = CollectionDiscovery(
             source_db=source_db,
             replicate_all=(not include_patterns),  # If no include patterns, replicate all
             include_patterns=include_patterns,
             exclude_patterns=exclude_patterns,
         )
-        
+
         # Discover collections with patterns applied
         discovery_result = discovery.discover_collections(configured_collections=set())
         discovered_collections = discovery_result.included_collections
-        
+
         print_info(f"Found {len(discovered_collections)} collections (after filtering)")
-        
+
         # Filter by --collections option if provided
         if collections:
             collection_list = [c.strip() for c in collections.split(",")]
@@ -251,14 +254,14 @@ def scan_command(
                 print_error(f"Collections not found: {', '.join(invalid_collections)}")
                 print_info(f"Available collections: {', '.join(sorted(discovered_collections))}")
                 raise typer.Exit(code=1)
-            
+
             selected_collections = collection_list
             print_info(f"Using specified collections: {', '.join(selected_collections)}")
         elif interactive:
             # Interactive collection selection
             console.print()
             selected_collections = select_collections(discovered_collections)
-            
+
             if not selected_collections:
                 print_warning("No collections selected. Exiting.")
                 raise typer.Exit(code=0)
@@ -266,15 +269,15 @@ def scan_command(
             # Use all discovered collections
             selected_collections = discovered_collections
             print_success(f"Selected {len(selected_collections)} collections")
-        
+
         # Step 3: Sample documents
         print_step(3, 6, "Sample Documents")
-        
+
         sampler = CollectionSampler(
             database=source_db,
             sample_size=final_sample_size,
         )
-        
+
         sampling_results = {}
         for collection_name in progress_wrapper(
             selected_collections,
@@ -283,13 +286,15 @@ def scan_command(
         ):
             result = sampler.sample_collection(collection_name)
             sampling_results[collection_name] = result
-        
+
         total_samples = sum(r.sampled_documents for r in sampling_results.values())
-        print_success(f"Sampled {total_samples:,} documents from {len(sampling_results)} collections")
-        
+        print_success(
+            f"Sampled {total_samples:,} documents from {len(sampling_results)} collections"
+        )
+
         # Step 4: Load or build scan configuration (needed before PII analysis)
         print_step(4, 6, "Load Scan Configuration")
-        
+
         # Build scan configuration
         # Start with defaults for new configs
         default_entity_types = []  # Empty means all types
@@ -304,7 +309,7 @@ def scan_command(
         }
         default_allowlist = []
         default_sample_strategy = "stratified"
-        
+
         # Use existing config values if available (preserves user customizations)
         if existing_config and existing_config.scan and existing_config.scan.pii:
             existing_pii = existing_config.scan.pii
@@ -317,28 +322,30 @@ def scan_command(
             strategies = default_strategies
             allowlist = default_allowlist
             sample_strategy = default_sample_strategy
-        
+
         # Show entity type configuration
         if entity_types:
             print_info(f"Entity types: {', '.join(entity_types)} (from config)")
         else:
             print_info("Entity types: All types (default)")
-        
+
         console.print()
-        
+
         # Step 5: Analyze PII (optional)
         pii_analyses = {}
         if not no_pii:
             print_step(5, 6, "Analyze PII")
             print_info("This may take a few minutes (loading NLP models + analysis)...")
-            
+
             analyzer = PIIAnalysisEngine(
                 confidence_threshold=final_confidence,
                 language=final_language,
-                entity_types=entity_types if entity_types else None,  # Pass entity types from config
+                entity_types=entity_types
+                if entity_types
+                else None,  # Pass entity types from config
                 allowlist_fields=allowlist,
             )
-            
+
             for collection_name in progress_wrapper(
                 list(sampling_results.keys()),
                 desc="Analyzing",
@@ -347,21 +354,20 @@ def scan_command(
                 sampling_result = sampling_results[collection_name]
                 analysis = analyzer.analyze_collection(sampling_result)
                 pii_analyses[collection_name] = analysis
-            
+
             total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
             collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
-            
+
             print_success(
-                f"Found PII in {collections_with_pii} collections "
-                f"({total_pii_fields} fields total)"
+                f"Found PII in {collections_with_pii} collections ({total_pii_fields} fields total)"
             )
-        
+
         # Step 6: Generate configuration file
         print_step(6, 6, "Generate Configuration")
         console.print()
-        
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Build scan config with precedence-resolved values (already extracted above)
         scan_config = ScanConfig(
             discovery=ScanDiscoveryConfig(
@@ -376,16 +382,18 @@ def scan_command(
                 default_strategies=strategies,
                 allowlist=allowlist,
                 sample_strategy=sample_strategy,
-            ) if not no_pii else None,
+            )
+            if not no_pii
+            else None,
         )
-        
+
         # Build replication config from PII analysis
         new_collection_configs = {}
         for collection_name in selected_collections:
             pii_config = {}
             if collection_name in pii_analyses:
                 pii_config = pii_analyses[collection_name].get_pii_config()
-            
+
             # Only add collection if it has PII fields to configure
             if pii_config:
                 new_collection_configs[collection_name] = CollectionConfig(
@@ -395,7 +403,7 @@ def scan_command(
                     primary_key="_id",
                     pii_fields=pii_config,
                 )
-        
+
         # Merge with existing collections if config exists
         merged_collections = {}
         defaults = {
@@ -405,13 +413,13 @@ def scan_command(
             "cursor_field": None,  # Will auto-detect
             "write_disposition": "merge",
         }
-        
+
         if existing_config and existing_config.replication:
             # Start with existing collections
             merged_collections = dict(existing_config.replication.collections)
             # Keep existing defaults
             defaults = existing_config.replication.defaults
-            
+
             # Update/add newly scanned collections
             for coll_name, coll_config in new_collection_configs.items():
                 if coll_name in merged_collections:
@@ -420,7 +428,7 @@ def scan_command(
         else:
             # No existing config, use new collections
             merged_collections = new_collection_configs
-        
+
         config = Config(
             scan=scan_config,
             replication=ReplicationConfig(
@@ -428,12 +436,23 @@ def scan_command(
                 collections=merged_collections,
             ),
         )
-        
+
         # Save configuration
         save_config(config, output_path)
-        
+
         if existing_config:
-            updated_count = len([c for c in selected_collections if c in (existing_config.replication.collections if existing_config.replication else {})])
+            updated_count = len(
+                [
+                    c
+                    for c in selected_collections
+                    if c
+                    in (
+                        existing_config.replication.collections
+                        if existing_config.replication
+                        else {}
+                    )
+                ]
+            )
             added_count = len(selected_collections) - updated_count
             print_success(
                 f"Merged configuration to {output_path} "
@@ -442,7 +461,7 @@ def scan_command(
             )
         else:
             print_success(f"Saved configuration to {output_path}")
-        
+
         # Generate markdown PII report
         if not no_pii:
             report_path = output_path.parent / f"{job}_pii_report.md"
@@ -452,7 +471,7 @@ def scan_command(
                 output_path=report_path,
             )
             print_success(f"Saved PII report to {report_path}")
-        
+
         # Print summary
         elapsed = time.time() - start_time
         print_summary(
@@ -465,7 +484,7 @@ def scan_command(
                 "Time Elapsed": f"{elapsed:.1f}s",
             },
         )
-        
+
     except KeyboardInterrupt:
         console.print()
         print_warning("Scan cancelled by user")

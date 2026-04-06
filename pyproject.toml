@@ -44,6 +44,9 @@ dev-dependencies = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "mongomock>=4.0.0",
+    "taskipy>=1.14.1",
+    "build>=1.4.2",
+    "twine>=6.2.0",
 ]
 
 [project.scripts]
@@ -111,3 +114,11 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
+
+[tool.taskipy.tasks]
+format = "uv tool run ruff format"
+check = "uv tool run ruff check --fix"
+lint = "uv tool run ruff check --fix"
+build = "uv run python -m build"
+test = "uv run pytest"
+publish = "uv run twine upload dist/*"

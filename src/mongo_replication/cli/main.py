@@ -17,6 +17,7 @@ from mongo_replication.cli.commands import init, scan, run
 # Load environment variables from .env file if it exists
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     # dotenv not installed, skip automatic loading
@@ -37,7 +38,7 @@ console = Console()
 def main():
     """
     MongoDB Replication Tool
-    
+
     A job-based replication system with PII detection and anonymization.
     Each job has its own source, destination, and configuration.
     """

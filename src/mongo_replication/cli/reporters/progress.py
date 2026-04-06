@@ -15,14 +15,14 @@ def create_progress_bar(
 ) -> tqdm:
     """
     Create a styled tqdm progress bar.
-    
+
     Args:
         iterable: Iterable to wrap (optional)
         total: Total number of iterations (optional)
         desc: Description to display
         unit: Unit name for iterations
         **kwargs: Additional tqdm arguments
-    
+
     Returns:
         tqdm progress bar instance
     """
@@ -32,7 +32,7 @@ def create_progress_bar(
         "ncols": 80,
     }
     default_kwargs.update(kwargs)
-    
+
     return tqdm(
         iterable=iterable,
         total=total,
@@ -45,12 +45,12 @@ def create_progress_bar(
 def progress_wrapper(items: list, desc: str, unit: str = "item") -> Iterable:
     """
     Wrap a list with a progress bar.
-    
+
     Args:
         items: List of items to process
         desc: Description for the progress bar
         unit: Unit name for items
-    
+
     Returns:
         Iterable with progress bar
     """

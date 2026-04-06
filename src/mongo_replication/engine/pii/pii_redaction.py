@@ -27,7 +27,9 @@ class PIIRedactor:
             "null": self._null,
         }
 
-    def redact_document(self, document: Dict[str, Any], pii_fields: Dict[str, str]) -> Dict[str, Any]:
+    def redact_document(
+        self, document: Dict[str, Any], pii_fields: Dict[str, str]
+    ) -> Dict[str, Any]:
         """
         Redact PII fields in a document according to the specified strategies.
 
@@ -72,10 +74,12 @@ class PIIRedactor:
         strategy_func = self._strategy_map[strategy]
         return strategy_func(value)
 
-    def _redact_nested_field(self, document: Dict[str, Any], field_path: str, strategy: str) -> None:
+    def _redact_nested_field(
+        self, document: Dict[str, Any], field_path: str, strategy: str
+    ) -> None:
         """
         Redact a nested field using dot notation.
-        
+
         Supports array fields - e.g., "contacts.email" will redact email in all array elements.
 
         Args:
@@ -87,10 +91,7 @@ class PIIRedactor:
         self._redact_nested_field_recursive(document, parts, strategy)
 
     def _redact_nested_field_recursive(
-        self, 
-        current: Any, 
-        remaining_parts: list, 
-        strategy: str
+        self, current: Any, remaining_parts: list, strategy: str
     ) -> None:
         """
         Recursively redact a nested field, handling arrays.
@@ -106,7 +107,7 @@ class PIIRedactor:
         # Base case: we've reached the final field
         if len(remaining_parts) == 1:
             final_field = remaining_parts[0]
-            
+
             if isinstance(current, dict) and final_field in current:
                 current[final_field] = self.apply_strategy(current[final_field], strategy)
             elif isinstance(current, list):
@@ -122,7 +123,7 @@ class PIIRedactor:
 
         if isinstance(current, dict) and next_part in current:
             next_value = current[next_part]
-            
+
             if isinstance(next_value, list):
                 # Apply to all elements in the array
                 for item in next_value:

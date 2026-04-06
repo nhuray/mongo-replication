@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 class StateManager:
     """Manages replication state and run tracking for MongoDB replication.
-    
+
     State is stored in two collections (configurable via defaults):
     1. _rep_runs: Job run history (one doc per complete replication job)
     2. _rep_state: Per-collection replication state (one doc per collection-run)
-    
+
     All BSON types (ObjectId, datetime, Decimal128) are preserved natively.
-    
+
     Schema for _rep_runs:
         _id: ObjectId                           # Run ID
         status: String                          # "running", "completed", or "failed"
@@ -42,7 +42,7 @@ class StateManager:
         documents.failed: Int32                 # Documents failed
         errors.summary: Object                  # Error summary by collection
         errors.collections: Array               # List of failed collection names
-    
+
     Schema for _rep_state:
         _id: ObjectId                           # State ID
         runId: ObjectId                         # Reference to _rep_runs._id
@@ -66,7 +66,7 @@ class StateManager:
         state_collection: str = "_rep_state",
     ):
         """Initialize the state manager.
-        
+
         Args:
             destination_db: PyMongo Database instance for the destination
             runs_collection: Name of the runs tracking collection
@@ -88,22 +88,21 @@ class StateManager:
             except Exception as e:
                 logger.warning(f"Failed to drop old collection_name_unique index: {e}")
                 pass  # Index doesn't exist, that's fine
-            
+
             # Runs collection indexes
             self.runs_collection.create_index("status", name="status_idx")
             self.runs_collection.create_index("startedAt", name="startedAt_idx")
-            
+
             # State collection indexes
             self.state_collection.create_index("runId", name="runId_idx")
             self.state_collection.create_index("collection", name="collection_idx")
             self.state_collection.create_index("status", name="status_idx")
-            
+
             # Compound index for incremental loading lookups
             self.state_collection.create_index(
-                [("collection", 1), ("endedAt", -1)],
-                name="collection_endedAt_idx"
+                [("collection", 1), ("endedAt", -1)], name="collection_endedAt_idx"
             )
-            
+
         except Exception as e:
             # Silently ignore index creation errors (may not have permissions)
             # Indexes are a nice-to-have for performance, not required
@@ -115,32 +114,34 @@ class StateManager:
 
     def create_run(self) -> ObjectId:
         """Create a new replication run and return its ID.
-        
+
         Returns:
             ObjectId for the new run
         """
         run_id = ObjectId()
-        self.runs_collection.insert_one({
-            "_id": run_id,
-            "status": "running",
-            "startedAt": datetime.utcnow(),
-            "endedAt": None,
-            "durationSeconds": None,
-            "collections": {
-                "processed": 0,
-                "succeeded": 0,
-                "failed": 0,
-            },
-            "documents": {
-                "processed": 0,
-                "succeeded": 0,
-                "failed": 0,
-            },
-            "errors": {
-                "summary": {},
-                "collections": [],
-            },
-        })
+        self.runs_collection.insert_one(
+            {
+                "_id": run_id,
+                "status": "running",
+                "startedAt": datetime.utcnow(),
+                "endedAt": None,
+                "durationSeconds": None,
+                "collections": {
+                    "processed": 0,
+                    "succeeded": 0,
+                    "failed": 0,
+                },
+                "documents": {
+                    "processed": 0,
+                    "succeeded": 0,
+                    "failed": 0,
+                },
+                "errors": {
+                    "summary": {},
+                    "collections": [],
+                },
+            }
+        )
         logger.debug(f"Created run {run_id}")
         return run_id
 
@@ -157,7 +158,7 @@ class StateManager:
         failed_collections: Optional[List[str]] = None,
     ) -> None:
         """Mark a run as completed successfully.
-        
+
         Args:
             run_id: Run identifier
             collections_processed: Total collections processed
@@ -173,10 +174,10 @@ class StateManager:
         if not started:
             logger.warning(f"Run {run_id} not found in runs collection")
             return
-        
+
         end_time = datetime.utcnow()
         duration = (end_time - started["startedAt"]).total_seconds()
-        
+
         self.runs_collection.update_one(
             {"_id": run_id},
             {
@@ -199,7 +200,7 @@ class StateManager:
                         "collections": failed_collections or [],
                     },
                 }
-            }
+            },
         )
         logger.info(
             f"Completed run {run_id}: "
@@ -213,7 +214,7 @@ class StateManager:
         error_message: str,
     ) -> None:
         """Mark a run as failed.
-        
+
         Args:
             run_id: Run identifier
             error_message: Error description
@@ -225,7 +226,7 @@ class StateManager:
         else:
             end_time = datetime.utcnow()
             duration = 0
-        
+
         self.runs_collection.update_one(
             {"_id": run_id},
             {
@@ -245,26 +246,21 @@ class StateManager:
 
     def get_last_successful_run(self) -> Optional[Dict[str, Any]]:
         """Get the most recent successful run.
-        
+
         Returns:
             Run document if found, None otherwise
         """
-        return self.runs_collection.find_one(
-            {"status": "completed"},
-            sort=[("startedAt", -1)]
-        )
+        return self.runs_collection.find_one({"status": "completed"}, sort=[("startedAt", -1)])
 
     def get_running_runs(self) -> List[Dict[str, Any]]:
         """Get list of currently running runs.
-        
+
         Useful for detecting stuck runs.
-        
+
         Returns:
             List of run documents with status="running"
         """
-        return list(self.runs_collection.find(
-            {"status": "running"}
-        ))
+        return list(self.runs_collection.find({"status": "running"}))
 
     # ============================================================
     # Collection State Methods
@@ -276,32 +272,34 @@ class StateManager:
         collection_name: str,
     ) -> ObjectId:
         """Mark a collection replication as started.
-        
+
         Args:
             run_id: ID of the parent run
             collection_name: Name of the collection
-            
+
         Returns:
             ObjectId for the collection state document
         """
         state_id = ObjectId()
-        self.state_collection.insert_one({
-            "_id": state_id,
-            "runId": run_id,
-            "collection": collection_name,
-            "status": "running",
-            "startedAt": datetime.utcnow(),
-            "endedAt": None,
-            "durationSeconds": None,
-            "documents": {
-                "processed": 0,
-                "succeeded": 0,
-                "failed": 0,
-            },
-            "lastCursorValue": None,
-            "lastCursorField": None,
-            "error": None,
-        })
+        self.state_collection.insert_one(
+            {
+                "_id": state_id,
+                "runId": run_id,
+                "collection": collection_name,
+                "status": "running",
+                "startedAt": datetime.utcnow(),
+                "endedAt": None,
+                "durationSeconds": None,
+                "documents": {
+                    "processed": 0,
+                    "succeeded": 0,
+                    "failed": 0,
+                },
+                "lastCursorValue": None,
+                "lastCursorField": None,
+                "error": None,
+            }
+        )
         return state_id
 
     def update_collection_state(
@@ -314,9 +312,9 @@ class StateManager:
         documents_failed: int,
     ) -> None:
         """Update collection state after processing a batch.
-        
+
         This is called after each successful batch to ensure safe resume.
-        
+
         Args:
             state_id: ID of the state document
             last_cursor_value: Latest cursor value (native BSON type preserved!)
@@ -346,7 +344,7 @@ class StateManager:
         documents_failed: int,
     ) -> None:
         """Mark a collection replication as completed.
-        
+
         Args:
             state_id: ID of the state document
             documents_processed: Total documents processed
@@ -357,10 +355,10 @@ class StateManager:
         if not state:
             logger.warning(f"State {state_id} not found")
             return
-        
+
         end_time = datetime.utcnow()
         duration = (end_time - state["startedAt"]).total_seconds()
-        
+
         self.state_collection.update_one(
             {"_id": state_id},
             {
@@ -384,7 +382,7 @@ class StateManager:
         documents_failed: int = 0,
     ) -> None:
         """Mark a collection replication as failed.
-        
+
         Args:
             state_id: ID of the state document
             error_message: Error description
@@ -399,7 +397,7 @@ class StateManager:
         else:
             end_time = datetime.utcnow()
             duration = 0
-        
+
         self.state_collection.update_one(
             {"_id": state_id},
             {
@@ -426,42 +424,44 @@ class StateManager:
         reason: str,
     ) -> None:
         """Mark a collection as skipped.
-        
+
         Args:
             run_id: ID of the parent run
             collection_name: Name of the collection
             reason: Reason for skipping
         """
         now = datetime.utcnow()
-        self.state_collection.insert_one({
-            "_id": ObjectId(),
-            "runId": run_id,
-            "collection": collection_name,
-            "status": "skipped",
-            "startedAt": now,
-            "endedAt": now,
-            "durationSeconds": 0,
-            "documents": {
-                "processed": 0,
-                "succeeded": 0,
-                "failed": 0,
-            },
-            "lastCursorValue": None,
-            "lastCursorField": None,
-            "error": {
-                "message": reason,
-                "timestamp": now,
-            },
-        })
+        self.state_collection.insert_one(
+            {
+                "_id": ObjectId(),
+                "runId": run_id,
+                "collection": collection_name,
+                "status": "skipped",
+                "startedAt": now,
+                "endedAt": now,
+                "durationSeconds": 0,
+                "documents": {
+                    "processed": 0,
+                    "succeeded": 0,
+                    "failed": 0,
+                },
+                "lastCursorValue": None,
+                "lastCursorField": None,
+                "error": {
+                    "message": reason,
+                    "timestamp": now,
+                },
+            }
+        )
 
     def get_last_cursor_value(self, collection_name: str) -> Optional[Any]:
         """Get the last cursor value for incremental loading.
-        
+
         Looks up the most recent completed state for this collection.
-        
+
         Args:
             collection_name: Name of the collection
-            
+
         Returns:
             Last cursor value (as native BSON type: datetime, ObjectId, etc.)
             or None if no previous state exists
@@ -472,7 +472,7 @@ class StateManager:
                 "status": "completed",
                 "lastCursorValue": {"$ne": None},
             },
-            sort=[("endedAt", -1)]
+            sort=[("endedAt", -1)],
         )
         if state:
             return state.get("lastCursorValue")
@@ -480,39 +480,36 @@ class StateManager:
 
     def get_running_collections(self, run_id: ObjectId) -> List[str]:
         """Get list of collections currently marked as running for a specific run.
-        
+
         Useful for detecting stuck replications.
-        
+
         Args:
             run_id: ID of the run
-            
+
         Returns:
             List of collection names
         """
         cursor = self.state_collection.find(
-            {"runId": run_id, "status": "running"},
-            {"collection": 1}
+            {"runId": run_id, "status": "running"}, {"collection": 1}
         )
         return [doc["collection"] for doc in cursor]
 
     def get_failed_collections(self, run_id: ObjectId) -> List[Dict[str, Any]]:
         """Get list of collections that failed in a specific run.
-        
+
         Args:
             run_id: ID of the run
-            
+
         Returns:
             List of state documents for failed collections
         """
-        return list(self.state_collection.find(
-            {"runId": run_id, "status": "failed"}
-        ))
+        return list(self.state_collection.find({"runId": run_id, "status": "failed"}))
 
     def reset_collection_state(self, collection_name: str) -> None:
         """Reset all state for a collection (for manual recovery).
-        
+
         Deletes all state documents for this collection across all runs.
-        
+
         Args:
             collection_name: Name of the collection
         """

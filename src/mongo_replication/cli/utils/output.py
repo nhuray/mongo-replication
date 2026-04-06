@@ -11,18 +11,18 @@ console = Console()
 def print_banner(title: str, **info: str) -> None:
     """
     Print a formatted banner with title and key-value pairs.
-    
+
     Args:
         title: Banner title
         **info: Key-value pairs to display
     """
     console.print()
     console.rule(f"[bold blue]{title}[/bold blue]", style="blue")
-    
+
     if info:
         for key, value in info.items():
             console.print(f"  [cyan]{key}:[/cyan] {value}")
-    
+
     console.print()
 
 
@@ -49,24 +49,21 @@ def print_info(message: str) -> None:
 def print_step(step_num: int, total_steps: int, title: str) -> None:
     """
     Print a step header.
-    
+
     Args:
         step_num: Current step number
         total_steps: Total number of steps
         title: Step title
     """
     console.print()
-    console.rule(
-        f"[bold]Step {step_num}/{total_steps}: {title}[/bold]",
-        style="cyan"
-    )
+    console.rule(f"[bold]Step {step_num}/{total_steps}: {title}[/bold]", style="cyan")
     console.print()
 
 
 def print_summary(title: str, items: dict[str, str | int]) -> None:
     """
     Print a summary panel with key-value pairs.
-    
+
     Args:
         title: Summary title
         items: Dictionary of items to display
@@ -74,7 +71,7 @@ def print_summary(title: str, items: dict[str, str | int]) -> None:
     lines = []
     for key, value in items.items():
         lines.append(f"[cyan]{key}:[/cyan] {value}")
-    
+
     panel = Panel(
         "\n".join(lines),
         title=f"[bold]{title}[/bold]",

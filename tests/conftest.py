@@ -34,7 +34,7 @@ def tests_dir(project_root):
 def mock_env(monkeypatch):
     """
     Fixture to easily set environment variables for tests.
-    
+
     Usage:
         def test_something(mock_env):
             mock_env({
@@ -42,9 +42,11 @@ def mock_env(monkeypatch):
                 "REP_SOURCE_TEST_MONGODB_URI": "mongodb://localhost/test"
             })
     """
+
     def _set_env(env_vars: dict):
         for key, value in env_vars.items():
             monkeypatch.setenv(key, value)
+
     return _set_env
 
 

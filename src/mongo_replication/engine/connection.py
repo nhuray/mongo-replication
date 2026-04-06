@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ConnectionManager:
     """Manages MongoDB connections with retry logic and connection pooling.
-    
+
     Uses tenacity for exponential backoff on connection failures:
     - 3 retry attempts
     - Delays: 2s, 4s, 8s (exponential backoff)
@@ -37,7 +37,7 @@ class ConnectionManager:
         dest_db_name: str,
     ):
         """Initialize connection manager.
-        
+
         Args:
             source_uri: MongoDB connection URI for source
             dest_uri: MongoDB connection URI for destination
@@ -48,7 +48,7 @@ class ConnectionManager:
         self.dest_uri = dest_uri
         self.source_db_name = source_db_name
         self.dest_db_name = dest_db_name
-        
+
         # Connection instances (lazy initialization)
         self._source_client: Optional[MongoClient] = None
         self._dest_client: Optional[MongoClient] = None
@@ -61,20 +61,20 @@ class ConnectionManager:
     )
     def _connect_source(self) -> MongoClient:
         """Connect to source MongoDB with retry logic.
-        
+
         Returns:
             Connected MongoClient instance
-            
+
         Raises:
             ConnectionFailure: After 3 failed attempts
         """
         logger.info("Connecting to source MongoDB...")
         client = MongoClient(self.source_uri, serverSelectionTimeoutMS=5000)
-        
+
         # Test connection with ping
-        client.admin.command('ping')
+        client.admin.command("ping")
         logger.info("✅ Connected to source MongoDB")
-        
+
         return client
 
     @retry(
@@ -85,25 +85,25 @@ class ConnectionManager:
     )
     def _connect_dest(self) -> MongoClient:
         """Connect to destination MongoDB with retry logic.
-        
+
         Returns:
             Connected MongoClient instance
-            
+
         Raises:
             ConnectionFailure: After 3 failed attempts
         """
         logger.info("Connecting to destination MongoDB...")
         client = MongoClient(self.dest_uri, serverSelectionTimeoutMS=5000)
-        
+
         # Test connection with ping
-        client.admin.command('ping')
+        client.admin.command("ping")
         logger.info("✅ Connected to destination MongoDB")
-        
+
         return client
 
     def get_source_client(self) -> MongoClient:
         """Get source MongoDB client (lazy initialization).
-        
+
         Returns:
             Connected MongoClient instance
         """
@@ -113,7 +113,7 @@ class ConnectionManager:
 
     def get_dest_client(self) -> MongoClient:
         """Get destination MongoDB client (lazy initialization).
-        
+
         Returns:
             Connected MongoClient instance
         """
@@ -123,7 +123,7 @@ class ConnectionManager:
 
     def get_source_db(self) -> Database:
         """Get source database instance.
-        
+
         Returns:
             PyMongo Database instance
         """
@@ -131,7 +131,7 @@ class ConnectionManager:
 
     def get_dest_db(self) -> Database:
         """Get destination database instance.
-        
+
         Returns:
             PyMongo Database instance
         """
@@ -143,7 +143,7 @@ class ConnectionManager:
             logger.info("Closing source MongoDB connection")
             self._source_client.close()
             self._source_client = None
-        
+
         if self._dest_client is not None:
             logger.info("Closing destination MongoDB connection")
             self._dest_client.close()
