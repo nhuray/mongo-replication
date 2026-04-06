@@ -2,11 +2,9 @@
 
 import logging
 import os
-import re
 import warnings
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import yaml
 
@@ -16,126 +14,12 @@ from mongo_replication.config.models import (
     ScanDiscoveryConfig,
     ScanPIIConfig,
     RelationshipConfig,
+    FieldTransformConfig,
+    CollectionConfig,
+    ReplicationConfig,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class FieldTransformConfig:
-    """Configuration for a single field transformation."""
-
-    field: str  # Field path (supports dot notation for nested fields)
-    type: str  # Transformation type (currently only "regex_replace")
-    pattern: str  # Regex pattern to match
-    replacement: str  # Replacement string
-
-    def __post_init__(self):
-        """Validate transformation configuration."""
-        if self.type != "regex_replace":
-            raise ValueError(
-                f"Invalid transformation type '{self.type}' for field '{self.field}'. "
-                f"Currently only 'regex_replace' is supported."
-            )
-
-        # Validate regex pattern at config load time (fail-fast)
-        try:
-            re.compile(self.pattern)
-        except re.error as e:
-            raise ValueError(
-                f"Invalid regex pattern '{self.pattern}' for field '{self.field}': {str(e)}"
-            )
-
-
-@dataclass
-class CollectionConfig:
-    """Configuration for a single collection."""
-
-    name: str
-    cursor_field: Optional[str]
-    write_disposition: str
-    primary_key: str
-    pii_fields: Dict[str, str]
-
-    # New transformation fields (Phase 6+)
-    match: Optional[Dict[str, Any]] = None  # MongoDB match filter
-    field_transforms: List[FieldTransformConfig] = field(
-        default_factory=list
-    )  # Field transformations
-    fields_exclude: List[str] = field(
-        default_factory=list
-    )  # Fields to exclude (collection-level only)
-    transform_error_mode: str = "skip"  # Error handling mode: "skip" or "fail"
-
-    def __post_init__(self):
-        """Validate configuration after initialization."""
-        valid_dispositions = ["merge", "append", "replace"]
-        if self.write_disposition not in valid_dispositions:
-            raise ValueError(
-                f"Invalid write_disposition '{self.write_disposition}' for collection '{self.name}'. "
-                f"Must be one of: {', '.join(valid_dispositions)}"
-            )
-
-        # Validate transform_error_mode
-        valid_error_modes = ["skip", "fail"]
-        if self.transform_error_mode not in valid_error_modes:
-            raise ValueError(
-                f"Invalid transform_error_mode '{self.transform_error_mode}' for collection '{self.name}'. "
-                f"Must be one of: {', '.join(valid_error_modes)}"
-            )
-
-        # Note: cursor_field validation is now relaxed - CursorValidator will handle
-        # fallback to _id if the configured cursor field doesn't exist
-
-
-@dataclass
-class ReplicationConfig:
-    """Complete replication configuration."""
-
-    collections: Dict[str, CollectionConfig]
-    defaults: Dict[str, Any]
-    schema: List["RelationshipConfig"] = field(default_factory=list)  # Forward reference
-    """Collection relationships for cascading replication (optional)."""
-
-    @property
-    def fallback_cursor(self) -> str:
-        """Get the fallback cursor field name."""
-        return self.defaults.get("fallback_cursor", "_id")
-
-    @property
-    def initial_value(self) -> str:
-        """Get the initial cursor value for incremental loading."""
-        return self.defaults.get("initial_value", "2020-01-01T00:00:00Z")
-
-    @property
-    def replicate_all(self) -> bool:
-        """Get the replicate_all flag."""
-        return self.defaults.get("replicate_all", True)
-
-    @property
-    def include_patterns(self) -> list:
-        """Get include patterns for collection filtering."""
-        return self.defaults.get("include_patterns", [])
-
-    @property
-    def exclude_patterns(self) -> list:
-        """Get exclude patterns for collection filtering."""
-        return self.defaults.get("exclude_patterns", [])
-
-    @property
-    def batch_size(self) -> int:
-        """Get default batch size."""
-        return self.defaults.get("batch_size", 1000)
-
-    @property
-    def max_parallel_collections(self) -> int:
-        """Get max parallel collections."""
-        return self.defaults.get("max_parallel_collections", 5)
-
-    @property
-    def transform_error_mode(self) -> str:
-        """Get default transform error mode."""
-        return self.defaults.get("transform_error_mode", "skip")
 
 
 def get_collection_config(

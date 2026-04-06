@@ -25,17 +25,14 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.loader import (
-    save_config,
-    CollectionConfig,
-    ReplicationConfig,
-    load_defaults,
-)
+from mongo_replication.config.loader import save_config, load_defaults
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
     ScanPIIConfig,
     Config,
+    CollectionConfig,
+    ReplicationConfig,
 )
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.jobs import JobManager

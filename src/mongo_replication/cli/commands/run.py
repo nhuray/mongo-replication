@@ -27,7 +27,8 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.loader import load_replication_config, CollectionConfig
+from mongo_replication.config.loader import load_replication_config
+from mongo_replication.config.models import CollectionConfig
 from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.jobs import JobManager

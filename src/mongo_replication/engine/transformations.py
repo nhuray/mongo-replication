@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
-from mongo_replication.config.loader import FieldTransformConfig
+from mongo_replication.config.models import FieldTransformConfig
 
 logger = logging.getLogger(__name__)
 

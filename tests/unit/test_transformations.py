@@ -1,6 +1,6 @@
 """Tests for field transformation engine."""
 
-from mongo_replication.config.loader import FieldTransformConfig
+from mongo_replication.config.models import FieldTransformConfig
 from mongo_replication.engine.transformations import FieldTransformer
 
 

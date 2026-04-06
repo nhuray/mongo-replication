@@ -23,8 +23,14 @@ from mongo_replication.cli.utils.output import (
     print_step,
     console,
 )
-from mongo_replication.config.loader import save_config, load_defaults, ReplicationConfig
-from mongo_replication.config.models import ScanConfig, ScanDiscoveryConfig, ScanPIIConfig, Config
+from mongo_replication.config.loader import save_config, load_defaults
+from mongo_replication.config.models import (
+    ScanConfig,
+    ScanDiscoveryConfig,
+    ScanPIIConfig,
+    Config,
+    ReplicationConfig,
+)
 
 # Custom style for questionary
 custom_style = Style(
