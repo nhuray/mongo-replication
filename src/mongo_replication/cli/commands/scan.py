@@ -198,13 +198,15 @@ def scan_command(
         else:
             output_path = Path(output)
 
+        # Load system defaults first
+        system_defaults = load_defaults()
+        scan_defaults = system_defaults.get("scan", {})
+        discovery_defaults = scan_defaults.get("discovery", {})
+        pii_defaults = scan_defaults.get("pii", {})
+
         existing_config = None
         include_patterns = []
         exclude_patterns = []
-        default_excludes = [
-            "system.views",
-            "system.buckets",
-        ]
 
         if output_path.exists():
             try:
@@ -224,12 +226,12 @@ def scan_command(
             except Exception as e:
                 print_warning(f"Could not load existing config (will create new): {e}")
 
-        # Apply precedence: CLI options > Config > Defaults
+        # Apply precedence: CLI options > Config file > defaults.yaml
         # This ensures user can override config settings via CLI
         final_sample_size = sample_size
         final_confidence = confidence_threshold
         final_language = language
-        pii_enabled_from_config = True  # Default to enabled
+        pii_enabled_from_config = pii_defaults.get("enabled", True)
 
         if existing_config and existing_config.scan and existing_config.scan.pii:
             # Use config values if CLI options not provided
@@ -242,11 +244,11 @@ def scan_command(
             # Check if PII is enabled in config (only if --no-pii not explicitly set)
             pii_enabled_from_config = existing_config.scan.pii.enabled
 
-        # Apply final defaults if still None
+        # Apply defaults from defaults.yaml if still None
         if final_sample_size is None:
-            final_sample_size = 1000
+            final_sample_size = pii_defaults.get("sample_size", 1000)
         if final_confidence is None:
-            final_confidence = 0.85
+            final_confidence = pii_defaults.get("confidence_threshold", 0.85)
         if final_language is None:
             final_language = "en"
 
@@ -287,9 +289,9 @@ def scan_command(
             Interactive="Yes" if interactive else "No",
         )
 
-        # Add default excludes if not already present
+        # Apply default exclude patterns from defaults.yaml if not already set
         if not exclude_patterns:
-            exclude_patterns = default_excludes
+            exclude_patterns = discovery_defaults.get("exclude_patterns", [])
 
         # Step 2: Connect to database and discover collections
         print_step(2, 6, "Discover Collections")
@@ -371,20 +373,11 @@ def scan_command(
         # Step 4: Load or build scan configuration (needed before PII analysis)
         print_step(4, 6, "Load Scan Configuration")
 
-        # Build scan configuration
-        # Start with defaults for new configs
-        default_entity_types = []  # Empty means all types
-        default_strategies = {
-            "EMAIL_ADDRESS": "fake",
-            "PHONE_NUMBER": "fake",
-            "PERSON": "fake",
-            "LOCATION": "redact",
-            "CREDIT_CARD": "hash",
-            "CRYPTO": "hash",
-            "IBAN_CODE": "hash",
-        }
-        default_allowlist = ["_id", "meta.*", "*.id"]
-        default_sample_strategy = "stratified"
+        # Load defaults for PII configuration from defaults.yaml
+        default_entity_types = pii_defaults.get("entity_types", [])
+        default_strategies = pii_defaults.get("default_strategies", {})
+        default_allowlist = pii_defaults.get("allowlist", [])
+        default_sample_strategy = pii_defaults.get("sample_strategy", "stratified")
 
         # Use existing config values if available (preserves user customizations)
         presidio_config = None
@@ -491,8 +484,7 @@ def scan_command(
         )
 
         # Build replication config from PII analysis
-        # Load system defaults first to get cursor_fields
-        system_defaults = load_defaults()
+        # Load replication defaults for cursor_fields
         replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
         cursor_fields = replication_defaults_raw.get(
             "cursor_fields", ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
