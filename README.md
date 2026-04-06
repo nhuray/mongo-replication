@@ -250,7 +250,7 @@ Options:
  --dry-run                       Preview what would be replicated without executing                                                                                                                              │
  --parallel     -p      INTEGER  Maximum number of parallel collections (default: from config or 5)                                                                                                              │
  --batch-size   -b      INTEGER  Batch size for document processing                                                                                                                                              │
- --select               TEXT     Cascade replication from specific records. Format: collection=id1,id2,id3 (e.g., --select customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)                          │
+│ --ids                  TEXT     Cascade replication from specific documents IDs. Format: collection=id1,id2,id3 (e.g., --ids customers=507f1f77bcf86cd799439011,507f191e810c19729de860ea)                                                                                                                                                                                                                                        │
  --help                          Show this message and exit.
 ```
 
@@ -262,7 +262,7 @@ Replicate related documents across collections:
 
 ```bash
 # Replicate customer and all related orders, invoices, etc.
-mongorep run my_job --select customers=507f1f77bcf86cd799439011
+mongorep run my_job --ids customers=507f1f77bcf86cd799439011
 ```
 
 Define schema relationships in configuration:
