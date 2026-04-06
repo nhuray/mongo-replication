@@ -122,3 +122,25 @@ lint = "uv tool run ruff check --fix"
 build = "uv run python -m build"
 test = "uv run pytest"
 publish = "uv run twine upload dist/*"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_pypi = true
+upload_to_release = true
+build_command = "uv run python -m build"
+commit_message = "chore(release): {version} [skip ci]"
+commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = []
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "style", "refactor", "test"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
