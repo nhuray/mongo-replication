@@ -442,6 +442,5 @@ rep run --help
 ```
 
 For more information:
-- **Migration Guide**: `docs/MIGRATION_GUIDE.md`
 - **Environment Examples**: `.env.example`
 - **Configuration Schema**: See above
