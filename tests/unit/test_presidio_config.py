@@ -16,7 +16,6 @@ class TestPresidioConfigPathResolution:
         config_file = tmp_path / "test_presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
@@ -24,10 +23,11 @@ class TestPresidioConfigPathResolution:
                   model_name: en_core_web_lg
             supported_languages: [en]
             default_score_threshold: 0.5
-            recognizers:
-              - name: EmailRecognizer
-                supported_entity: EMAIL_ADDRESS
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: EmailRecognizer
+                  supported_entity: EMAIL_ADDRESS
+                  supported_languages: [en]
         """)
         )
 
@@ -55,14 +55,14 @@ class TestPresidioConfigPathResolution:
         config_file = tmp_path / "presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers: []
+            recognizer_registry:
+              recognizers: []
         """)
         )
 
@@ -83,14 +83,14 @@ class TestPresidioConfigPathResolution:
         config_file = config_dir / "presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers: []
+            recognizer_registry:
+              recognizers: []
         """)
         )
 
@@ -121,7 +121,6 @@ class TestPresidioConfigLoading:
         config_file = tmp_path / "valid_presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
@@ -131,14 +130,15 @@ class TestPresidioConfigLoading:
             supported_languages: [en]
             default_score_threshold: 0.35
 
-            recognizers:
-              - name: EmailRecognizer
-                supported_entity: EMAIL_ADDRESS
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: EmailRecognizer
+                  supported_entity: EMAIL_ADDRESS
+                  supported_languages: [en]
 
-              - name: PhoneRecognizer
-                supported_entity: PHONE_NUMBER
-                supported_languages: [en]
+                - name: PhoneRecognizer
+                  supported_entity: PHONE_NUMBER
+                  supported_languages: [en]
         """)
         )
 
@@ -154,7 +154,6 @@ class TestPresidioConfigLoading:
         config_file = tmp_path / "custom_presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
@@ -164,14 +163,15 @@ class TestPresidioConfigLoading:
             supported_languages: [en]
             default_score_threshold: 0.35
 
-            recognizers:
-              - name: EmployeeIdRecognizer
-                supported_entity: EMPLOYEE_ID
-                supported_languages: [en]
-                patterns:
-                  - name: emp_pattern
-                    regex: "\\\\bEMP-\\\\d{5}\\\\b"
-                    score: 0.7
+            recognizer_registry:
+              recognizers:
+                - name: EmployeeIdRecognizer
+                  supported_entity: EMPLOYEE_ID
+                  supported_languages: [en]
+                  patterns:
+                    - name: emp_pattern
+                      regex: "\\\\bEMP-\\\\d{5}\\\\b"
+                      score: 0.7
         """)
         )
 
@@ -184,9 +184,16 @@ class TestPresidioConfigLoading:
         assert "EMPLOYEE_ID" in supported_entities
 
     def test_load_invalid_yaml_raises_error(self, tmp_path):
-        """Test that invalid YAML raises ValueError with helpful message."""
+        """Test that invalid YAML structure raises ValueError with helpful message."""
         config_file = tmp_path / "invalid.yaml"
-        config_file.write_text("invalid: yaml: syntax:")
+        # Invalid structure - missing required keys
+        config_file.write_text(
+            dedent("""
+            # Invalid - missing nlp_configuration and recognizer_registry
+            invalid_key: some_value
+            another_bad_key: another_value
+        """)
+        )
 
         analyzer = PresidioAnalyzer()
 
@@ -204,17 +211,17 @@ class TestPresidioAnalyzerCaching:
         config_file = tmp_path / "cached_presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers:
-              - name: EmailRecognizer
-                supported_entity: EMAIL_ADDRESS
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: EmailRecognizer
+                  supported_entity: EMAIL_ADDRESS
+                  supported_languages: [en]
         """)
         )
 
@@ -234,34 +241,34 @@ class TestPresidioAnalyzerCaching:
         config1 = tmp_path / "config1.yaml"
         config1.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers:
-              - name: EmailRecognizer
-                supported_entity: EMAIL_ADDRESS
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: EmailRecognizer
+                  supported_entity: EMAIL_ADDRESS
+                  supported_languages: [en]
         """)
         )
 
         config2 = tmp_path / "config2.yaml"
         config2.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers:
-              - name: PhoneRecognizer
-                supported_entity: PHONE_NUMBER
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: PhoneRecognizer
+                  supported_entity: PHONE_NUMBER
+                  supported_languages: [en]
         """)
         )
 
@@ -278,17 +285,17 @@ class TestPresidioAnalyzerCaching:
         config_file = tmp_path / "custom.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
                 - lang_code: en
                   model_name: en_core_web_lg
             supported_languages: [en]
-            recognizers:
-              - name: EmailRecognizer
-                supported_entity: EMAIL_ADDRESS
-                supported_languages: [en]
+            recognizer_registry:
+              recognizers:
+                - name: EmailRecognizer
+                  supported_entity: EMAIL_ADDRESS
+                  supported_languages: [en]
         """)
         )
 
@@ -316,7 +323,6 @@ class TestPresidioDocumentAnalysis:
         config_file = tmp_path / "employee_presidio.yaml"
         config_file.write_text(
             dedent("""
-            nlp_engine_name: spacy
             nlp_configuration:
               nlp_engine_name: spacy
               models:
@@ -326,17 +332,18 @@ class TestPresidioDocumentAnalysis:
             supported_languages: [en]
             default_score_threshold: 0.35
 
-            recognizers:
-              - name: EmployeeIdRecognizer
-                supported_entity: EMPLOYEE_ID
-                supported_languages: [en]
-                patterns:
-                  - name: emp_pattern
-                    regex: "\\\\bEMP-\\\\d{5}\\\\b"
-                    score: 0.7
-                context:
-                  - "employee"
-                  - "staff"
+            recognizer_registry:
+              recognizers:
+                - name: EmployeeIdRecognizer
+                  supported_entity: EMPLOYEE_ID
+                  supported_languages: [en]
+                  patterns:
+                    - name: emp_pattern
+                      regex: "\\\\bEMP-\\\\d{5}\\\\b"
+                      score: 0.7
+                  context:
+                    - "employee"
+                    - "staff"
         """)
         )
 
