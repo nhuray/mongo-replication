@@ -198,13 +198,15 @@ def scan_command(
         else:
             output_path = Path(output)
 
+        # Load system defaults first
+        system_defaults = load_defaults()
+        scan_defaults = system_defaults.get("scan", {})
+        discovery_defaults = scan_defaults.get("discovery", {})
+        pii_defaults = scan_defaults.get("pii", {})
+
         existing_config = None
         include_patterns = []
         exclude_patterns = []
-        default_excludes = [
-            "system.views",
-            "system.buckets",
-        ]
 
         if output_path.exists():
             try:
@@ -224,11 +226,12 @@ def scan_command(
             except Exception as e:
                 print_warning(f"Could not load existing config (will create new): {e}")
 
-        # Apply precedence: CLI options > Config > Defaults
+        # Apply precedence: CLI options > Config file > defaults.yaml
         # This ensures user can override config settings via CLI
         final_sample_size = sample_size
         final_confidence = confidence_threshold
         final_language = language
+        pii_enabled_from_config = pii_defaults.get("enabled", True)
 
         if existing_config and existing_config.scan and existing_config.scan.pii:
             # Use config values if CLI options not provided
@@ -238,11 +241,14 @@ def scan_command(
                 final_confidence = existing_config.scan.pii.confidence_threshold
             # Language is always from CLI if provided, otherwise default
 
-        # Apply final defaults if still None
+            # Check if PII is enabled in config (only if --no-pii not explicitly set)
+            pii_enabled_from_config = existing_config.scan.pii.enabled
+
+        # Apply defaults from defaults.yaml if still None
         if final_sample_size is None:
-            final_sample_size = 1000
+            final_sample_size = pii_defaults.get("sample_size", 1000)
         if final_confidence is None:
-            final_confidence = 0.85
+            final_confidence = pii_defaults.get("confidence_threshold", 0.85)
         if final_language is None:
             final_language = "en"
 
@@ -263,20 +269,29 @@ def scan_command(
 
         console.print()
 
+        # Determine if PII analysis will run
+        # Precedence: --no-pii CLI flag > scan.pii.enabled from config > default (enabled)
+        should_analyze_pii = not no_pii and pii_enabled_from_config
+
         # Print banner with final values
+        pii_status = (
+            "Disabled (--no-pii)"
+            if no_pii
+            else ("Disabled (config)" if not pii_enabled_from_config else "Enabled")
+        )
         print_banner(
             "SCAN COLLECTIONS & ANALYZE PII",
             Job=job,
             **{"Sample Size": f"{final_sample_size} docs/collection"},
             **{"Confidence": f"{final_confidence:.0%}"},
             Language=final_language.upper(),
-            **{"PII Analysis": "Disabled" if no_pii else "Enabled"},
+            **{"PII Analysis": pii_status},
             Interactive="Yes" if interactive else "No",
         )
 
-        # Add default excludes if not already present
+        # Apply default exclude patterns from defaults.yaml if not already set
         if not exclude_patterns:
-            exclude_patterns = default_excludes
+            exclude_patterns = discovery_defaults.get("exclude_patterns", [])
 
         # Step 2: Connect to database and discover collections
         print_step(2, 6, "Discover Collections")
@@ -358,33 +373,27 @@ def scan_command(
         # Step 4: Load or build scan configuration (needed before PII analysis)
         print_step(4, 6, "Load Scan Configuration")
 
-        # Build scan configuration
-        # Start with defaults for new configs
-        default_entity_types = []  # Empty means all types
-        default_strategies = {
-            "EMAIL_ADDRESS": "fake",
-            "PHONE_NUMBER": "fake",
-            "PERSON": "fake",
-            "LOCATION": "redact",
-            "CREDIT_CARD": "hash",
-            "CRYPTO": "hash",
-            "IBAN_CODE": "hash",
-        }
-        default_allowlist = ["_id", "meta.*", "*.id"]
-        default_sample_strategy = "stratified"
+        # Load defaults for PII configuration from defaults.yaml
+        default_entity_types = pii_defaults.get("entity_types", [])
+        default_strategies = pii_defaults.get("default_strategies", {})
+        default_allowlist = pii_defaults.get("allowlist", [])
+        default_sample_strategy = pii_defaults.get("sample_strategy", "stratified")
 
         # Use existing config values if available (preserves user customizations)
+        presidio_config = None
         if existing_config and existing_config.scan and existing_config.scan.pii:
             existing_pii = existing_config.scan.pii
             entity_types = existing_pii.entity_types
             strategies = existing_pii.default_strategies
             allowlist = existing_pii.allowlist
             sample_strategy = existing_pii.sample_strategy
+            presidio_config = existing_pii.presidio_config
         else:
             entity_types = default_entity_types
             strategies = default_strategies
             allowlist = default_allowlist
             sample_strategy = default_sample_strategy
+            presidio_config = None
 
         # Show entity type configuration
         if entity_types:
@@ -392,38 +401,58 @@ def scan_command(
         else:
             print_info("Entity types: All types (default)")
 
+        # Show Presidio configuration if custom config is being used
+        if presidio_config:
+            print_info(f"Presidio config: {presidio_config}")
+
         console.print()
 
         # Step 5: Analyze PII (optional)
+        # should_analyze_pii was already determined above based on CLI flag and config
         pii_analyses = {}
-        if not no_pii:
+        if should_analyze_pii:
             print_step(5, 6, "Analyze PII")
             print_info("This may take a few minutes (loading NLP models + analysis)...")
 
-            analyzer = PIIAnalysisEngine(
-                confidence_threshold=final_confidence,
-                language=final_language,
-                entity_types=entity_types
-                if entity_types
-                else None,  # Pass entity types from config
-                allowlist_fields=allowlist,
-            )
+            try:
+                analyzer = PIIAnalysisEngine(
+                    confidence_threshold=final_confidence,
+                    language=final_language,
+                    entity_types=entity_types
+                    if entity_types
+                    else None,  # Pass entity types from config
+                    allowlist_fields=allowlist,
+                    presidio_config=presidio_config,
+                )
 
-            for collection_name in progress_wrapper(
-                list(sampling_results.keys()),
-                desc="Analyzing",
-                unit="collection",
-            ):
-                sampling_result = sampling_results[collection_name]
-                analysis = analyzer.analyze_collection(sampling_result)
-                pii_analyses[collection_name] = analysis
+                for collection_name in progress_wrapper(
+                    list(sampling_results.keys()),
+                    desc="Analyzing",
+                    unit="collection",
+                ):
+                    sampling_result = sampling_results[collection_name]
+                    analysis = analyzer.analyze_collection(sampling_result)
+                    pii_analyses[collection_name] = analysis
 
-            total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
-            collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
+                total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
+                collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
 
-            print_success(
-                f"Found PII in {collections_with_pii} collections ({total_pii_fields} fields total)"
-            )
+                print_success(
+                    f"Found PII in {collections_with_pii} collections ({total_pii_fields} fields total)"
+                )
+            except FileNotFoundError as e:
+                print_error(f"Presidio configuration error: {e}")
+                raise typer.Exit(code=1)
+            except ValueError as e:
+                print_error(f"Invalid Presidio configuration: {e}")
+                raise typer.Exit(code=1)
+        else:
+            # PII analysis is disabled
+            if no_pii:
+                print_info("Skipping PII analysis (--no-pii flag set)")
+            else:
+                print_info("Skipping PII analysis (disabled in configuration)")
+            console.print()
 
         # Step 6: Generate configuration file
         print_step(6, 6, "Generate Configuration")
@@ -431,28 +460,31 @@ def scan_command(
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build scan config with precedence-resolved values (already extracted above)
+        # Determine the enabled flag to save:
+        # - If user explicitly passed --no-pii, save enabled=false
+        # - Otherwise, save enabled=true (default behavior)
+        # This means the config will remember the user's preference
+        pii_config_enabled = not no_pii
+
         scan_config = ScanConfig(
             discovery=ScanDiscoveryConfig(
                 include_patterns=include_patterns,
                 exclude_patterns=exclude_patterns,
             ),
             pii=ScanPIIConfig(
-                enabled=not no_pii,
+                enabled=pii_config_enabled,
                 confidence_threshold=final_confidence,  # Already resolved with precedence
                 sample_size=final_sample_size,  # Already resolved with precedence
                 entity_types=entity_types,
                 default_strategies=strategies,
                 allowlist=allowlist,
                 sample_strategy=sample_strategy,
-            )
-            if not no_pii
-            else None,
+                presidio_config=presidio_config,
+            ),
         )
 
         # Build replication config from PII analysis
-        # Load system defaults first to get cursor_fields
-        system_defaults = load_defaults()
+        # Load replication defaults for cursor_fields
         replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
         cursor_fields = replication_defaults_raw.get(
             "cursor_fields", ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
@@ -468,9 +500,9 @@ def scan_command(
             detected_cursor_field = None
             if collection_name in sampling_results:
                 sampling_result = sampling_results[collection_name]
-                if sampling_result.documents:
+                if sampling_result.sample_docs:
                     # Use first document to detect cursor field
-                    sample_doc = sampling_result.documents[0]
+                    sample_doc = sampling_result.sample_docs[0]
                     detected_cursor_field = detect_cursor_field(
                         collection_name, sample_doc, cursor_fields
                     )

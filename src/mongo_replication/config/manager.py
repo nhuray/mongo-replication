@@ -158,6 +158,9 @@ def load_config(config_path: Path) -> Config:
                 pii_defaults.get("default_strategies", ScanPIIConfig().default_strategies),
             ),
             allowlist=pii_data.get("allowlist", pii_defaults.get("allowlist", [])),
+            presidio_config=pii_data.get(
+                "presidio_config", pii_defaults.get("presidio_config", None)
+            ),
         )
 
         scan_config = ScanConfig(discovery=discovery, pii=pii)
@@ -466,6 +469,24 @@ def _write_yaml_with_comments(data: Dict[str, Any], file_path: Path) -> None:
                         f.write(f"      - {item}\n")
                 else:
                     f.write("      []  # No allowlist entries\n")
+                f.write("\n")
+
+                # Presidio configuration
+                f.write("    # Presidio configuration file (optional)\n")
+                f.write("    # Use this to define custom PII recognizers via YAML\n")
+                f.write(
+                    "    # Path can be absolute or relative (resolved in order: cwd, config/, default)\n"
+                )
+                f.write("    # Set to null to use default Presidio configuration\n")
+                f.write("    # Example: config/custom_presidio.yaml\n")
+                f.write(
+                    "    # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml\n"
+                )
+                presidio_config = pii.get("presidio_config")
+                if presidio_config:
+                    f.write(f"    presidio_config: {presidio_config}\n")
+                else:
+                    f.write("    presidio_config: null\n")
                 f.write("\n")
 
         # Replication section

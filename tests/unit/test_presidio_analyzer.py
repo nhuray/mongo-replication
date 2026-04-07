@@ -21,19 +21,18 @@ class TestPresidioAnalyzer:
         assert analyzer1 is analyzer2
 
     def test_get_analyzer_lazy_initialization(self, analyzer):
-        """Test that analyzer engine is initialized lazily."""
-        # Initially None
-        assert PresidioAnalyzer._analyzer_engine is None or isinstance(
-            PresidioAnalyzer._analyzer_engine, object
-        )
-
+        """Test that analyzer engine is initialized lazily and cached."""
         # Gets created on first call
         engine = analyzer.get_analyzer()
         assert engine is not None
 
-        # Same instance on second call
+        # Same instance on second call (cached)
         engine2 = analyzer.get_analyzer()
         assert engine is engine2
+
+        # Verify it's cached in the analyzer cache with 'default' key
+        assert "default" in PresidioAnalyzer._analyzer_cache
+        assert PresidioAnalyzer._analyzer_cache["default"] is engine
 
     def test_detect_email_english(self, analyzer):
         """Test detection of email addresses in English documents."""
