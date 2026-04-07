@@ -214,7 +214,7 @@ replication:
             assert config.scan is not None  # defaults
             assert config.replication is not None
             assert config.replication.defaults.replicate_all is True
-            assert config.replication.collections["users"] is not None
+            assert "users" in config.replication.collections
         finally:
             config_path.unlink()
 
