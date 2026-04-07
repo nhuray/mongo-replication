@@ -85,7 +85,7 @@ scan:
     allowlist:
 {%- if scan.pii.allowlist %}
 {% for item in scan.pii.allowlist %}
-      - {{ item }}
+      - '{{ item }}'
 {%- endfor %}
 {%- else %}
       []  # No allowlist entries
@@ -99,8 +99,8 @@ scan:
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
     presidio_config: {{ scan.pii.presidio_config | tojson if scan.pii.presidio_config else 'null' }}
 {%- endif %}
-{%- if replication %}
 
+{%- if replication %}
 # =============================================================================
 # REPLICATION CONFIGURATION
 # =============================================================================
@@ -111,26 +111,70 @@ replication:
   # Default settings for all collections
   # These can be overridden per collection below
   defaults:
-{%- for key, value in replication.defaults.items() %}
-{%- if key == 'write_disposition' %}
-    # Write strategy: merge (upsert), append (insert), replace (drop/recreate)
-{%- elif key == 'fallback_cursor' %}
-    # Fallback cursor field when cursor_field doesn't exist
-{%- elif key == 'initial_value' %}
-    # Initial cursor value for first-time replication
-{%- elif key == 'batch_size' %}
-    # Documents per batch (higher = faster but more memory)
-{%- elif key == 'max_parallel_collections' %}
-    # Collections to replicate concurrently
-{%- elif key == 'transform_error_mode' %}
-    # Error handling: skip (log and continue) or fail (stop replication)
-{%- endif %}
-    {{ key }}: {{ value | tojson }}
+    # If true, auto-discover all collections not explicitly configured.
+    replicate_all: {{ replication.defaults.replicate_all | lower }}
+
+    # Regex patterns for collections to include (empty = include all).
+    include_patterns:
+{%- if replication.defaults.include_patterns %}
+{%- for item in replication.defaults.include_patterns %}
+      - "{{ item }}"
 {%- endfor %}
+{%- else %}
+      []  # Include all collections
+{%- endif %}
+
+    # Regex patterns for collections to exclude.
+    exclude_patterns:
+{%- if replication.defaults.exclude_patterns %}
+{%- for item in replication.defaults.exclude_patterns %}
+      - "{{ item }}"
+{%- endfor %}
+{%- else %}
+      []  # Exclude no collections
+{%- endif %}
+
+    # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
+    write_disposition: {{ replication.defaults.write_disposition }}
+
+    # List of field names to try as cursor fields for incremental loading (in priority order).
+    cursor_fields:
+{%- if replication.defaults.cursor_fields %}
+{%- for item in replication.defaults.cursor_fields %}
+      - "{{ item }}"
+{%- endfor %}
+{%- else %}
+      []  # No cursor fields defined
+{%- endif %}
+
+    # Field to use when no cursor_fields match or doesn't exist.
+    fallback_cursor: {{ replication.defaults.fallback_cursor }}
+
+    # Initial cursor value for first-time replication.
+    initial_value: "{{ replication.defaults.initial_value }}"
+
+    # Maximum number of collections to replicate concurrently.
+    max_parallel_collections: {{ replication.defaults.max_parallel_collections }}
+
+    # Number of documents to process in each batch
+    batch_size: {{ replication.defaults.batch_size }}
+
+    # How to handle errors during field transformations (fail or skip).
+    transform_error_mode : {{ replication.defaults.transform_error_mode }}
+
+    # State Management
+    # Configuration for replication state tracking.
+    state:
+        # Collection name for storing job run history.
+        runs_collection: {{ replication.defaults.state.runs_collection }}
+
+        # Collection name for storing replication state.
+        state_collection: {{ replication.defaults.state.state_collection }}
 
   # Collection-specific configuration
   # Override defaults and specify PII fields for each collection
   collections:
+{%- if replication.collections %}
 {%- for coll_name, coll_config in replication.collections.items() %}
     {{ coll_name }}:
       # Field to track incremental changes (e.g., updated_at, _id)
@@ -163,8 +207,12 @@ replication:
         - {{ field }}
 {%- endfor %}
 {%- endif %}
-
 {%- endfor %}
+{%- else %}
+      {}  # No collection configured
+{%- endif %}
+
+
 {%- if replication.schema %}
 
   # =============================================================================

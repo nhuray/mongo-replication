@@ -8,14 +8,14 @@ from .models import (
     CollectionConfig,
     ReplicationConfig,
     FieldTransformConfig,
-    DefaultsReplicationConfig,
+    ReplicationDefaultsConfig,
 )
 
 __all__ = [
     "CollectionConfig",
     "ReplicationConfig",
     "FieldTransformConfig",
-    "DefaultsReplicationConfig",
+    "ReplicationDefaultsConfig",
     "get_collection_config",
     "get_mongodb_connection_string",
 ]

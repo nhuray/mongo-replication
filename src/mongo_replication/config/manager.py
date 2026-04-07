@@ -17,7 +17,6 @@ from mongo_replication.config.models import (
     Config,
     ScanConfig,
     CollectionConfig,
-    DefaultsReplicationConfig,
     ReplicationConfig,
 )
 
@@ -135,25 +134,10 @@ def load_config(config_path: Path) -> Config:
     if not raw_config:
         raise ValueError(f"Configuration file is empty: {config_path}")
 
-    # Build merged config - only merge sections that exist in raw_config
-    merged_config = {}
-
-    if "scan" in raw_config:
-        # Merge scan section with defaults
-        scan_defaults = system_defaults.get("scan", {})
-        merged_config["scan"] = deep_merge(scan_defaults, raw_config["scan"])
-
-    if "replication" in raw_config:
-        # Merge replication section with defaults
-        replication_defaults = system_defaults.get("replication", {})
-        merged_replication = deep_merge(replication_defaults, raw_config["replication"])
-
-        # Add collection names to each collection config
-        if "collections" in merged_replication:
-            for coll_name, coll_data in merged_replication["collections"].items():
-                coll_data["name"] = coll_name
-
-        merged_config["replication"] = merged_replication
+    # Merge config
+    merged_config = deep_merge(system_defaults, raw_config)
+    # print(yaml.dump(merged_config, default_flow_style=False))
+    logger.debug(f"Merged config: {merged_config}")
 
     # Use Pydantic validation to parse the merged config
     try:
@@ -229,78 +213,8 @@ def save_config(config: Config, output_path: Path) -> None:
         config: Config object to save
         output_path: Path to save YAML file
     """
-    data = {}
-
-    # Prepare scan section data
-    if config.scan:
-        scan_data = {
-            "discovery": {
-                "include_patterns": config.scan.discovery.include_patterns,
-                "exclude_patterns": config.scan.discovery.exclude_patterns,
-            },
-            "pii": {
-                "enabled": config.scan.pii.enabled,
-                "confidence_threshold": config.scan.pii.confidence_threshold,
-                "entity_types": config.scan.pii.entity_types,
-                "sample_size": config.scan.pii.sample_size,
-                "sample_strategy": config.scan.pii.sample_strategy,
-                "default_strategies": config.scan.pii.default_strategies,
-                "allowlist": config.scan.pii.allowlist,
-                "presidio_config": config.scan.pii.presidio_config,
-            },
-        }
-        data["scan"] = scan_data
-
-    # Prepare replication section data
-    if config.replication:
-        collections_data = {}
-        for coll_name, coll_config in config.replication.collections.items():
-            coll_data = {
-                "cursor_field": coll_config.cursor_field,
-                "write_disposition": coll_config.write_disposition,
-                "primary_key": coll_config.primary_key,
-            }
-
-            if coll_config.pii_fields:
-                coll_data["pii_fields"] = coll_config.pii_fields
-
-            if coll_config.match:
-                coll_data["match"] = coll_config.match
-
-            if coll_config.field_transforms:
-                coll_data["field_transforms"] = [
-                    {
-                        "field": t.field,
-                        "type": t.type,
-                        "pattern": t.pattern,
-                        "replacement": t.replacement,
-                    }
-                    for t in coll_config.field_transforms
-                ]
-
-            if coll_config.fields_exclude:
-                coll_data["fields_exclude"] = coll_config.fields_exclude
-
-            collections_data[coll_name] = coll_data
-
-        rep_data = {
-            "defaults": config.replication.defaults,
-            "collections": collections_data,
-        }
-
-        # Add schema section if it exists
-        if config.replication.schema:
-            rep_data["schema"] = [
-                {
-                    "parent": rel.parent,
-                    "child": rel.child,
-                    "parent_field": rel.parent_field,
-                    "child_field": rel.child_field,
-                }
-                for rel in config.replication.schema
-            ]
-
-        data["replication"] = rep_data
+    # Render Config to dictionary
+    data = config.model_dump(mode="json")
 
     # Render template and write to file
     rendered = _render_config_template(data)
@@ -362,64 +276,11 @@ def _save_defaults(output_path: Path) -> None:
     Args:
         output_path: Path where to save the defaults.yaml file
     """
-    # Create default Config with all nested defaults
-    scan_config = ScanConfig()
+    # Create default Config
+    default_config = Config(scan=(ScanConfig()), replication=(ReplicationConfig()))
 
-    # Create default replication config
-    defaults_rep_config = DefaultsReplicationConfig()
-
-    # Build the defaults structure
-    defaults = {
-        "scan": {
-            "discovery": {
-                "include_patterns": scan_config.discovery.include_patterns,
-                "exclude_patterns": scan_config.discovery.exclude_patterns,
-            },
-            "pii": {
-                "enabled": scan_config.pii.enabled,
-                "confidence_threshold": scan_config.pii.confidence_threshold,
-                "entity_types": scan_config.pii.entity_types,
-                "sample_size": scan_config.pii.sample_size,
-                "sample_strategy": scan_config.pii.sample_strategy,
-                "default_strategies": scan_config.pii.default_strategies,
-                "allowlist": scan_config.pii.allowlist,
-                "presidio_config": scan_config.pii.presidio_config,
-            },
-        },
-        "replication": {
-            "defaults": {
-                "replicate_all": defaults_rep_config.replicate_all,
-                "include_patterns": defaults_rep_config.include_patterns,
-                "exclude_patterns": defaults_rep_config.exclude_patterns,
-                "write_disposition": defaults_rep_config.write_disposition,
-                "cursor_fields": defaults_rep_config.cursor_fields,
-                "fallback_cursor": defaults_rep_config.fallback_cursor,
-                "initial_value": defaults_rep_config.initial_value,
-                "max_parallel_collections": defaults_rep_config.max_parallel_collections,
-                "batch_size": defaults_rep_config.batch_size,
-                "transform_error_mode": defaults_rep_config.transform_error_mode,
-                "state": {
-                    "runs_collection": defaults_rep_config.state.runs_collection,
-                    "state_collection": defaults_rep_config.state.state_collection,
-                },
-            },
-            "collections": {},
-            "schema": [],
-        },
-    }
-
-    # Write to YAML file
-    with open(output_path, "w") as f:
-        f.write("# MongoDB Replication Tool - Default Configuration\n")
-        f.write("#\n")
-        f.write("# This file defines all default values used by the replication tool.\n")
-        f.write("# These defaults are loaded first, then overridden by:\n")
-        f.write("#   1. Job-specific configuration files (e.g., config/qa_db_config.yaml)\n")
-        f.write("#   2. CLI arguments and options\n")
-        f.write("#\n")
-        f.write("# DO NOT modify this file directly. Instead, override values in your\n")
-        f.write("# job-specific configuration files.\n\n")
-        yaml.dump(defaults, f, default_flow_style=False, sort_keys=False)
+    # Save config
+    save_config(default_config, output_path)
 
     logger.info(f"Saved defaults to {output_path}")
 

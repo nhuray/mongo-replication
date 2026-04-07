@@ -8,7 +8,7 @@ This module defines the configuration schema with two main sections:
 import re
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, RootModel
 
 
 # =============================================================================
@@ -183,7 +183,7 @@ class StateConfig(BaseModel):
     """Collection name for storing per-collection replication state."""
 
 
-class DefaultsReplicationConfig(BaseModel):
+class ReplicationDefaultsConfig(BaseModel):
     """Default replication settings for all collections."""
 
     replicate_all: bool = True
@@ -295,6 +295,25 @@ class CollectionConfig(BaseModel):
         return v
 
 
+class CollectionsConfig(RootModel):
+    """Configuration for collections to replicate."""
+
+    root: Dict[str, CollectionConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_name(cls, data):
+        """Set the name of the collection config."""
+        result: Dict[str, CollectionConfig] = {}
+        if isinstance(data, dict):
+            # Move the dictionary key into the 'id' field of the value dict
+            for k, v in data.items():
+                result[k] = CollectionConfig(name=k, **v)
+            return result
+
+        return data
+
+
 class RelationshipConfig(BaseModel):
     """Defines parent-child relationship between collections for cascading replication."""
 
@@ -327,54 +346,14 @@ class ReplicationConfig(BaseModel):
 
     model_config = {"protected_namespaces": ()}
 
-    collections: Dict[str, CollectionConfig]
+    collections: CollectionsConfig = Field(default_factory=CollectionsConfig)
     """Per-collection configuration."""
 
-    defaults: Dict[str, Any]
+    defaults: ReplicationDefaultsConfig = Field(default_factory=ReplicationDefaultsConfig)
     """Default settings for all collections (raw dict for flexibility)."""
 
     schema: List[RelationshipConfig] = Field(default_factory=list)
     """Collection relationships for cascading replication (optional)."""
-
-    @property
-    def fallback_cursor(self) -> str:
-        """Get the fallback cursor field name."""
-        return self.defaults.get("fallback_cursor", "_id")
-
-    @property
-    def initial_value(self) -> str:
-        """Get the initial cursor value for incremental loading."""
-        return self.defaults.get("initial_value", "2020-01-01T00:00:00Z")
-
-    @property
-    def replicate_all(self) -> bool:
-        """Get the replicate_all flag."""
-        return self.defaults.get("replicate_all", True)
-
-    @property
-    def include_patterns(self) -> list:
-        """Get include patterns for collection filtering."""
-        return self.defaults.get("include_patterns", [])
-
-    @property
-    def exclude_patterns(self) -> list:
-        """Get exclude patterns for collection filtering."""
-        return self.defaults.get("exclude_patterns", [])
-
-    @property
-    def batch_size(self) -> int:
-        """Get default batch size."""
-        return self.defaults.get("batch_size", 1000)
-
-    @property
-    def max_parallel_collections(self) -> int:
-        """Get max parallel collections."""
-        return self.defaults.get("max_parallel_collections", 5)
-
-    @property
-    def transform_error_mode(self) -> str:
-        """Get default transform error mode."""
-        return self.defaults.get("transform_error_mode", "skip")
 
 
 # =============================================================================
