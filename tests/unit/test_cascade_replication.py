@@ -92,8 +92,12 @@ class TestRelationshipGraph:
     def test_simple_chain(self):
         """Test simple parent-child chain."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -104,9 +108,15 @@ class TestRelationshipGraph:
     def test_branching_tree(self):
         """Test branching tree structure."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("customers", "addresses", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="customers", child="addresses", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -121,8 +131,12 @@ class TestRelationshipGraph:
     def test_get_parent_relationship(self):
         """Test getting parent relationship."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -137,8 +151,12 @@ class TestRelationshipGraph:
     def test_get_children_relationships(self):
         """Test getting children relationships."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("customers", "addresses", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="customers", child="addresses", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -154,8 +172,12 @@ class TestRelationshipGraph:
     def test_duplicate_child_raises_error(self):
         """Test that duplicate child relationships raise error."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("users", "orders", "_id", "userId"),  # orders can't have 2 parents
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="users", child="orders", parent_field="_id", child_field="userId"
+            ),  # orders can't have 2 parents
         ]
 
         with pytest.raises(ValueError, match="multiple parent relationships"):
@@ -164,9 +186,11 @@ class TestRelationshipGraph:
     def test_cycle_detection_simple(self):
         """Test cycle detection for simple cycle."""
         relationships = [
-            Relationship("A", "B", "_id", "aId"),
-            Relationship("B", "C", "_id", "bId"),
-            Relationship("C", "A", "_id", "cId"),  # Creates cycle
+            Relationship(parent="A", child="B", parent_field="_id", child_field="aId"),
+            Relationship(parent="B", child="C", parent_field="_id", child_field="bId"),
+            Relationship(
+                parent="C", child="A", parent_field="_id", child_field="cId"
+            ),  # Creates cycle
         ]
         graph = RelationshipGraph(relationships)
 
@@ -175,8 +199,12 @@ class TestRelationshipGraph:
     def test_no_cycle_in_valid_tree(self):
         """Test that valid trees have no cycles."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -185,8 +213,12 @@ class TestRelationshipGraph:
     def test_get_tree_structure(self):
         """Test getting tree structure."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -201,7 +233,9 @@ class TestRelationshipGraph:
     def test_validate_collections_success(self):
         """Test successful collection validation."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -214,7 +248,9 @@ class TestRelationshipGraph:
     def test_validate_collections_missing(self):
         """Test validation fails for missing collections."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -231,7 +267,9 @@ class TestCascadeFilterBuilder:
     def test_convert_to_object_ids_valid(self):
         """Test converting valid ObjectId strings."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
         mock_db = Mock()
@@ -247,7 +285,9 @@ class TestCascadeFilterBuilder:
     def test_convert_to_object_ids_invalid(self):
         """Test error on invalid ObjectId strings."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
         mock_db = Mock()
@@ -259,7 +299,9 @@ class TestCascadeFilterBuilder:
     def test_query_field_values(self):
         """Test querying field values from collection."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -288,7 +330,9 @@ class TestCascadeFilterBuilder:
     def test_build_filters_simple_chain(self):
         """Test building filters for simple parent-child chain."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -330,8 +374,12 @@ class TestCascadeFilterBuilder:
     def test_build_filters_skip_empty_collections(self):
         """Test that collections with 0 documents are skipped."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -490,8 +538,12 @@ class TestCascadeIntegration:
         """Test complete cascade workflow from config to filters."""
         # Create relationship graph
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 
@@ -511,9 +563,15 @@ class TestCascadeIntegration:
     def test_branching_cascade(self):
         """Test cascade with multiple branches."""
         relationships = [
-            Relationship("customers", "orders", "_id", "customerId"),
-            Relationship("customers", "addresses", "_id", "customerId"),
-            Relationship("orders", "order_items", "_id", "orderId"),
+            Relationship(
+                parent="customers", child="orders", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="customers", child="addresses", parent_field="_id", child_field="customerId"
+            ),
+            Relationship(
+                parent="orders", child="order_items", parent_field="_id", child_field="orderId"
+            ),
         ]
         graph = RelationshipGraph(relationships)
 

@@ -7,9 +7,9 @@ with support for three write strategies (merge, append, replace), PII redaction
 
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 from pymongo import ReplaceOne
 from pymongo.collection import Collection
 from pymongo.errors import BulkWriteError
@@ -90,8 +90,7 @@ def _summarize_bulk_write_error(error: BulkWriteError, collection_name: str) -> 
     return "\n".join(parts)
 
 
-@dataclass
-class ReplicationResult:
+class ReplicationResult(BaseModel):
     """Result of replicating a single collection."""
 
     collection_name: str
@@ -111,7 +110,7 @@ class ReplicationResult:
     # Index replication statistics
     indexes_replicated: int = 0
     indexes_failed: int = 0
-    index_errors: List[str] = field(default_factory=list)
+    index_errors: List[str] = Field(default_factory=list)
 
 
 class ReplicationError(Exception):

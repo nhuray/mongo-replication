@@ -26,15 +26,15 @@ Examples:
 import logging
 import os
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class JobConfig:
+class JobConfig(BaseModel):
     """Configuration for a replication job.
 
     Attributes:

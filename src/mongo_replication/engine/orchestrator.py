@@ -11,9 +11,9 @@ This module coordinates the entire replication process:
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
+from pydantic import BaseModel
 
 from mongo_replication.config import CollectionConfig, ReplicationConfig
 from mongo_replication.engine.connection import ConnectionManager
@@ -33,8 +33,7 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[str, str, Optional[ReplicationResult]], None]
 
 
-@dataclass
-class OrchestrationResult:
+class OrchestrationResult(BaseModel):
     """Result of orchestrating replication for all collections."""
 
     discovery: DiscoveryResult
