@@ -1,12 +1,12 @@
 """Relationship graph management for cascading replication."""
 
-from dataclasses import dataclass
 from typing import List, Dict, Set, Optional
 from collections import defaultdict, deque
 
+from pydantic import BaseModel
 
-@dataclass
-class Relationship:
+
+class Relationship(BaseModel):
     """Represents a parent-child relationship between collections."""
 
     parent: str

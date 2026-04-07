@@ -5,17 +5,16 @@ destination collections to maintain performance characteristics.
 """
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 from pymongo.collection import Collection
 from pymongo.errors import OperationFailure
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class IndexInfo:
+class IndexInfo(BaseModel):
     """Information about a MongoDB index."""
 
     name: str
@@ -45,7 +44,7 @@ class IndexInfo:
     version: Optional[int] = None
     """Index version."""
 
-    extra_options: Dict[str, Any] = field(default_factory=dict)
+    extra_options: Dict[str, Any] = Field(default_factory=dict)
     """Any other index options not explicitly captured."""
 
 

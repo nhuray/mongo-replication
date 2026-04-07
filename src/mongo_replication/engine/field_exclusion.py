@@ -5,18 +5,18 @@ Supports top-level and nested fields with "keep parent with remaining fields" lo
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ExclusionStats:
+class ExclusionStats(BaseModel):
     """Statistics for field exclusions."""
 
     documents_processed: int = 0
-    fields_excluded: int = 0  # Total number of field exclusions applied
+    fields_excluded: int = Field(default=0)  # Total number of field exclusions applied
 
 
 class FieldExcluder:

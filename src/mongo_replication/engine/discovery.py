@@ -6,16 +6,15 @@ and applies include/exclude regex patterns for filtering.
 
 import logging
 import re
-from dataclasses import dataclass
 from typing import List, Set
 
+from pydantic import BaseModel
 from pymongo.database import Database
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DiscoveryResult:
+class DiscoveryResult(BaseModel):
     """Result of collection discovery process."""
 
     all_collections: List[str]

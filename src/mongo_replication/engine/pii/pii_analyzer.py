@@ -6,8 +6,9 @@ detailed statistics for config generation.
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
+
+from pydantic import BaseModel, Field
 
 from mongo_replication.engine.pii.presidio_analyzer import PresidioAnalyzer
 from mongo_replication.engine.pii.sampler import SamplingResult
@@ -15,8 +16,7 @@ from mongo_replication.engine.pii.sampler import SamplingResult
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class FieldPIIStats:
+class FieldPIIStats(BaseModel):
     """Statistics for PII detected in a specific field."""
 
     field_path: str
@@ -38,14 +38,13 @@ class FieldPIIStats:
         )
 
 
-@dataclass
-class CollectionPIIAnalysis:
+class CollectionPIIAnalysis(BaseModel):
     """Analysis result for a single collection."""
 
     collection_name: str
     total_samples: int
-    fields_with_pii: List[FieldPIIStats] = field(default_factory=list)
-    all_field_names: Set[str] = field(default_factory=set)
+    fields_with_pii: List[FieldPIIStats] = Field(default_factory=list)
+    all_field_names: Set[str] = Field(default_factory=set)
 
     @property
     def has_pii(self) -> bool:

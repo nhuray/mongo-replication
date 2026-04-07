@@ -7,7 +7,6 @@ with support for defaults merging and validation.
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -17,10 +16,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from mongo_replication.config.models import (
     Config,
     ScanConfig,
-    ScanDiscoveryConfig,
-    ScanPIIConfig,
-    RelationshipConfig,
-    FieldTransformConfig,
     CollectionConfig,
     ReplicationConfig,
 )
@@ -139,131 +134,18 @@ def load_config(config_path: Path) -> Config:
     if not raw_config:
         raise ValueError(f"Configuration file is empty: {config_path}")
 
-    # Check if this is old format (has 'defaults' or 'collections' at root level)
-    is_old_format = "defaults" in raw_config or "collections" in raw_config
-    has_new_sections = "scan" in raw_config or "replication" in raw_config
+    # Merge config
+    merged_config = deep_merge(system_defaults, raw_config)
+    # print(yaml.dump(merged_config, default_flow_style=False))
+    logger.debug(f"Merged config: {merged_config}")
 
-    if is_old_format and not has_new_sections:
-        # Old format detected - migrate and warn
-        warnings.warn(
-            f"Configuration file {config_path} uses deprecated format. "
-            "Please wrap your configuration in a 'replication:' section. "
-            "See migration guide for details.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(f"Auto-migrating old config format in {config_path}")
+    # Use Pydantic validation to parse the merged config
+    try:
+        config = Config.model_validate(merged_config)
+    except Exception as e:
+        raise ValueError(f"Invalid configuration in {config_path}: {str(e)}")
 
-        # Migrate: wrap entire config in 'replication' section
-        raw_config = {"replication": raw_config}
-
-    # Parse scan section
-    scan_config = None
-    if "scan" in raw_config:
-        scan_data = raw_config["scan"]
-        scan_defaults = system_defaults.get("scan", {})
-
-        # Merge defaults for scan section
-        merged_scan = deep_merge(scan_defaults, scan_data)
-
-        # Parse discovery config
-        discovery_data = merged_scan.get("discovery", {})
-        discovery = ScanDiscoveryConfig(
-            include_patterns=discovery_data.get("include_patterns", []),
-            exclude_patterns=discovery_data.get("exclude_patterns", []),
-        )
-
-        # Parse PII config
-        pii_data = merged_scan.get("pii", {})
-        pii_defaults = scan_defaults.get("pii", {})
-
-        pii = ScanPIIConfig(
-            enabled=pii_data.get("enabled", pii_defaults.get("enabled", True)),
-            confidence_threshold=pii_data.get(
-                "confidence_threshold", pii_defaults.get("confidence_threshold", 0.85)
-            ),
-            entity_types=pii_data.get(
-                "entity_types", pii_defaults.get("entity_types", ScanPIIConfig().entity_types)
-            ),
-            sample_size=pii_data.get("sample_size", pii_defaults.get("sample_size", 1000)),
-            sample_strategy=pii_data.get(
-                "sample_strategy", pii_defaults.get("sample_strategy", "stratified")
-            ),
-            default_strategies=pii_data.get(
-                "default_strategies",
-                pii_defaults.get("default_strategies", ScanPIIConfig().default_strategies),
-            ),
-            allowlist=pii_data.get("allowlist", pii_defaults.get("allowlist", [])),
-            presidio_config=pii_data.get(
-                "presidio_config", pii_defaults.get("presidio_config", None)
-            ),
-        )
-
-        scan_config = ScanConfig(discovery=discovery, pii=pii)
-
-    # Parse replication section (use existing load_config logic)
-    replication_config = None
-    if "replication" in raw_config:
-        # Get system defaults for replication
-        replication_defaults = system_defaults.get("replication", {})
-
-        replication_data = raw_config["replication"]
-
-        # Merge defaults: system defaults < user defaults
-        user_defaults = replication_data.get("defaults", {})
-        merged_defaults = deep_merge(replication_defaults, user_defaults)
-
-        collections_dict = {}
-        raw_collections = replication_data.get("collections", {})
-
-        for collection_name, collection_data in raw_collections.items():
-            # Parse field transformations
-            field_transforms = []
-            raw_transforms = collection_data.get("field_transforms", [])
-            for transform_data in raw_transforms:
-                field_transforms.append(
-                    FieldTransformConfig(
-                        field=transform_data["field"],
-                        type=transform_data["type"],
-                        pattern=transform_data["pattern"],
-                        replacement=transform_data["replacement"],
-                    )
-                )
-
-            collections_dict[collection_name] = CollectionConfig(
-                name=collection_name,
-                cursor_field=collection_data.get("cursor_field"),
-                write_disposition=collection_data.get(
-                    "write_disposition", merged_defaults.get("write_disposition", "merge")
-                ),
-                primary_key=collection_data.get("primary_key", "_id"),
-                pii_fields=collection_data.get("pii_fields", {}),
-                match=collection_data.get("match"),
-                field_transforms=field_transforms,
-                fields_exclude=collection_data.get("fields_exclude", []),
-                transform_error_mode=collection_data.get(
-                    "transform_error_mode", merged_defaults.get("transform_error_mode", "skip")
-                ),
-            )
-
-        replication_config = ReplicationConfig(
-            collections=collections_dict, defaults=merged_defaults
-        )
-
-        # Parse schema (relationships) from replication section
-        schema = []
-        if "schema" in replication_data:
-            for rel_data in replication_data["schema"]:
-                rel = RelationshipConfig(
-                    parent=rel_data["parent"],
-                    child=rel_data["child"],
-                    parent_field=rel_data.get("parent_field", "_id"),  # Default to _id
-                    child_field=rel_data["child_field"],
-                )
-                schema.append(rel)
-        replication_config.schema = schema
-
-    return Config(scan=scan_config, replication=replication_config)
+    return config
 
 
 def load_scan_config(config_path: Path) -> ScanConfig:
@@ -331,78 +213,8 @@ def save_config(config: Config, output_path: Path) -> None:
         config: Config object to save
         output_path: Path to save YAML file
     """
-    data = {}
-
-    # Prepare scan section data
-    if config.scan:
-        scan_data = {
-            "discovery": {
-                "include_patterns": config.scan.discovery.include_patterns,
-                "exclude_patterns": config.scan.discovery.exclude_patterns,
-            },
-            "pii": {
-                "enabled": config.scan.pii.enabled,
-                "confidence_threshold": config.scan.pii.confidence_threshold,
-                "entity_types": config.scan.pii.entity_types,
-                "sample_size": config.scan.pii.sample_size,
-                "sample_strategy": config.scan.pii.sample_strategy,
-                "default_strategies": config.scan.pii.default_strategies,
-                "allowlist": config.scan.pii.allowlist,
-                "presidio_config": config.scan.pii.presidio_config,
-            },
-        }
-        data["scan"] = scan_data
-
-    # Prepare replication section data
-    if config.replication:
-        collections_data = {}
-        for coll_name, coll_config in config.replication.collections.items():
-            coll_data = {
-                "cursor_field": coll_config.cursor_field,
-                "write_disposition": coll_config.write_disposition,
-                "primary_key": coll_config.primary_key,
-            }
-
-            if coll_config.pii_fields:
-                coll_data["pii_fields"] = coll_config.pii_fields
-
-            if coll_config.match:
-                coll_data["match"] = coll_config.match
-
-            if coll_config.field_transforms:
-                coll_data["field_transforms"] = [
-                    {
-                        "field": t.field,
-                        "type": t.type,
-                        "pattern": t.pattern,
-                        "replacement": t.replacement,
-                    }
-                    for t in coll_config.field_transforms
-                ]
-
-            if coll_config.fields_exclude:
-                coll_data["fields_exclude"] = coll_config.fields_exclude
-
-            collections_data[coll_name] = coll_data
-
-        rep_data = {
-            "defaults": config.replication.defaults,
-            "collections": collections_data,
-        }
-
-        # Add schema section if it exists
-        if config.replication.schema:
-            rep_data["schema"] = [
-                {
-                    "parent": rel.parent,
-                    "child": rel.child,
-                    "parent_field": rel.parent_field,
-                    "child_field": rel.child_field,
-                }
-                for rel in config.replication.schema
-            ]
-
-        data["replication"] = rep_data
+    # Render Config to dictionary
+    data = config.model_dump(mode="json")
 
     # Render template and write to file
     rendered = _render_config_template(data)
@@ -453,3 +265,46 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
             result[key] = value
 
     return result
+
+
+def _save_defaults(output_path: Path) -> None:
+    """
+    Save default configuration to a YAML file.
+
+    This function generates the defaults.yaml file from the Pydantic model defaults.
+
+    Args:
+        output_path: Path where to save the defaults.yaml file
+    """
+    # Create default Config
+    default_config = Config(scan=(ScanConfig()), replication=(ReplicationConfig()))
+
+    # Save config
+    save_config(default_config, output_path)
+
+    logger.info(f"Saved defaults to {output_path}")
+
+
+def main():
+    """
+    Main entry point for saving defaults.yaml.
+
+    This can be run as a standalone script to regenerate the defaults.yaml file
+    from the Pydantic model defaults.
+    """
+    import sys
+
+    # Default path is in the config directory
+    defaults_path = Path(__file__).parent / "defaults.yaml"
+
+    # Allow override from command line
+    if len(sys.argv) > 1:
+        defaults_path = Path(sys.argv[1])
+
+    print(f"Saving defaults to: {defaults_path}")
+    _save_defaults(defaults_path)
+    print("Done!")
+
+
+if __name__ == "__main__":
+    main()

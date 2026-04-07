@@ -6,16 +6,16 @@ and configurable error handling.
 
 import logging
 import re
-from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
+
+from pydantic import BaseModel
 
 from mongo_replication.config.models import FieldTransformConfig
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class TransformStats:
+class TransformStats(BaseModel):
     """Statistics for field transformations."""
 
     documents_processed: int = 0

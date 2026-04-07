@@ -5,17 +5,16 @@ analyze large collections while maintaining representative coverage.
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
 from pymongo.collection import Collection
 from pymongo.database import Database
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SamplingResult:
+class SamplingResult(BaseModel):
     """Result of sampling a collection."""
 
     collection_name: str
