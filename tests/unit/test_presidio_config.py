@@ -383,14 +383,14 @@ class TestPresidioDocumentAnalysis:
 
 
 class TestConfigModelIntegration:
-    """Test integration with ScanPIIConfig model."""
+    """Test integration with ScanPIIAnalysisConfig model."""
 
     def test_presidio_config_field_in_model(self):
-        """Test that presidio_config field exists in ScanPIIConfig."""
-        from mongo_replication.config.models import ScanPIIConfig
+        """Test that presidio_config field exists in ScanPIIAnalysisConfig."""
+        from mongo_replication.config.models import ScanPIIAnalysisConfig
 
         # Create config with presidio_config
-        config = ScanPIIConfig(
+        config = ScanPIIAnalysisConfig(
             enabled=True,
             confidence_threshold=0.85,
             presidio_config="config/custom_presidio.yaml",
@@ -400,9 +400,9 @@ class TestConfigModelIntegration:
 
     def test_presidio_config_defaults_to_none(self):
         """Test that presidio_config defaults to None."""
-        from mongo_replication.config.models import ScanPIIConfig
+        from mongo_replication.config.models import ScanPIIAnalysisConfig
 
-        config = ScanPIIConfig(enabled=True)
+        config = ScanPIIAnalysisConfig(enabled=True)
 
         assert config.presidio_config is None
 

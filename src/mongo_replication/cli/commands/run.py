@@ -274,8 +274,8 @@ def run_command(
         default_batch_size = 1000
 
         # Get values from config if available
-        config_parallel = replication_config.defaults.get("max_parallel_collections")
-        config_batch_size = replication_config.defaults.get("batch_size")
+        config_parallel = replication_config.performance.max_parallel_collections
+        config_batch_size = replication_config.performance.batch_size
 
         # Resolve final values with precedence
         if parallel is not None:
@@ -315,8 +315,8 @@ def run_command(
         )
 
         # Apply final values to config
-        replication_config.defaults["max_parallel_collections"] = final_parallel
-        replication_config.defaults["batch_size"] = final_batch_size
+        replication_config.performance.max_parallel_collections = final_parallel
+        replication_config.performance.batch_size = final_batch_size
 
         configured_collections = list(replication_config.collections.keys())
         print_success(f"Loaded configuration with {len(configured_collections)} collections")
@@ -421,7 +421,7 @@ def run_command(
                             cursor_field=None,
                             write_disposition="replace",
                             primary_key="_id",
-                            pii_fields={},
+                            pii_anonymized_fields={},
                             match=None,
                             field_transforms=[],
                             fields_exclude=[],
@@ -448,8 +448,8 @@ def run_command(
                 collections_to_replicate = affected_collections - cascade_result.skipped_collections
 
                 # Disable auto-discovery and set include patterns
-                replication_config.defaults["replicate_all"] = False
-                replication_config.defaults["include_patterns"] = [
+                replication_config.discovery.replicate_all = False
+                replication_config.discovery.include_patterns = [
                     f"^{coll}$" for coll in collections_to_replicate
                 ]
 
@@ -575,7 +575,7 @@ def run_command(
                             cursor_field=None,
                             write_disposition="replace",
                             primary_key="_id",
-                            pii_fields={},
+                            pii_anonymized_fields={},
                             match=None,
                             field_transforms=[],
                             fields_exclude=[],
@@ -615,8 +615,8 @@ def run_command(
                 if name in collection_list
             }
             # Disable auto-discovery and set include patterns for specified collections
-            replication_config.defaults["replicate_all"] = False
-            replication_config.defaults["include_patterns"] = [
+            replication_config.discovery.replicate_all = False
+            replication_config.discovery.include_patterns = [
                 f"^{coll}$" for coll in collection_list
             ]
             print_info(f"Using specified collections: {', '.join(collection_list)}")
@@ -636,8 +636,8 @@ def run_command(
                 if name in selected_collections
             }
             # Disable auto-discovery and set include patterns for selected collections
-            replication_config.defaults["replicate_all"] = False
-            replication_config.defaults["include_patterns"] = [
+            replication_config.discovery.replicate_all = False
+            replication_config.discovery.include_patterns = [
                 f"^{coll}$" for coll in selected_collections
             ]
 
@@ -669,7 +669,11 @@ def run_command(
             else:
                 # Show standard collection list
                 for coll_name, coll_config in replication_config.collections.items():
-                    pii_count = len(coll_config.pii_fields) if coll_config.pii_fields else 0
+                    pii_count = (
+                        len(coll_config.pii_anonymized_fields)
+                        if coll_config.pii_anonymized_fields
+                        else 0
+                    )
                     console.print(f"  • [cyan]{coll_name}[/cyan] (PII fields: {pii_count})")
 
             console.print()
@@ -701,7 +705,7 @@ def run_command(
         )
 
         # Get max parallel collections for progress display
-        max_parallel = replication_config.defaults.get("max_parallel_collections", 5)
+        max_parallel = replication_config.performance.max_parallel_collections
 
         # Run replication with progress bars
         console.print()

@@ -30,10 +30,21 @@ scan:
     exclude_patterns:
       []  # Don't exclude any collections
 
-  # PII Detection Settings
+  # Sampling Settings
   # ----------------------
-  # Configure automatic PII detection using Microsoft Presidio
-  pii:
+  sampling:
+    # Number of documents to analyze per collection
+    # Larger sample = more accurate but slower
+    sample_size: 1000
+
+    # Sampling strategy: 'stratified' or 'random'
+    # stratified = distributed across collection, random = random selection
+    sample_strategy: stratified
+
+  # PII Analysis Settings
+  # ----------------------
+  # Configure automatic PII analysis using Microsoft Presidio
+  pii_analysis:
     enabled: true
 
     # Confidence threshold (0.0-1.0)
@@ -52,14 +63,6 @@ scan:
       - IBAN_CODE
       - IP_ADDRESS
       - URL
-
-    # Number of documents to analyze per collection
-    # Larger sample = more accurate but slower
-    sample_size: 1000
-
-    # Sampling strategy: 'stratified' or 'random'
-    # stratified = distributed across collection, random = random selection
-    sample_strategy: stratified
 
     # Anonymization strategies per entity type
     # Options:
@@ -88,6 +91,18 @@ scan:
     # Example: config/custom_presidio.yaml
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
     presidio_config: null
+
+  # Cursor Detection Settings
+  # ----------------------
+  cursor_detection:
+    # Number of documents to analyze per collection
+    # Larger sample = more accurate but slower
+    sample_size: 1000
+
+    # Sampling strategy: 'stratified' or 'random'
+    # stratified = distributed across collection, random = random selection
+    sample_strategy: stratified
+
 # =============================================================================
 # REPLICATION CONFIGURATION
 # =============================================================================
@@ -95,55 +110,97 @@ scan:
 # This section is typically generated after running 'mongorep scan'.
 
 replication:
-  # Default settings for all collections
-  # These can be overridden per collection below
-  defaults:
-    # If true, auto-discover all collections not explicitly configured.
+
+  # Collection Discovery
+  # ---------------------
+  # Use regex patterns to filter which collections are replicated
+  discovery:
+
+    # If true, auto-discover then replicate all collections not explicitly excluded.
     replicate_all: true
 
-    # Regex patterns for collections to include (empty = include all).
-    include_patterns:
-      []  # Include all collections
+    # Include patterns: Only replicate collections matching these patterns
+    # Empty list = replicate all collections
+    include_patterns: []  # Replicate all collections
 
-    # Regex patterns for collections to exclude.
-    exclude_patterns:
-      []  # Exclude no collections
+    # Exclude patterns: Skip collections matching these patterns
+    # Applied after include_patterns
+    exclude_patterns: []  # Don't exclude any collections
 
-    # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
-    write_disposition: merge
+  # State Management
+  # ---------------------
+  # Configuration for replication state tracking.
+  state_management:
+    # Collection name for storing job run history.
+    runs_collection: _rep_runs
 
-    # List of field names to try as cursor fields for incremental loading (in priority order).
-    cursor_fields:
-      - "updated_at"
-      - "updatedAt"
-      - "meta.updated_at"
-      - "meta.updatedAt"
+    # Collection name for storing replication state.
+    state_collection: _rep_state
 
-    # Field to use when no cursor_fields match or doesn't exist.
-    fallback_cursor: _id
-
-    # Initial cursor value for first-time replication.
-    initial_value: "2020-01-01T00:00:00Z"
-
+  # Performance Settings
+  # ---------------------
+  performance:
     # Maximum number of collections to replicate concurrently.
     max_parallel_collections: 5
 
     # Number of documents to process in each batch
     batch_size: 1000
 
+  # Default settings for all collection replication.
+  # ---------------------
+  # These can be overridden per collection below
+  defaults:
+
+    # Default cursor field to use for incremental loading.
+    cursor_field:
+
+    # Default field to use when no cursor_fields match or doesn't exist
+    cursor_fallback_field: _id
+
+    # Initial cursor value for first-time replication
+    cursor_initial_value: _id
+
+    # Default primary key field to use for upsert.
+    primary_key: _id
+
+    # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
+    write_disposition: merge
+
     # How to handle errors during field transformations (fail or skip).
     transform_error_mode : skip
 
-    # State Management
-    # Configuration for replication state tracking.
-    state:
-        # Collection name for storing job run history.
-        runs_collection: _rep_runs
-
-        # Collection name for storing replication state.
-        state_collection: _rep_state
-
   # Collection-specific configuration
+  # ---------------------------------
   # Override defaults and specify PII fields for each collection
   collections:
-      {}  # No collection configured
+    per-collection: # collection name
+      # Override defaults Settings
+      # ---------------------------------
+      # Default cursor field to use for incremental loading.
+      cursor_field:
+
+      # Initial cursor value for first-time replication
+      cursor_initial_value: _id
+
+      # Default primary key field to use for upsert.
+      primary_key: _id
+
+      # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
+      write_disposition: merge
+
+      # How to handle errors during field transformations (fail or skip).
+      transform_error_mode : skip
+
+      # Collection specific Settings
+      # ---------------------------------
+      # MongoDB match filter to apply during replication.
+      match: {}
+
+      # Field transformations to apply.
+      field_transforms: []
+
+      # Fields to exclude from replication.
+      fields_excludes: []
+
+      # PII Anonymized Fields
+      pii_anonymized_fields: {}

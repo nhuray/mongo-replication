@@ -26,8 +26,26 @@ class ScanDiscoveryConfig(BaseModel):
     """Regex patterns for collections to exclude."""
 
 
-class ScanPIIConfig(BaseModel):
-    """Configuration for PII detection during scan."""
+class ScanSamplingConfig(BaseModel):
+    """Configuration for document sampling during scan."""
+
+    sample_size: int = 1000
+    """Number of documents to sample per collection."""
+
+    sample_strategy: Literal["random", "stratified"] = "stratified"
+    """Sampling strategy: 'random' or 'stratified'."""
+
+    @field_validator("sample_size")
+    @classmethod
+    def validate_sample_size(cls, v: int) -> int:
+        """Validate sample_size is at least 1."""
+        if v < 1:
+            raise ValueError(f"sample_size must be >= 1, got {v}")
+        return v
+
+
+class ScanPIIAnalysisConfig(BaseModel):
+    """Configuration for PII analysis during scan."""
 
     enabled: bool = True
     """Whether to run PII detection."""
@@ -48,12 +66,6 @@ class ScanPIIConfig(BaseModel):
         ]
     )
     """PII entity types to detect."""
-
-    sample_size: int = 1000
-    """Number of documents to sample per collection."""
-
-    sample_strategy: Literal["random", "stratified"] = "stratified"
-    """Sampling strategy: 'random' or 'stratified'."""
 
     default_strategies: Dict[str, str] = Field(
         default_factory=lambda: {
@@ -104,22 +116,22 @@ class ScanPIIConfig(BaseModel):
             raise ValueError(f"confidence_threshold must be between 0.0 and 1.0, got {v}")
         return v
 
+
+class ScanCursorDetectionConfig(BaseModel):
+    """Configuration for cursor field detection during scan."""
+
+    sample_size: int = 1000
+    """Number of documents to analyze per collection."""
+
+    sample_strategy: Literal["random", "stratified"] = "stratified"
+    """Sampling strategy: 'random' or 'stratified'."""
+
     @field_validator("sample_size")
     @classmethod
     def validate_sample_size(cls, v: int) -> int:
         """Validate sample_size is at least 1."""
         if v < 1:
             raise ValueError(f"sample_size must be >= 1, got {v}")
-        return v
-
-    @field_validator("sample_strategy")
-    @classmethod
-    def validate_sample_strategy(cls, v: str) -> str:
-        """Validate sample_strategy is either 'random' or 'stratified'."""
-        # This validator is now redundant with Pydantic's Literal validation,
-        # but kept for compatibility. The Literal type will raise ValidationError first.
-        if v not in ("random", "stratified"):
-            raise ValueError(f"sample_strategy must be 'random' or 'stratified', got {v}")
         return v
 
 
@@ -129,8 +141,14 @@ class ScanConfig(BaseModel):
     discovery: ScanDiscoveryConfig = Field(default_factory=ScanDiscoveryConfig)
     """Collection discovery configuration."""
 
-    pii: ScanPIIConfig = Field(default_factory=ScanPIIConfig)
-    """PII detection configuration."""
+    sampling: ScanSamplingConfig = Field(default_factory=ScanSamplingConfig)
+    """Document sampling configuration."""
+
+    pii_analysis: ScanPIIAnalysisConfig = Field(default_factory=ScanPIIAnalysisConfig)
+    """PII analysis configuration."""
+
+    cursor_detection: ScanCursorDetectionConfig = Field(default_factory=ScanCursorDetectionConfig)
+    """Cursor field detection configuration."""
 
 
 # =============================================================================
@@ -173,7 +191,20 @@ class FieldTransformConfig(BaseModel):
         return self
 
 
-class StateConfig(BaseModel):
+class ReplicationDiscoveryConfig(BaseModel):
+    """Configuration for collection discovery during replication."""
+
+    replicate_all: bool = True
+    """If true, auto-discover and replicate all collections not explicitly excluded."""
+
+    include_patterns: List[str] = Field(default_factory=list)
+    """Regex patterns for collections to include (empty = include all)."""
+
+    exclude_patterns: List[str] = Field(default_factory=list)
+    """Regex patterns for collections to exclude."""
+
+
+class ReplicationStateManagementConfig(BaseModel):
     """Configuration for replication state tracking."""
 
     runs_collection: str = "_rep_runs"
@@ -183,43 +214,14 @@ class StateConfig(BaseModel):
     """Collection name for storing per-collection replication state."""
 
 
-class ReplicationDefaultsConfig(BaseModel):
-    """Default replication settings for all collections."""
-
-    replicate_all: bool = True
-    """If true, auto-discover all collections not explicitly configured."""
-
-    include_patterns: List[str] = Field(default_factory=list)
-    """Regex patterns for collections to include (empty = include all)."""
-
-    exclude_patterns: List[str] = Field(default_factory=list)
-    """Regex patterns for collections to exclude."""
-
-    write_disposition: Literal["merge", "append", "replace"] = "merge"
-    """Default write strategy: merge (upsert), append (insert), replace (drop/recreate)."""
-
-    cursor_fields: List[str] = Field(
-        default_factory=lambda: ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
-    )
-    """List of field names to try as cursor fields for incremental loading (in priority order)."""
-
-    fallback_cursor: str = "_id"
-    """Field to use when no cursor_fields match or doesn't exist."""
-
-    initial_value: str = "2020-01-01T00:00:00Z"
-    """Initial cursor value for first-time replication."""
+class ReplicationPerformanceConfig(BaseModel):
+    """Configuration for replication performance settings."""
 
     max_parallel_collections: int = 5
     """Maximum number of collections to replicate concurrently."""
 
     batch_size: int = 1000
     """Number of documents to process in each batch."""
-
-    transform_error_mode: Literal["skip", "fail"] = "skip"
-    """How to handle errors during field transformations."""
-
-    state: StateConfig = Field(default_factory=StateConfig)
-    """Configuration for replication state tracking."""
 
     @field_validator("max_parallel_collections")
     @classmethod
@@ -238,23 +240,48 @@ class ReplicationDefaultsConfig(BaseModel):
         return v
 
 
+class ReplicationDefaultsConfig(BaseModel):
+    """Default replication settings for all collections."""
+
+    cursor_field: Optional[str] = None
+    """Default cursor field to use for incremental loading."""
+
+    cursor_fallback_field: str = "_id"
+    """Field to use when cursor_field doesn't exist or no cursor_fields match."""
+
+    cursor_initial_value: str = "_id"
+    """Initial cursor value for first-time replication."""
+
+    primary_key: str = "_id"
+    """Default primary key field to use for upsert."""
+
+    write_disposition: Literal["merge", "append", "replace"] = "merge"
+    """Default write strategy: merge (upsert), append (insert), replace (drop/recreate)."""
+
+    transform_error_mode: Literal["skip", "fail"] = "skip"
+    """How to handle errors during field transformations."""
+
+
 class CollectionConfig(BaseModel):
     """Configuration for a single collection."""
 
     name: str
     """Collection name."""
 
-    cursor_field: Optional[str]
+    cursor_field: Optional[str] = None
     """Field to use for incremental loading (overrides defaults)."""
 
-    write_disposition: Literal["merge", "append", "replace"]
-    """Write strategy for this collection."""
+    cursor_initial_value: Optional[str] = None
+    """Initial cursor value for first-time replication (overrides defaults)."""
 
-    primary_key: str
+    primary_key: str = "_id"
     """Primary key field (usually '_id')."""
 
-    pii_fields: Dict[str, str]
-    """Mapping of field paths to anonymization strategies."""
+    write_disposition: Literal["merge", "append", "replace"] = "merge"
+    """Write strategy for this collection."""
+
+    transform_error_mode: Literal["skip", "fail"] = "skip"
+    """Error handling mode: skip or fail."""
 
     match: Optional[Dict[str, Any]] = None
     """MongoDB match filter to apply during replication."""
@@ -265,8 +292,8 @@ class CollectionConfig(BaseModel):
     fields_exclude: List[str] = Field(default_factory=list)
     """Fields to exclude from replication."""
 
-    transform_error_mode: Literal["skip", "fail"] = "skip"
-    """Error handling mode: skip or fail."""
+    pii_anonymized_fields: Dict[str, str] = Field(default_factory=dict)
+    """Mapping of field paths to anonymization strategies."""
 
     @field_validator("write_disposition")
     @classmethod
@@ -306,7 +333,7 @@ class CollectionsConfig(RootModel):
         """Set the name of the collection config."""
         result: Dict[str, CollectionConfig] = {}
         if isinstance(data, dict):
-            # Move the dictionary key into the 'id' field of the value dict
+            # Move the dictionary key into the 'name' field of the value dict
             for k, v in data.items():
                 result[k] = CollectionConfig(name=k, **v)
             return result
@@ -370,11 +397,22 @@ class ReplicationConfig(BaseModel):
 
     model_config = {"protected_namespaces": ()}
 
-    collections: CollectionsConfig = Field(default_factory=CollectionsConfig)
-    """Per-collection configuration."""
+    discovery: ReplicationDiscoveryConfig = Field(default_factory=ReplicationDiscoveryConfig)
+    """Collection discovery configuration."""
+
+    state_management: ReplicationStateManagementConfig = Field(
+        default_factory=ReplicationStateManagementConfig
+    )
+    """State tracking configuration."""
+
+    performance: ReplicationPerformanceConfig = Field(default_factory=ReplicationPerformanceConfig)
+    """Performance settings."""
 
     defaults: ReplicationDefaultsConfig = Field(default_factory=ReplicationDefaultsConfig)
-    """Default settings for all collections (raw dict for flexibility)."""
+    """Default settings for all collections."""
+
+    collections: CollectionsConfig = Field(default_factory=CollectionsConfig)
+    """Per-collection configuration."""
 
     schema: List[RelationshipConfig] = Field(default_factory=list)
     """Collection relationships for cascading replication (optional)."""

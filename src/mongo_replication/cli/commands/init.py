@@ -27,7 +27,8 @@ from mongo_replication.config.manager import save_config, load_defaults
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
-    ScanPIIConfig,
+    ScanSamplingConfig,
+    ScanPIIAnalysisConfig,
     Config,
     ReplicationConfig,
 )
@@ -311,7 +312,8 @@ def init_command(
         style=custom_style,
     ).ask()
 
-    pii_config = None
+    sampling_config = None
+    pii_analysis_config = None
 
     if enable_pii:
         console.print()
@@ -505,16 +507,34 @@ def init_command(
         else:
             print_success("Using default allowlist")
 
-        # Create PII config
-        pii_config = ScanPIIConfig(
+        # Create sampling config
+        sampling_config = ScanSamplingConfig(
+            sample_size=sample_size,
+            sample_strategy=sample_strategy,
+        )
+
+        # Create PII analysis config
+        pii_analysis_config = ScanPIIAnalysisConfig(
             enabled=True,
             confidence_threshold=confidence_threshold,
             entity_types=entity_types,
-            sample_size=sample_size,
-            sample_strategy=sample_strategy,
             default_strategies=default_strategies,
             allowlist=allowlist,
             presidio_config=presidio_config,
+        )
+    else:
+        # PII disabled - use defaults
+        system_defaults = load_defaults()
+        scan_defaults = system_defaults.get("scan", {})
+        sampling_defaults = scan_defaults.get("sampling", {})
+
+        sampling_config = ScanSamplingConfig(
+            sample_size=sampling_defaults.get("sample_size", 1000),
+            sample_strategy=sampling_defaults.get("sample_strategy", "stratified"),
+        )
+
+        pii_analysis_config = ScanPIIAnalysisConfig(
+            enabled=False,
         )
 
     # Step 8: Save Configuration
@@ -548,7 +568,8 @@ def init_command(
 
     scan_config = ScanConfig(
         discovery=discovery_config,
-        pii=pii_config,
+        sampling=sampling_config,
+        pii_analysis=pii_analysis_config,
     )
 
     # Load system defaults for replication
@@ -584,11 +605,11 @@ def init_command(
     if exclude_patterns:
         console.print(f"  • Exclude patterns: {len(exclude_patterns)}")
 
-    if pii_config:
+    if pii_analysis_config:
         console.print("  • PII detection: [green]Enabled[/green]")
-        console.print(f"    - Confidence: {pii_config.confidence_threshold}")
-        console.print(f"    - Sample size: {pii_config.sample_size}")
-        console.print(f"    - Entity types: {len(pii_config.entity_types)}")
+        console.print(f"    - Confidence: {pii_analysis_config.confidence_threshold}")
+        console.print(f"    - Sample size: {sampling_config.sample_size}")
+        console.print(f"    - Entity types: {len(pii_analysis_config.entity_types)}")
     else:
         console.print("  • PII detection: [yellow]Disabled[/yellow]")
 
