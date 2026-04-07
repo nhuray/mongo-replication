@@ -218,37 +218,6 @@ replication:
         finally:
             config_path.unlink()
 
-    def test_load_old_format_auto_migrates(self):
-        """Test that old format is auto-migrated with warning."""
-        yaml_content = """
-defaults:
-  replicate_all: true
-  batch_size: 1000
-
-collections:
-  users:
-    cursor_field: updated_at
-    write_disposition: merge
-    primary_key: _id
-    pii_fields:
-      email: hash
-"""
-        with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            f.flush()
-            config_path = Path(f.name)
-
-        try:
-            with pytest.warns(DeprecationWarning, match="deprecated format"):
-                config = load_config(config_path)
-
-            # Should be migrated to replication section
-            assert config.replication is not None
-            assert config.replication.defaults["replicate_all"] is True
-            assert "users" in config.replication.collections
-        finally:
-            config_path.unlink()
-
     def test_load_scan_config_only(self):
         """Test loading only scan config."""
         yaml_content = """

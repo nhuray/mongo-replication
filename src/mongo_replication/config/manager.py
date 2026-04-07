@@ -7,7 +7,6 @@ with support for defaults merging and validation.
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -135,24 +134,6 @@ def load_config(config_path: Path) -> Config:
 
     if not raw_config:
         raise ValueError(f"Configuration file is empty: {config_path}")
-
-    # Check if this is old format (has 'defaults' or 'collections' at root level)
-    is_old_format = "defaults" in raw_config or "collections" in raw_config
-    has_new_sections = "scan" in raw_config or "replication" in raw_config
-
-    if is_old_format and not has_new_sections:
-        # Old format detected - migrate and warn
-        warnings.warn(
-            f"Configuration file {config_path} uses deprecated format. "
-            "Please wrap your configuration in a 'replication:' section. "
-            "See migration guide for details.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.warning(f"Auto-migrating old config format in {config_path}")
-
-        # Migrate: wrap entire config in 'replication' section
-        raw_config = {"replication": raw_config}
 
     # Build merged config - only merge sections that exist in raw_config
     merged_config = {}
