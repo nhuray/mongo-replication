@@ -6,8 +6,9 @@ This module defines the configuration schema with two main sections:
 """
 
 import re
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # =============================================================================
@@ -15,19 +16,17 @@ from typing import Any, Dict, List, Literal, Optional
 # =============================================================================
 
 
-@dataclass
-class ScanDiscoveryConfig:
+class ScanDiscoveryConfig(BaseModel):
     """Configuration for collection discovery during scan."""
 
-    include_patterns: List[str] = field(default_factory=list)
+    include_patterns: List[str] = Field(default_factory=list)
     """Regex patterns for collections to include (empty = include all)."""
 
-    exclude_patterns: List[str] = field(default_factory=list)
+    exclude_patterns: List[str] = Field(default_factory=list)
     """Regex patterns for collections to exclude."""
 
 
-@dataclass
-class ScanPIIConfig:
+class ScanPIIConfig(BaseModel):
     """Configuration for PII detection during scan."""
 
     enabled: bool = True
@@ -36,7 +35,7 @@ class ScanPIIConfig:
     confidence_threshold: float = 0.85
     """Minimum confidence score for PII detection (0.0-1.0)."""
 
-    entity_types: List[str] = field(
+    entity_types: List[str] = Field(
         default_factory=lambda: [
             "EMAIL_ADDRESS",
             "PHONE_NUMBER",
@@ -56,7 +55,7 @@ class ScanPIIConfig:
     sample_strategy: Literal["random", "stratified"] = "stratified"
     """Sampling strategy: 'random' or 'stratified'."""
 
-    default_strategies: Dict[str, str] = field(
+    default_strategies: Dict[str, str] = Field(
         default_factory=lambda: {
             "EMAIL_ADDRESS": "fake",
             "PHONE_NUMBER": "fake",
@@ -70,7 +69,7 @@ class ScanPIIConfig:
     )
     """Default anonymization strategy per entity type."""
 
-    allowlist: List[str] = field(default_factory=list)
+    allowlist: List[str] = Field(default_factory=list)
     """Field patterns to exclude from PII detection (e.g., 'metadata.*', '*.created_at')."""
 
     presidio_config: Optional[str] = None
@@ -97,30 +96,40 @@ class ScanPIIConfig:
     See docs/configuration.md for detailed examples and guidance.
     """
 
-    def __post_init__(self):
-        """Validate configuration."""
-        if not 0.0 <= self.confidence_threshold <= 1.0:
-            raise ValueError(
-                f"confidence_threshold must be between 0.0 and 1.0, got {self.confidence_threshold}"
-            )
+    @field_validator("confidence_threshold")
+    @classmethod
+    def validate_confidence_threshold(cls, v: float) -> float:
+        """Validate confidence_threshold is between 0.0 and 1.0."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError(f"confidence_threshold must be between 0.0 and 1.0, got {v}")
+        return v
 
-        if self.sample_size < 1:
-            raise ValueError(f"sample_size must be >= 1, got {self.sample_size}")
+    @field_validator("sample_size")
+    @classmethod
+    def validate_sample_size(cls, v: int) -> int:
+        """Validate sample_size is at least 1."""
+        if v < 1:
+            raise ValueError(f"sample_size must be >= 1, got {v}")
+        return v
 
-        if self.sample_strategy not in ("random", "stratified"):
-            raise ValueError(
-                f"sample_strategy must be 'random' or 'stratified', got {self.sample_strategy}"
-            )
+    @field_validator("sample_strategy")
+    @classmethod
+    def validate_sample_strategy(cls, v: str) -> str:
+        """Validate sample_strategy is either 'random' or 'stratified'."""
+        # This validator is now redundant with Pydantic's Literal validation,
+        # but kept for compatibility. The Literal type will raise ValidationError first.
+        if v not in ("random", "stratified"):
+            raise ValueError(f"sample_strategy must be 'random' or 'stratified', got {v}")
+        return v
 
 
-@dataclass
-class ScanConfig:
+class ScanConfig(BaseModel):
     """Configuration for the scan command."""
 
-    discovery: ScanDiscoveryConfig = field(default_factory=ScanDiscoveryConfig)
+    discovery: ScanDiscoveryConfig = Field(default_factory=ScanDiscoveryConfig)
     """Collection discovery configuration."""
 
-    pii: ScanPIIConfig = field(default_factory=ScanPIIConfig)
+    pii: ScanPIIConfig = Field(default_factory=ScanPIIConfig)
     """PII detection configuration."""
 
 
@@ -129,8 +138,7 @@ class ScanConfig:
 # =============================================================================
 
 
-@dataclass
-class FieldTransformConfig:
+class FieldTransformConfig(BaseModel):
     """Configuration for a single field transformation."""
 
     field: str
@@ -145,7 +153,8 @@ class FieldTransformConfig:
     replacement: str
     """Replacement string."""
 
-    def __post_init__(self):
+    @model_validator(mode="after")
+    def validate_transformation(self) -> "FieldTransformConfig":
         """Validate transformation configuration."""
         if self.type != "regex_replace":
             raise ValueError(
@@ -161,9 +170,10 @@ class FieldTransformConfig:
                 f"Invalid regex pattern '{self.pattern}' for field '{self.field}': {str(e)}"
             )
 
+        return self
 
-@dataclass
-class StateConfig:
+
+class StateConfig(BaseModel):
     """Configuration for replication state tracking."""
 
     runs_collection: str = "_rep_runs"
@@ -173,23 +183,22 @@ class StateConfig:
     """Collection name for storing per-collection replication state."""
 
 
-@dataclass
-class DefaultsReplicationConfig:
+class DefaultsReplicationConfig(BaseModel):
     """Default replication settings for all collections."""
 
     replicate_all: bool = True
     """If true, auto-discover all collections not explicitly configured."""
 
-    include_patterns: List[str] = field(default_factory=list)
+    include_patterns: List[str] = Field(default_factory=list)
     """Regex patterns for collections to include (empty = include all)."""
 
-    exclude_patterns: List[str] = field(default_factory=list)
+    exclude_patterns: List[str] = Field(default_factory=list)
     """Regex patterns for collections to exclude."""
 
     write_disposition: Literal["merge", "append", "replace"] = "merge"
     """Default write strategy: merge (upsert), append (insert), replace (drop/recreate)."""
 
-    cursor_fields: List[str] = field(
+    cursor_fields: List[str] = Field(
         default_factory=lambda: ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
     )
     """List of field names to try as cursor fields for incremental loading (in priority order)."""
@@ -209,22 +218,27 @@ class DefaultsReplicationConfig:
     transform_error_mode: Literal["skip", "fail"] = "skip"
     """How to handle errors during field transformations."""
 
-    state: StateConfig = field(default_factory=StateConfig)
+    state: StateConfig = Field(default_factory=StateConfig)
     """Configuration for replication state tracking."""
 
-    def __post_init__(self):
-        """Validate configuration."""
-        if self.max_parallel_collections < 1:
-            raise ValueError(
-                f"max_parallel_collections must be >= 1, got {self.max_parallel_collections}"
-            )
+    @field_validator("max_parallel_collections")
+    @classmethod
+    def validate_max_parallel_collections(cls, v: int) -> int:
+        """Validate max_parallel_collections is at least 1."""
+        if v < 1:
+            raise ValueError(f"max_parallel_collections must be >= 1, got {v}")
+        return v
 
-        if self.batch_size < 1:
-            raise ValueError(f"batch_size must be >= 1, got {self.batch_size}")
+    @field_validator("batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: int) -> int:
+        """Validate batch_size is at least 1."""
+        if v < 1:
+            raise ValueError(f"batch_size must be >= 1, got {v}")
+        return v
 
 
-@dataclass
-class CollectionConfig:
+class CollectionConfig(BaseModel):
     """Configuration for a single collection."""
 
     name: str
@@ -245,35 +259,43 @@ class CollectionConfig:
     match: Optional[Dict[str, Any]] = None
     """MongoDB match filter to apply during replication."""
 
-    field_transforms: List[FieldTransformConfig] = field(default_factory=list)
+    field_transforms: List[FieldTransformConfig] = Field(default_factory=list)
     """Field transformations to apply."""
 
-    fields_exclude: List[str] = field(default_factory=list)
+    fields_exclude: List[str] = Field(default_factory=list)
     """Fields to exclude from replication."""
 
     transform_error_mode: Literal["skip", "fail"] = "skip"
     """Error handling mode: skip or fail."""
 
-    def __post_init__(self):
-        """Validate configuration after initialization."""
+    @field_validator("write_disposition")
+    @classmethod
+    def validate_write_disposition(cls, v: str, info) -> str:
+        """Validate write_disposition is one of the valid values."""
         valid_dispositions = ["merge", "append", "replace"]
-        if self.write_disposition not in valid_dispositions:
+        if v not in valid_dispositions:
+            name = info.data.get("name", "unknown")
             raise ValueError(
-                f"Invalid write_disposition '{self.write_disposition}' for collection '{self.name}'. "
+                f"Invalid write_disposition '{v}' for collection '{name}'. "
                 f"Must be one of: {', '.join(valid_dispositions)}"
             )
+        return v
 
-        # Validate transform_error_mode
+    @field_validator("transform_error_mode")
+    @classmethod
+    def validate_transform_error_mode(cls, v: str, info) -> str:
+        """Validate transform_error_mode is one of the valid values."""
         valid_error_modes = ["skip", "fail"]
-        if self.transform_error_mode not in valid_error_modes:
+        if v not in valid_error_modes:
+            name = info.data.get("name", "unknown")
             raise ValueError(
-                f"Invalid transform_error_mode '{self.transform_error_mode}' for collection '{self.name}'. "
+                f"Invalid transform_error_mode '{v}' for collection '{name}'. "
                 f"Must be one of: {', '.join(valid_error_modes)}"
             )
+        return v
 
 
-@dataclass
-class RelationshipConfig:
+class RelationshipConfig(BaseModel):
     """Defines parent-child relationship between collections for cascading replication."""
 
     parent: str
@@ -288,7 +310,8 @@ class RelationshipConfig:
     child_field: str
     """Field in child collection that references parent (e.g., 'customerId')."""
 
-    def __post_init__(self):
+    @model_validator(mode="after")
+    def validate_relationship(self) -> "RelationshipConfig":
         """Validate relationship configuration."""
         if not self.parent or not self.child:
             raise ValueError("Relationship must specify both parent and child collections")
@@ -296,11 +319,13 @@ class RelationshipConfig:
             raise ValueError("Relationship must specify both parent_field and child_field")
         if self.parent == self.child:
             raise ValueError(f"Collection '{self.parent}' cannot have a relationship with itself")
+        return self
 
 
-@dataclass
-class ReplicationConfig:
+class ReplicationConfig(BaseModel):
     """Complete replication configuration."""
+
+    model_config = {"protected_namespaces": ()}
 
     collections: Dict[str, CollectionConfig]
     """Per-collection configuration."""
@@ -308,7 +333,7 @@ class ReplicationConfig:
     defaults: Dict[str, Any]
     """Default settings for all collections (raw dict for flexibility)."""
 
-    schema: List[RelationshipConfig] = field(default_factory=list)
+    schema: List[RelationshipConfig] = Field(default_factory=list)
     """Collection relationships for cascading replication (optional)."""
 
     @property
@@ -357,13 +382,7 @@ class ReplicationConfig:
 # =============================================================================
 
 
-# =============================================================================
-# ROOT CONFIG
-# =============================================================================
-
-
-@dataclass
-class Config:
+class Config(BaseModel):
     """Root configuration object with scan and replication sections."""
 
     scan: Optional[ScanConfig] = None
@@ -372,9 +391,11 @@ class Config:
     replication: Optional["ReplicationConfig"] = None
     """Configuration for replication (optional)."""
 
-    def __post_init__(self):
+    @model_validator(mode="after")
+    def validate_config(self) -> "Config":
         """Validate that at least one section is present."""
         if self.scan is None and self.replication is None:
             raise ValueError(
                 "Configuration must have at least one of 'scan' or 'replication' sections"
             )
+        return self

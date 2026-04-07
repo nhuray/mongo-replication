@@ -3,6 +3,7 @@
 import re
 
 import pytest
+from pydantic import ValidationError
 
 from mongo_replication.config.models import (
     FieldTransformConfig,
@@ -112,8 +113,8 @@ class TestCollectionConfigWithTransformations:
         assert config.transform_error_mode == "skip"  # Default
 
     def test_invalid_transform_error_mode(self):
-        """Test that invalid transform_error_mode raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid transform_error_mode.*invalid_mode"):
+        """Test that invalid transform_error_mode raises ValidationError."""
+        with pytest.raises(ValidationError, match="Input should be 'skip' or 'fail'"):
             CollectionConfig(
                 name="users",
                 cursor_field="updatedAt",

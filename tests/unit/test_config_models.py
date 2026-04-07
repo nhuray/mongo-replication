@@ -4,6 +4,8 @@ import pytest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from pydantic import ValidationError
+
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
@@ -93,7 +95,7 @@ class TestScanPIIConfig:
 
     def test_invalid_sample_strategy_raises_error(self):
         """Test that invalid sample strategy raises error."""
-        with pytest.raises(ValueError, match="sample_strategy must be"):
+        with pytest.raises(ValidationError, match="Input should be 'random' or 'stratified'"):
             ScanPIIConfig(sample_strategy="invalid")
 
 
