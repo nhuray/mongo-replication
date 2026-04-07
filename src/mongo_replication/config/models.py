@@ -313,6 +313,30 @@ class CollectionsConfig(RootModel):
 
         return data
 
+    def __getitem__(self, key: str) -> CollectionConfig:
+        """Allow dictionary-style access to collections."""
+        return self.root[key]
+
+    def __contains__(self, key: str) -> bool:
+        """Check if a collection exists."""
+        return key in self.root
+
+    def get(self, key: str, default=None) -> Optional[CollectionConfig]:
+        """Get a collection by name with optional default."""
+        return self.root.get(key, default)
+
+    def items(self):
+        """Return items from the underlying dict."""
+        return self.root.items()
+
+    def keys(self):
+        """Return keys from the underlying dict."""
+        return self.root.keys()
+
+    def values(self):
+        """Return values from the underlying dict."""
+        return self.root.values()
+
 
 class RelationshipConfig(BaseModel):
     """Defines parent-child relationship between collections for cascading replication."""
