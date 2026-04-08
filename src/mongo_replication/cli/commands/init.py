@@ -32,6 +32,7 @@ from mongo_replication.config.models import (
     ScanCursorDetectionConfig,
     Config,
     ReplicationConfig,
+    ReplicationDiscoveryConfig,
 )
 
 # Custom style for questionary
@@ -652,8 +653,19 @@ def init_command(
     system_defaults = load_defaults()
     replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
 
-    # Build replication config with defaults
-    replication_config = ReplicationConfig(defaults=replication_defaults_raw, collections={})
+    # Build replication discovery config with same patterns as scan discovery
+    replication_discovery_config = ReplicationDiscoveryConfig(
+        replicate_all=(len(include_patterns) == 0),
+        include_patterns=include_patterns,
+        exclude_patterns=exclude_patterns,
+    )
+
+    # Build replication config with defaults and discovery
+    replication_config = ReplicationConfig(
+        discovery=replication_discovery_config,
+        defaults=replication_defaults_raw,
+        collections={},
+    )
 
     rep_config = Config(scan=scan_config, replication=replication_config, schema_relationships=[])
 
