@@ -41,17 +41,6 @@ scan:
     # stratified = distributed across collection, random = random selection
     sample_strategy: stratified
 
-  # Cursor Detection Settings
-  # ----------------------
-  cursor_detection:
-
-    # List of field names to try as cursor fields for incremental loading (in priority order).
-    cursor_fields:
-      - updated_at
-      - updatedAt
-      - meta.updated_at
-      - meta.updatedAt
-
   # PII Analysis Settings
   # ----------------------
   # Configure automatic PII analysis using Microsoft Presidio
@@ -102,6 +91,20 @@ scan:
     # Example: config/custom_presidio.yaml
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
     presidio_config: null
+
+  # Cursor Detection Settings
+  # --------------------------
+  # Configure which cursor fields to look for during scan
+  cursor_detection:
+    # List of field names to try as cursor fields for incremental loading (in priority order)
+    # The scan command checks for these fields and auto-detects which ones exist
+    cursor_fields:
+      - updated_at
+      - updatedAt
+      - meta.updated_at
+      - meta.updatedAt
+
+
 # =============================================================================
 # REPLICATION CONFIGURATION
 # =============================================================================
