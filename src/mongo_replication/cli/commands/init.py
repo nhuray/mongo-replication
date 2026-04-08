@@ -625,11 +625,9 @@ def init_command(
     replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
 
     # Build replication config with defaults
-    replication_config = ReplicationConfig(
-        defaults=replication_defaults_raw, collections={}, schema_relationships=[]
-    )
+    replication_config = ReplicationConfig(defaults=replication_defaults_raw, collections={})
 
-    rep_config = Config(scan=scan_config, replication=replication_config)
+    rep_config = Config(scan=scan_config, replication=replication_config, schema_relationships=[])
 
     # Save config
     try:

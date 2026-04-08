@@ -18,6 +18,7 @@ from mongo_replication.config.models import (
     ScanConfig,
     CollectionConfig,
     ReplicationConfig,
+    SchemaRelationshipConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -187,6 +188,33 @@ def load_replication_config(config_path: Path) -> ReplicationConfig:
         raise ValueError(f"Configuration file {config_path} has no 'replication' section")
 
     return rep_config.replication
+
+
+def load_schema_relationships(config_path: Path) -> list[SchemaRelationshipConfig]:
+    """
+    Load schema relationships from configuration file.
+
+    This function is used for cascade replication to load parent-child
+    relationships between collections.
+
+    Args:
+        config_path: Path to YAML configuration file
+
+    Returns:
+        List of SchemaRelationshipConfig objects
+
+    Raises:
+        ValueError: If config file doesn't have schema_relationships section
+    """
+    full_config = load_config(config_path)
+
+    if not full_config.schema_relationships:
+        raise ValueError(
+            f"Configuration file {config_path} has no 'schema_relationships' section. "
+            f"Cascade replication requires defining relationships between collections."
+        )
+
+    return full_config.schema_relationships
 
 
 def _render_config_template(data: Dict[str, Any]) -> str:

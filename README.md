@@ -374,17 +374,16 @@ mongorep run my_job --query customers='{"status": "active", "createdAt": {"$gte"
 **Define Relationships in Configuration:**
 
 ```yaml
-replication:
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customer_id
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customer_id
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: order_id
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: order_id
 ```
 
 The tool will:

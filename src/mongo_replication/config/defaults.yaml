@@ -168,3 +168,26 @@ replication:
   # Override defaults and specify PII fields for each collection
   collections:
       {}  # No collection configured
+
+# =============================================================================
+# SCHEMA RELATIONSHIPS (Optional)
+# =============================================================================
+# Define parent-child relationships for cascading replication.
+# Used with --ids or --query option to replicate related data across collections.
+#
+# Example: mongorep run job --ids customers=id1,id2
+# This will replicate specified customers AND their related orders/items.
+#
+# Format:
+# schema_relationships:
+#   - parent: customers
+#     child: orders
+#     parent_field: _id
+#     child_field: customerId
+#   - parent: orders
+#     child: order_items
+#     parent_field: _id
+#     child_field: orderId
+
+schema_relationships:
+  []  # No relationships defined

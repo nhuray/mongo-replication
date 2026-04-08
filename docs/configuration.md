@@ -36,7 +36,8 @@ replication:
   performance: {...}
   defaults: {...}
   collections: {...}
-  schema_relationships: [...]
+
+schema_relationships: [...]
 ```
 
 ## Scan Configuration
@@ -525,17 +526,16 @@ field_transforms:
 Define parent-child relationships between collections for cascade replication.
 
 ```yaml
-replication:
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customerId
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customerId
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: orderId
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: orderId
 ```
 
 When using the `--ids` or `--query` option with the `run` command, the tool will:
@@ -669,16 +669,16 @@ replication:
     order_items:
       primary_key: "_id"
 
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customerId
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customerId
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: orderId
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: orderId
 ```
 
 ### Example 3: Field Transformations

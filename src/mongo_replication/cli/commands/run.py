@@ -28,7 +28,7 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.manager import load_replication_config
+from mongo_replication.config.manager import load_replication_config, load_schema_relationships
 from mongo_replication.config.models import CollectionConfig
 from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
 from mongo_replication.engine.connection import ConnectionManager
@@ -337,12 +337,12 @@ def run_command(
                 print_info(f"Root collection: {root_collection}")
                 print_info(f"Root IDs: {len(root_ids)} provided")
 
-                # Check if schema (relationships) are defined
-                if not replication_config.schema_relationships:
-                    print_error(
-                        "No schema defined in config. "
-                        "Cascade replication requires a 'replication.schema_relationships' section."
-                    )
+                # Load schema relationships
+                try:
+                    schema_relationships = load_schema_relationships(config_file)
+                    print_success(f"Loaded {len(schema_relationships)} relationships from schema")
+                except ValueError as e:
+                    print_error(str(e))
                     print_info(f"See config file: {config_file}")
                     raise typer.Exit(code=1)
 
@@ -354,11 +354,10 @@ def run_command(
                         parent_field=rel.parent_field,
                         child_field=rel.child_field,
                     )
-                    for rel in replication_config.schema_relationships
+                    for rel in schema_relationships
                 ]
 
                 graph = RelationshipGraph(relationships)
-                print_success(f"Loaded {len(relationships)} relationships from schema")
 
                 # Validate graph has no cycles
                 if graph.has_cycles():
@@ -489,12 +488,12 @@ def run_command(
                 print_info(f"Root collection: {root_collection}")
                 print_info(f"Query: {json.dumps(root_query, default=str)}")
 
-                # Check if schema (relationships) are defined
-                if not replication_config.schema_relationships:
-                    print_error(
-                        "No schema defined in config. "
-                        "Cascade replication requires a 'replication.schema_relationships' section."
-                    )
+                # Load schema relationships
+                try:
+                    schema_relationships = load_schema_relationships(config_file)
+                    print_success(f"Loaded {len(schema_relationships)} relationships from schema")
+                except ValueError as e:
+                    print_error(str(e))
                     print_info(f"See config file: {config_file}")
                     raise typer.Exit(code=1)
 
@@ -506,11 +505,10 @@ def run_command(
                         parent_field=rel.parent_field,
                         child_field=rel.child_field,
                     )
-                    for rel in replication_config.schema_relationships
+                    for rel in schema_relationships
                 ]
 
                 graph = RelationshipGraph(relationships)
-                print_success(f"Loaded {len(relationships)} relationships from schema")
 
                 # Validate graph has no cycles
                 if graph.has_cycles():
