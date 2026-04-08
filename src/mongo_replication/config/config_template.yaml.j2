@@ -26,7 +26,7 @@ scan:
     # Empty list = scan all collections
     include_patterns:
 {%- if scan.discovery.include_patterns %}
-{% for pattern in scan.discovery.include_patterns %}
+{%- for pattern in scan.discovery.include_patterns %}
       - {{ pattern | tojson }}
 {%- endfor %}
 {%- else %}
@@ -37,7 +37,7 @@ scan:
     # Applied after include_patterns
     exclude_patterns:
 {%- if scan.discovery.exclude_patterns %}
-{% for pattern in scan.discovery.exclude_patterns %}
+{%- for pattern in scan.discovery.exclude_patterns %}
       - {{ pattern | tojson }}
 {%- endfor %}
 {%- else %}
@@ -87,7 +87,7 @@ scan:
     # Format: collection.field (e.g., users.user_id)
     allowlist:
 {%- if scan.pii_analysis.allowlist %}
-{% for item in scan.pii_analysis.allowlist %}
+{%- for item in scan.pii_analysis.allowlist %}
       - '{{ item }}'
 {%- endfor %}
 {%- else %}
