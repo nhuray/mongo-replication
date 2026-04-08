@@ -306,7 +306,7 @@ def run_command(
 
         # Print banner with resolved values
         print_banner(
-            "EXECUTE REPLICATION",
+            "RUN REPLICATION",
             Job=job,
             **{"Max Parallel": f"{final_parallel} collections"},
             **{"Batch Size": str(final_batch_size)},
@@ -697,7 +697,7 @@ def run_command(
         print_success("Connected to source and destination")
 
         # Step 4: Execute replication
-        print_step(4, 4, "Execute Replication")
+        print_step(4, 4, "Run Replication")
 
         orchestrator = ReplicationOrchestrator(
             connection_manager=conn_mgr,

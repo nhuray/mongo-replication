@@ -206,8 +206,8 @@ class CollectionReplicator:
         logger.info(f"   State ID: {state_id}")
         logger.info(f"   Write disposition: {write_disposition}")
         logger.info(f"   Batch size: {batch_size}")
-        if pii_handler and pii_handler.manual_pii_fields:
-            logger.info(f"   PII manual fields: {len(pii_handler.manual_pii_fields)}")
+        if pii_handler and pii_handler.pii_fields:
+            logger.info(f"   PII manual fields: {len(pii_handler.pii_fields)}")
         if match_filter:
             logger.info(f"   Match filter applied: {match_filter}")
         if field_transformer and field_transformer.transforms:
@@ -286,7 +286,7 @@ class CollectionReplicator:
                 duration_seconds=duration,
                 cursor_field_used=actual_cursor_field,
                 write_disposition=write_disposition,
-                pii_fields_redacted=len(pii_handler.manual_pii_fields) if pii_handler else 0,
+                pii_fields_redacted=len(pii_handler.pii_fields) if pii_handler else 0,
                 indexes_replicated=final_indexes_replicated,
                 indexes_failed=final_indexes_failed,
                 index_errors=final_index_errors,
