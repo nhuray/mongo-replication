@@ -115,7 +115,7 @@ def init_command(
     Guides you through setting up:
     - Source and destination MongoDB URIs
     - Collection selection (include/exclude patterns)
-    - PII detection settings
+    - PII Analysis settings
     - Anonymization strategies
 
     Examples:
@@ -129,7 +129,7 @@ def init_command(
 
     console.print()
     console.print(
-        "[bold]This wizard will help you set up scan configuration for PII detection.[/bold]"
+        "[bold]This wizard will help you set up scan configuration for PII Analysis.[/bold]"
     )
     console.print()
 
@@ -302,12 +302,12 @@ def init_command(
         # Replicate all - no patterns needed
         print_success("Will replicate all collections")
 
-    # Step 4: PII Detection Settings
-    print_step(4, 8, "PII Detection Settings")
+    # Step 4: PII Analysis Settings
+    print_step(4, 8, "PII Analysis Settings")
     console.print()
 
     enable_pii = questionary.confirm(
-        "Enable PII detection?",
+        "Enable PII Analysis?",
         default=True,
         style=custom_style,
     ).ask()
@@ -474,7 +474,7 @@ def init_command(
         print_step(7, 8, "Field Allowlist (Optional)")
         console.print()
 
-        console.print("[dim]Allowlist field patterns to exclude from PII detection.[/dim]")
+        console.print("[dim]Allowlist field patterns to exclude from PII Analysis.[/dim]")
         console.print("[dim]Default allowlist: _id, meta.*, *.id[/dim]")
         console.print()
 
@@ -606,12 +606,12 @@ def init_command(
         console.print(f"  • Exclude patterns: {len(exclude_patterns)}")
 
     if pii_analysis_config:
-        console.print("  • PII detection: [green]Enabled[/green]")
+        console.print("  • PII Analysis: [green]Enabled[/green]")
         console.print(f"    - Confidence: {pii_analysis_config.confidence_threshold}")
         console.print(f"    - Sample size: {sampling_config.sample_size}")
         console.print(f"    - Entity types: {len(pii_analysis_config.entity_types)}")
     else:
-        console.print("  • PII detection: [yellow]Disabled[/yellow]")
+        console.print("  • PII Analysis: [yellow]Disabled[/yellow]")
 
     console.print()
     console.rule(style="green")
