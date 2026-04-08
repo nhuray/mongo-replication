@@ -188,13 +188,13 @@ The tool follows a modular, layered architecture:
 class PIIHandler:
     def anonymize_email(value: str) -> str:
         # "user@example.com" → "u***@example.com"
-        
+
     def anonymize_hash(value: str) -> str:
         # SHA-256 hash
-        
+
     def anonymize_redact(value: Any) -> str:
         # Replace with "[REDACTED]"
-        
+
     def anonymize_replace(value: str, entity_type: str) -> str:
         # Generate fake data matching type
 ```
@@ -274,7 +274,7 @@ cursor = source_collection.find(query).sort(cursor_field, 1)
 ```python
 with ThreadPoolExecutor(max_workers=max_parallel) as executor:
     futures = {}
-    
+
     for collection_name in collections:
         future = executor.submit(
             self._replicate_single_collection,
@@ -282,7 +282,7 @@ with ThreadPoolExecutor(max_workers=max_parallel) as executor:
             config
         )
         futures[future] = collection_name
-    
+
     for future in as_completed(futures):
         collection_name = futures[future]
         result = future.result()
@@ -305,7 +305,7 @@ with ThreadPoolExecutor(max_workers=max_parallel) as executor:
 batch = []
 for doc in cursor:
     batch.append(doc)
-    
+
     if len(batch) >= batch_size:
         process_batch(batch)
         update_state(last_cursor=doc[cursor_field])
@@ -322,6 +322,14 @@ if batch:
 
 ## PII Detection Pipeline
 
+> **📖 Note:** This section provides a high-level overview of the PII detection and anonymization architecture. For detailed implementation, operator documentation, and configuration examples, see:
+> - **[Presidio Documentation](presidio.md)** - Comprehensive guide to operators and configuration
+> - **Implementation**: `src/mongo_replication/engine/pii/` directory
+>   - `presidio_analyzer.py` - PII detection using Presidio
+>   - `presidio_anonymizer.py` - Anonymization using Presidio AnonymizerEngine
+>   - `custom_operators.py` - Custom anonymization operators
+>   - `presidio_config.py` - YAML configuration parser
+
 ### Pipeline Stages
 
 ```
@@ -334,11 +342,11 @@ Document → Field Identification → Detection → Anonymization → Output
 def identify_pii_fields(doc, config):
     """Recursively identify fields containing PII."""
     pii_fields = []
-    
+
     for field_path in config.pii.fields:
         if field_path in doc:
             pii_fields.append((field_path, doc[field_path]))
-    
+
     return pii_fields
 ```
 
@@ -482,7 +490,7 @@ class CustomPIIHandler(PIIHandler):
     def detect_custom_entity(self, text):
         # Custom detection logic
         return entity_type
-    
+
     def anonymize_custom(self, value, entity_type):
         # Custom anonymization
         return anonymized_value
@@ -497,7 +505,7 @@ class CustomStateManager(StateManager):
     def __init__(self, backend_config):
         # Initialize custom backend (Redis, PostgreSQL, etc.)
         pass
-    
+
     def create_run(self):
         # Store in custom backend
         pass
@@ -551,7 +559,7 @@ orchestrator.replicate(progress_callback=progress_callback)
 result = orchestrator.replicate()
 
 print(f"Throughput: {
-    result.total_documents_processed / 
+    result.total_documents_processed /
     result.total_duration_seconds
 } docs/sec")
 ```

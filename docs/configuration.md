@@ -100,15 +100,16 @@ scan:
 
 ### PII Analysis Settings
 
-Configuration for automatic PII detection using Microsoft Presidio.
+Configuration for automatic PII detection and anonymization using Microsoft Presidio.
+
+> **📖 For comprehensive documentation on Presidio operators, custom configurations, and advanced usage, see [Presidio Documentation](presidio.md).**
 
 ```yaml
 scan:
   pii_analysis:
     enabled: true
     confidence_threshold: 0.85
-    entity_types: [...]
-    default_strategies: {...}
+    entities: [...]
     allowlist: [...]
     presidio_config: null
 ```
@@ -126,53 +127,36 @@ scan:
 - Lower values = more detections but more false positives
 - Recommended range: 0.75-0.95
 
-**`entity_types`** (list of strings, default: see below)
+**`entities`** (list of strings, default: all supported entities)
 - List of PII entity types to detect
 - Uses Microsoft Presidio's entity recognition
-- Default types:
-  - `EMAIL_ADDRESS`: Email addresses
-  - `PHONE_NUMBER`: Phone numbers (various formats)
-  - `PERSON`: Person names
-  - `US_SSN`: US Social Security Numbers
-  - `CREDIT_CARD`: Credit card numbers
-  - `IBAN_CODE`: International Bank Account Numbers
-  - `IP_ADDRESS`: IPv4 and IPv6 addresses
-  - `URL`: Web URLs
+- Supported types include:
+  - `EMAIL_ADDRESS`, `PHONE_NUMBER`, `PERSON`
+  - `US_SSN`, `SSN`, `CREDIT_CARD`, `IBAN_CODE`
+  - `US_PASSPORT`, `US_BANK_ACCOUNT`, `US_DRIVER_LICENSE`
+  - `IP_ADDRESS`, `URL`, `CRYPTO`, `DATE_TIME`
+  - And more... See [Presidio Supported Entities](https://microsoft.github.io/presidio/supported_entities/)
 
-**`default_strategies`** (object, default: see below)
-- Default anonymization strategy per PII entity type
-- Applied when PII is detected but no manual strategy is specified
-- Available strategies:
-  - `"fake"`: Generate realistic fake data using Mimesis library
-    - Best for: email, phone, name, address
-    - Pros: Realistic, maintains data utility
-    - Cons: Not deterministic (same input → different output)
-  - `"redact"`: Smart format-preserving redaction
-    - Best for: SSN, credit cards, structured PII
-    - Pros: Shows partial data, maintains format
-    - Example: `john.doe@corp.com` → `jo30f6oe@corp.com` (preserves domain)
-  - `"hash"`: SHA-256 hashing
-    - Best for: IDs, usernames, values needing referential integrity
-    - Pros: Deterministic (same input → same output), irreversible
-    - Cons: Doesn't maintain data utility
-  - `"mask"`: Replace with asterisks
-    - Best for: Completely obscuring values
-    - Example: `"sensitive"` → `"********"`
-  - `"null"`: Replace with null/None
-    - Best for: Removing PII completely
-    - Use when field is not needed in destination
+**Anonymization Operators:**
 
-Default strategy mapping:
+The tool provides multiple anonymization strategies configured via `presidio.yaml`:
+
+- **Built-in Presidio operators**: `replace`, `redact`, `mask`, `hash`, `encrypt`, `keep`
+- **Custom operators**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `stripe_testing_cc`, `smart_redact`
+
+**Default entity-to-operator mappings:**
 ```yaml
-EMAIL_ADDRESS: "fake"    # Replace with realistic fake email
-PHONE_NUMBER: "fake"     # Replace with realistic fake phone
-PERSON: "hash"           # Hash the name (preserves uniqueness)
-US_SSN: "redact"         # Partial redaction (e.g., ***-**-6789)
-CREDIT_CARD: "redact"    # Partial redaction
-IBAN_CODE: "redact"      # Partial redaction
-IP_ADDRESS: "hash"       # Hash the IP address
-URL: "hash"              # Hash the URL
+EMAIL_ADDRESS: smart_redact      # Preserves domain: jo****@example.com
+PERSON: replace                  # Replaces with "ANONYMOUS"
+PHONE_NUMBER: mask               # Shows last 4: ***-***-4567
+US_SSN: mask                     # Shows last 4: ***-**-6789
+CREDIT_CARD: hash                # SHA-256 hash
+IBAN_CODE: hash                  # SHA-256 hash
+IP_ADDRESS: mask                 # Partial masking
+# ... and more
 ```
+
+See [Presidio Documentation](presidio.md#anonymization-operators) for detailed operator descriptions and examples.
 
 **`allowlist`** (list of strings, default: `["_id", "meta.*", "*.id"]`)
 - Field patterns to exclude from PII detection
@@ -188,14 +172,14 @@ URL: "hash"              # Hash the URL
 
 **`presidio_config`** (string or null, default: `null`)
 - Path to custom Presidio YAML configuration file
-- Allows defining domain-specific PII recognizers without writing Python code
-- When `null`, uses default Presidio configuration with built-in recognizers
+- Allows defining custom PII recognizers and anonymization operators
+- When `null`, uses bundled default configuration
 
 **Use cases:**
 - Detect custom patterns (employee IDs, patient numbers, internal codes)
 - Add context words to improve detection accuracy
-- Override or customize default recognizers
-- Configure different NLP models for better entity recognition
+- Configure custom anonymization operators per entity type
+- Override default operator mappings
 
 **Path resolution (checked in order):**
 1. Absolute path (e.g., `/path/to/presidio.yaml`)
@@ -207,10 +191,11 @@ URL: "hash"              # Hash the URL
 ```yaml
 scan:
   pii_analysis:
+    enabled: true
     presidio_config: "config/custom_presidio.yaml"
 ```
 
-See [Custom Presidio Configuration](#custom-presidio-configuration) section below for detailed examples.
+> **📖 See [Presidio Documentation](presidio.md#custom-presidio-yaml-configuration) for detailed examples of custom YAML configurations.**
 
 ### Cursor Detection Settings
 
@@ -539,27 +524,29 @@ replication:
 #### PII Configuration
 
 **`pii_anonymized_fields`** (object, optional)
-- Configure PII fields anonymization for this collection
-
-```yaml
-pii_anonymized_fields:
-  email: "fake"
-  phone: "hash"
-  ssn: "redact"
-```
-
-**`pii_anonymized_fields`** (object, optional)
+- Configure PII field anonymization for this collection
 - Keys: Field names (supports dot notation for nested fields)
-- Values: Strategy name (`"fake"`, `"redact"`, `"hash"`, `"mask"`, `"null"`)
-- Example:
+- Values: Operator name (see [Presidio Documentation](presidio.md#anonymization-operators) for all available operators)
+
+**Available operators:**
+- **Built-in**: `replace`, `redact`, `mask`, `hash`, `encrypt`, `keep`
+- **Custom**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `stripe_testing_cc`, `smart_redact`
+- **Aliases**: `fake`, `partial_redact`, `sha256`, `obscure`, `null`, `remove` (see [Strategy Aliases](presidio.md#strategy-aliases))
+
+**Example:**
 ```yaml
 pii_anonymized_fields:
-  email: "fake"              # Generate fake email
-  phone: "hash"              # Hash phone number
-  ssn: "redact"              # Redact SSN
-  "contact.email": "fake"    # Nested field
-  password_hash: "null"      # Remove completely
+  email: fake_email              # Generate realistic fake email
+  phone: fake_phone              # Generate realistic fake phone
+  ssn: mask                      # Mask all but last 4 digits
+  "contact.email": smart_redact  # Nested field: preserves domain
+  "address.street": fake_address # Nested field: fake address
+  password_hash: redact          # Complete redaction
 ```
+
+> **💡 Tip:** You can use strategy aliases for convenience: `fake` → `fake_email`, `partial_redact` → `smart_redact`
+
+> **📖 For detailed operator descriptions and examples, see [Presidio Documentation](presidio.md#anonymization-operators).**
 
 #### Field Transformations
 
@@ -834,369 +821,77 @@ replication:
 
 ## Custom Presidio Configuration
 
-The `presidio_config` field allows you to define custom PII recognizers using YAML configuration without writing Python code. This is useful for detecting domain-specific patterns like employee IDs, patient numbers, internal codes, or any custom PII types specific to your organization.
+The `presidio_config` field allows you to define custom PII recognizers and anonymization operators using YAML configuration. This is useful for detecting domain-specific patterns like employee IDs, patient numbers, internal codes, or any custom PII types specific to your organization.
 
-### Getting Started
+> **📖 For comprehensive documentation including:**
+> - **All available anonymization operators** (built-in + custom)
+> - **Complete YAML configuration examples**
+> - **Custom recognizer patterns**
+> - **Healthcare, financial, and e-commerce examples**
+> - **Advanced usage and troubleshooting**
+>
+> **See [Presidio Documentation](presidio.md)**
+
+### Quick Start
 
 1. **Copy the default template:**
    ```bash
-   cp src/mongo_replication/config/presidio.yaml config/my_job_presidio.yaml
+   cp src/mongo_replication/config/presidio.yaml config/my_presidio.yaml
    ```
 
-2. **Reference it in your config:**
+2. **Reference it in your job config:**
    ```yaml
    scan:
      pii_analysis:
-       presidio_config: "config/my_job_presidio.yaml"
+       enabled: true
+       presidio_config: "config/my_presidio.yaml"
    ```
 
-3. **Customize recognizers** in the YAML file (see examples below)
+3. **Customize the YAML file** with your custom recognizers and operators
 
-### Configuration Structure
+### Basic Example: Custom Employee ID
 
-A Presidio YAML configuration has three main sections:
+Add a custom recognizer to detect employee IDs:
 
-```yaml
-# NLP Engine Configuration
-nlp_engine_name: spacy
-nlp_configuration:
-  nlp_engine_name: spacy
-  models:
-    - lang_code: en
-      model_name: en_core_web_lg
-
-# Global Settings
-supported_languages: [en]
-default_score_threshold: 0.35
-
-# Recognizers (predefined + custom)
-recognizers:
-  - name: EmailRecognizer
-    supported_entity: EMAIL_ADDRESS
-    # ... configuration ...
-```
-
-### Example 1: Employee ID Recognizer
-
-Detect employee IDs in format `EMP-12345` or `E12345`:
-
+**`config/my_presidio.yaml`:**
 ```yaml
 recognizers:
   - name: EmployeeIdRecognizer
     supported_entity: EMPLOYEE_ID
     supported_languages: [en]
     patterns:
-      # EMP-12345 format
-      - name: emp_prefix_pattern
+      - name: emp_pattern
         regex: "\\bEMP-\\d{5,8}\\b"
-        score: 0.7
-      # E12345 format
-      - name: emp_short_pattern
-        regex: "\\bE\\d{5,8}\\b"
-        score: 0.6
+        score: 0.8
     context:
       - "employee"
-      - "employee id"
       - "emp"
       - "staff"
-      - "worker"
-      - "badge"
+
+anonymization_operators:
+  EMPLOYEE_ID:
+    operator: hash
+    params:
+      hash_type: sha256
 ```
 
-**Key points:**
-- `patterns`: List of regex patterns with confidence scores
-- `context`: Words that boost confidence when found nearby
-- Higher `score` = more confident match
-- Use `\\b` for word boundaries to avoid partial matches
-
-### Example 2: Patient ID Recognizer (Healthcare)
-
-Detect patient IDs in format `PT-YYYYMMDD-XXXX`:
-
+**Job configuration:**
 ```yaml
-recognizers:
-  - name: PatientIdRecognizer
-    supported_entity: PATIENT_ID
-    supported_languages: [en]
-    patterns:
-      - name: patient_id_pattern
-        regex: "\\bPT-\\d{8}-\\d{4}\\b"
-        score: 0.8
-    context:
-      - "patient"
-      - "patient id"
-      - "medical record"
-      - "mrn"
-      - "chart"
-      - "admission"
+collections:
+  employees:
+    pii_anonymized_fields:
+      employee_id: hash
+      email: fake_email
+      ssn: mask
 ```
 
-### Example 3: Custom API Key Detector
-
-Detect API keys with common prefixes:
-
-```yaml
-recognizers:
-  - name: ApiKeyRecognizer
-    supported_entity: API_KEY
-    supported_languages: [en]
-    patterns:
-      - name: api_key_pattern
-        regex: "\\b(api_key|apikey|api-key)\\s*[=:]\\s*['\"]?([A-Za-z0-9_\\-]{20,})['\"]?"
-        score: 0.9
-    context:
-      - "api"
-      - "key"
-      - "token"
-      - "secret"
-      - "credential"
-      - "authentication"
-```
-
-### Example 4: Deny-List Based Recognizer
-
-Detect professional titles using exact matches:
-
-```yaml
-recognizers:
-  - name: TitleRecognizer
-    supported_entity: TITLE
-    supported_languages: [en]
-    deny_list:
-      - "Dr."
-      - "Mr."
-      - "Mrs."
-      - "Ms."
-      - "Miss"
-      - "PhD"
-      - "MD"
-      - "Esq"
-    context:
-      - "title"
-      - "name"
-      - "salutation"
-```
-
-**Note:** Deny-list recognizers match exact strings (case-sensitive).
-
-### Example 5: US Bank Account Numbers
-
-Detect routing numbers and account numbers:
-
-```yaml
-recognizers:
-  - name: UsBankAccountRecognizer
-    supported_entity: US_BANK_ACCOUNT
-    supported_languages: [en]
-    patterns:
-      # US Routing Number: 9 digits
-      - name: routing_number_pattern
-        regex: "\\b[0-9]{9}\\b"
-        score: 0.5
-      # US Account Number: 8-17 digits
-      - name: account_number_pattern
-        regex: "\\b[0-9]{8,17}\\b"
-        score: 0.5
-    context:
-      - "routing"
-      - "routing number"
-      - "account"
-      - "account number"
-      - "bank account"
-      - "checking"
-      - "savings"
-      - "ach"
-      - "wire"
-```
-
-**Note:** Lower scores with strong context words reduce false positives.
-
-### Complete Configuration Example
-
-Full configuration with multiple custom recognizers:
-
-```yaml
-scan:
-  pii_analysis:
-    enabled: true
-    confidence_threshold: 0.85
-    presidio_config: "config/healthcare_presidio.yaml"
-
-    # Map custom entity types to anonymization strategies
-    default_strategies:
-      EMAIL_ADDRESS: "fake"
-      PHONE_NUMBER: "fake"
-      PERSON: "hash"
-      PATIENT_ID: "hash"        # Custom entity
-      MEDICAL_RECORD: "hash"    # Custom entity
-      EMPLOYEE_ID: "redact"     # Custom entity
-
-    # Allowlist to prevent false positives
-    allowlist:
-      - "_id"
-      - "meta.*"
-      - "*.id"
-      - "*.created_at"
-      - "*.updated_at"
-```
-
-Then in `config/healthcare_presidio.yaml`:
-
-```yaml
-nlp_engine_name: spacy
-nlp_configuration:
-  nlp_engine_name: spacy
-  models:
-    - lang_code: en
-      model_name: en_core_web_lg
-
-supported_languages: [en]
-default_score_threshold: 0.35
-
-recognizers:
-  # Include default recognizers
-  - name: EmailRecognizer
-    supported_entity: EMAIL_ADDRESS
-    supported_languages: [en]
-
-  - name: PhoneRecognizer
-    supported_entity: PHONE_NUMBER
-    supported_languages: [en]
-
-  # Custom healthcare recognizers
-  - name: PatientIdRecognizer
-    supported_entity: PATIENT_ID
-    supported_languages: [en]
-    patterns:
-      - name: patient_id_pattern
-        regex: "\\bPT-\\d{8}-\\d{4}\\b"
-        score: 0.8
-    context:
-      - "patient"
-      - "patient id"
-      - "mrn"
-
-  - name: MedicalRecordRecognizer
-    supported_entity: MEDICAL_RECORD
-    supported_languages: [en]
-    patterns:
-      - name: mrn_pattern
-        regex: "\\bMRN-\\d{6,10}\\b"
-        score: 0.8
-    context:
-      - "medical record"
-      - "record"
-      - "chart"
-```
-
-### Regex Pattern Tips
-
-1. **Use word boundaries (`\\b`)** to avoid partial matches:
-   ```yaml
-   regex: "\\bEMP-\\d{5}\\b"  # Good: matches "EMP-12345"
-   regex: "EMP-\\d{5}"        # Bad: matches "TEMP-12345"
-   ```
-
-2. **Escape special characters** with double backslash:
-   ```yaml
-   regex: "\\$\\d+\\.\\d{2}"  # Matches "$99.99"
-   ```
-
-3. **Test your patterns** at [regex101.com](https://regex101.com/) before deployment
-
-4. **Start with lower scores** and adjust based on false positives:
-   ```yaml
-   score: 0.6  # Start conservative
-   # Test with real data
-   # Increase if too many false positives
-   # Decrease if missing true positives
-   ```
-
-### Context Words Best Practices
-
-Context words boost confidence when found near detected patterns:
-
-```yaml
-context:
-  - "employee"      # Exact match
-  - "emp id"        # Multi-word phrase
-  - "staff number"  # Alternative phrasing
-```
-
-**Guidelines:**
-- Include common field names from your MongoDB collections
-- Add domain-specific terminology
-- Include abbreviations and variations
-- Be specific but comprehensive
-
-### NLP Model Selection
-
-The NLP model affects detection accuracy:
-
-```yaml
-models:
-  - lang_code: en
-    model_name: en_core_web_lg  # Large: Best accuracy, slower
-  # model_name: en_core_web_md  # Medium: Good balance
-  # model_name: en_core_web_sm  # Small: Faster, less accurate
-```
-
-**Installation:**
-```bash
-python -m spacy download en_core_web_lg
-```
-
-### Testing Your Configuration
-
-1. **Run a small scan first:**
-   ```bash
-   mongorep scan my_job --sample-size 100
-   ```
-
-2. **Check for false positives** in the scan results
-
-3. **Adjust scores and patterns** as needed
-
-4. **Validate with production-like data** before full deployment
-
-### Troubleshooting
-
-**Configuration file not found:**
-```
-Error: Presidio configuration file not found: config/custom.yaml
-```
-- Check file path is correct (relative or absolute)
-- Ensure file exists in one of the search locations
-- Use absolute path if relative path issues persist
-
-**Invalid YAML syntax:**
-```
-Error: Failed to load Presidio configuration: YAML syntax error
-```
-- Validate YAML syntax at [yamllint.com](http://www.yamllint.com/)
-- Check indentation (use spaces, not tabs)
-- Ensure proper quoting of regex patterns
-
-**Too many false positives:**
-- Increase `score` values in patterns
-- Add more specific context words
-- Use more restrictive regex patterns
-- Add false positive fields to `allowlist`
-
-**Missing detections:**
-- Decrease `score` values
-- Add more context words
-- Broaden regex patterns
-- Lower `confidence_threshold` in scan config
-
-### Resources
+### Available Resources
 
 - **Default template:** `src/mongo_replication/config/presidio.yaml`
-- **Presidio documentation:** https://microsoft.github.io/presidio/
+- **Full documentation:** [Presidio Documentation](presidio.md)
+- **Presidio website:** https://microsoft.github.io/presidio/
 - **YAML configuration guide:** https://microsoft.github.io/presidio/samples/python/no_code_config/
-- **Adding recognizers:** https://microsoft.github.io/presidio/analyzer/adding_recognizers/
 - **Supported entities:** https://microsoft.github.io/presidio/supported_entities/
-- **Regex testing:** https://regex101.com/
 
 ## Environment Variables
 

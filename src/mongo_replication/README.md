@@ -273,12 +273,23 @@ replication:
       primary_key: _id
 ```
 
-**PII Anonymization Strategies:**
-- `fake` - Replace with realistic fake data (via Mimesis library)
-- `hash` - One-way hash (consistent, can't reverse)
-- `redact` - Smart format-preserving redaction
-- `mask` - Replace with asterisks
-- `null` - Replace with null/None
+**PII Anonymization Operators:**
+
+See [docs/presidio.md](../../docs/presidio.md) for comprehensive documentation.
+
+**Built-in Presidio operators:**
+- `replace` - Replace with fixed value (e.g., "ANONYMOUS")
+- `redact` - Complete redaction (empty string)
+- `mask` - Replace with asterisks (configurable)
+- `hash` - SHA-256 hashing (random salt)
+- `encrypt` / `decrypt` - AES encryption
+- `keep` - Keep original value
+
+**Custom operators:**
+- `fake_email`, `fake_name`, `fake_phone`, `fake_address` - Realistic fake data via Mimesis
+- `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account` - Financial data
+- `stripe_testing_cc` - Stripe test credit card numbers
+- `smart_redact` - Format-preserving redaction (emails, SSN, phone, IP, URLs)
 
 **Schema Configuration (for cascade replication):**
 
