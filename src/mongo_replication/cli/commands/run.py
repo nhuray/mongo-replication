@@ -620,7 +620,37 @@ def run_command(
         elif interactive and configured_collections:
             # Interactive collection selection
             console.print()
-            selected_collections = select_collections(configured_collections)
+
+            # Filter configured collections by discovery patterns
+            collections_to_show = configured_collections
+            if replication_config.discovery:
+                import re
+
+                # Apply include patterns
+                if replication_config.discovery.include_patterns:
+                    include_regexes = [
+                        re.compile(pattern)
+                        for pattern in replication_config.discovery.include_patterns
+                    ]
+                    collections_to_show = [
+                        coll
+                        for coll in collections_to_show
+                        if any(regex.match(coll) for regex in include_regexes)
+                    ]
+
+                # Apply exclude patterns
+                if replication_config.discovery.exclude_patterns:
+                    exclude_regexes = [
+                        re.compile(pattern)
+                        for pattern in replication_config.discovery.exclude_patterns
+                    ]
+                    collections_to_show = [
+                        coll
+                        for coll in collections_to_show
+                        if not any(regex.match(coll) for regex in exclude_regexes)
+                    ]
+
+            selected_collections = select_collections(collections_to_show)
 
             if not selected_collections:
                 print_warning("No collections selected. Exiting.")
