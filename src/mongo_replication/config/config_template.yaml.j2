@@ -192,8 +192,10 @@ replication:
 {%- if replication.collections %}
 {%- for coll_name, coll_config in replication.collections.items() %}
     {{ coll_name }}:
+{%- if coll_config.cursor_field %}
       # Field to track incremental changes (e.g., updated_at, _id)
       cursor_field: {{ coll_config.cursor_field | tojson }}
+{%- endif %}
       # Write strategy: merge, append, or replace
       write_disposition: {{ coll_config.write_disposition }}
       # Primary key field for merges and deduplication
