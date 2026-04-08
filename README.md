@@ -138,10 +138,22 @@ scan:
     # Applied after include_patterns
     exclude_patterns: [ ]  # Don't exclude any collections
 
+  # Sampling Configuration
+  # ----------------------
+  # Configure how many documents to sample for analysis
+  sampling:
+    # Number of documents to analyze per collection
+    # Larger sample = more accurate but slower
+    sample_size: 10
+
+    # Sampling strategy: 'stratified' or 'random'
+    # stratified = distributed across collection, random = random selection
+    sample_strategy: stratified
+
   # PII Detection Settings
   # ----------------------
   # Configure automatic PII detection using Microsoft Presidio
-  pii:
+  pii_analysis:
     enabled: True
 
     # Confidence threshold (0.0-1.0)
@@ -160,14 +172,6 @@ scan:
       - US_SSN
       - IP_ADDRESS
       - URL
-
-    # Number of documents to analyze per collection
-    # Larger sample = more accurate but slower
-    sample_size: 10
-
-    # Sampling strategy: 'stratified' or 'random'
-    # stratified = distributed across collection, random = random selection
-    sample_strategy: stratified
 
     # Anonymization strategies per entity type
     # Options:
@@ -197,30 +201,47 @@ scan:
 # This section is typically generated after running 'mongorep scan'.
 
 replication:
-  # Default settings for all collections
-  # These can be overridden per collection below
-  defaults:
+  # Collection Discovery
+  # --------------------
+  # Controls which collections are automatically discovered and replicated
+  discovery:
     replicate_all: True
     include_patterns: [ ]
     exclude_patterns: [ ]
-    # Write strategy: merge (upsert), append (insert), replace (drop/recreate)
-    write_disposition: merge
-    cursor_fields: [ updated_at, updatedAt, meta.updated_at, meta.updatedAt ]
-    # Fallback cursor field when cursor_field doesn't exist
-    fallback_cursor: _id
-    # Initial cursor value for first-time replication
-    initial_value: '2020-01-01T00:00:00Z'
+
+  # State Management
+  # ----------------
+  # Configuration for replication state tracking
+  state_management:
+    runs_collection: _rep_runs
+    state_collection: _rep_state
+
+  # Performance Settings
+  # --------------------
+  # Configuration for parallel processing and batch sizes
+  performance:
     # Collections to replicate concurrently
     max_parallel_collections: 5
     # Documents per batch (higher = faster but more memory)
     batch_size: 1000
+
+  # Collection Defaults
+  # -------------------
+  # Default settings that apply to all collections unless overridden
+  defaults:
+    # Write strategy: merge (upsert), append (insert), replace (drop/recreate)
+    write_disposition: merge
+    # Cursor field candidates (checked in order)
+    cursor_fields: [ updated_at, updatedAt, meta.updated_at, meta.updatedAt ]
+    # Fallback cursor field when no cursor_fields match
+    cursor_fallback_field: _id
+    # Initial cursor value for first-time replication
+    cursor_initial_value: '2020-01-01T00:00:00Z'
     # Error handling: skip (log and continue) or fail (stop replication)
     transform_error_mode: skip
-    state:
-      runs_collection: _rep_runs
-      state_collection: _rep_state
 
-  # Collection-specific configuration
+  # Collection-Specific Configuration
+  # ----------------------------------
   # Override defaults and specify PII fields for each collection
   collections:
 ```
@@ -354,7 +375,7 @@ mongorep run my_job --query customers='{"status": "active", "createdAt": {"$gte"
 
 ```yaml
 replication:
-  schema:
+  schema_relationships:
     - parent: customers
       child: orders
       parent_field: _id

@@ -132,18 +132,15 @@ class ReplicationOrchestrator:
         self.dest_db = connection_manager.get_dest_db()
 
         # Get state collection names from config (with defaults)
-        state_config = config.defaults.get("state", {})
-        self.runs_collection = state_config.get("runs_collection", "_rep_runs")
-        self.state_collection = state_config.get("state_collection", "_rep_state")
+        self.runs_collection = config.state_management.runs_collection
+        self.state_collection = config.state_management.state_collection
 
         self.state_mgr = StateManager(
             self.dest_db,
             runs_collection=self.runs_collection,
             state_collection=self.state_collection,
         )
-        self.validator = CursorValidator(
-            fallback_cursor=config.defaults.get("fallback_cursor", "_id")
-        )
+        self.validator = CursorValidator(fallback_cursor=config.defaults.cursor_fallback_field)
         self.index_mgr = IndexManager()
 
     def _build_collection_config(
@@ -170,11 +167,11 @@ class ReplicationOrchestrator:
         # Auto-discovered collection - create config from defaults
         return CollectionConfig(
             name=collection_name,
-            cursor_field=self.config.defaults.get("cursor_field"),
-            write_disposition=self.config.defaults.get("write_disposition", "merge"),
-            primary_key=self.config.defaults.get("primary_key", "_id"),
-            pii_fields={},  # No PII redaction for auto-discovered
-            transform_error_mode=self.config.defaults.get("transform_error_mode", "skip"),
+            cursor_field=self.config.defaults.cursor_field,
+            write_disposition=self.config.defaults.write_disposition,
+            primary_key=self.config.defaults.primary_key,
+            pii_anonymized_fields={},  # No PII redaction for auto-discovered
+            transform_error_mode=self.config.defaults.transform_error_mode,
         )
 
     def _replicate_single_collection(
@@ -296,9 +293,9 @@ class ReplicationOrchestrator:
             logger.info("\n📊 Step 1: Discovering collections...")
             discovery = CollectionDiscovery(
                 source_db=self.source_db,
-                replicate_all=self.config.defaults.get("replicate_all", True),
-                include_patterns=self.config.defaults.get("include_patterns", []),
-                exclude_patterns=self.config.defaults.get("exclude_patterns", []),
+                replicate_all=self.config.discovery.replicate_all,
+                include_patterns=self.config.discovery.include_patterns,
+                exclude_patterns=self.config.discovery.exclude_patterns,
                 state_collections=[self.runs_collection, self.state_collection],
             )
 
@@ -321,12 +318,12 @@ class ReplicationOrchestrator:
                     logger.info(f"   🔍 {coll_name}: Auto-discovered (using defaults)")
                 else:
                     logger.info(
-                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_fields)} fields)"
+                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymized_fields)} fields)"
                     )
 
             # Step 3: Replicate collections in parallel
-            max_workers = self.config.defaults.get("max_parallel_collections", 5)
-            batch_size = self.config.defaults.get("batch_size", 1000)
+            max_workers = self.config.performance.max_parallel_collections
+            batch_size = self.config.performance.batch_size
 
             logger.info(
                 f"\n🔄 Step 3: Replicating {len(collection_configs)} collections (max {max_workers} parallel)..."

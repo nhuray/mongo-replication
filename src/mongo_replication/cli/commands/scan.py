@@ -29,7 +29,8 @@ from mongo_replication.config.manager import save_config, load_defaults
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
-    ScanPIIConfig,
+    ScanSamplingConfig,
+    ScanPIIAnalysisConfig,
     Config,
     CollectionConfig,
     ReplicationConfig,
@@ -202,7 +203,8 @@ def scan_command(
         system_defaults = load_defaults()
         scan_defaults = system_defaults.get("scan", {})
         discovery_defaults = scan_defaults.get("discovery", {})
-        pii_defaults = scan_defaults.get("pii", {})
+        sampling_defaults = scan_defaults.get("sampling", {})
+        pii_analysis_defaults = scan_defaults.get("pii_analysis", {})
 
         existing_config = None
         include_patterns = []
@@ -231,38 +233,39 @@ def scan_command(
         final_sample_size = sample_size
         final_confidence = confidence_threshold
         final_language = language
-        pii_enabled_from_config = pii_defaults.get("enabled", True)
+        pii_enabled_from_config = pii_analysis_defaults.get("enabled", True)
 
-        if existing_config and existing_config.scan and existing_config.scan.pii:
+        if existing_config and existing_config.scan:
             # Use config values if CLI options not provided
-            if sample_size is None:
-                final_sample_size = existing_config.scan.pii.sample_size
-            if confidence_threshold is None:
-                final_confidence = existing_config.scan.pii.confidence_threshold
+            if sample_size is None and existing_config.scan.sampling:
+                final_sample_size = existing_config.scan.sampling.sample_size
+            if confidence_threshold is None and existing_config.scan.pii_analysis:
+                final_confidence = existing_config.scan.pii_analysis.confidence_threshold
             # Language is always from CLI if provided, otherwise default
 
             # Check if PII is enabled in config (only if --no-pii not explicitly set)
-            pii_enabled_from_config = existing_config.scan.pii.enabled
+            if existing_config.scan.pii_analysis:
+                pii_enabled_from_config = existing_config.scan.pii_analysis.enabled
 
         # Apply defaults from defaults.yaml if still None
         if final_sample_size is None:
-            final_sample_size = pii_defaults.get("sample_size", 1000)
+            final_sample_size = sampling_defaults.get("sample_size", 1000)
         if final_confidence is None:
-            final_confidence = pii_defaults.get("confidence_threshold", 0.85)
+            final_confidence = pii_analysis_defaults.get("confidence_threshold", 0.85)
         if final_language is None:
             final_language = "en"
 
         # Show where values came from (for transparency)
         if sample_size is not None:
             print_info(f"Sample size: {final_sample_size} (from CLI)")
-        elif existing_config and existing_config.scan and existing_config.scan.pii:
+        elif existing_config and existing_config.scan and existing_config.scan.sampling:
             print_info(f"Sample size: {final_sample_size} (from config)")
         else:
             print_info(f"Sample size: {final_sample_size} (default)")
 
         if confidence_threshold is not None:
             print_info(f"Confidence threshold: {final_confidence} (from CLI)")
-        elif existing_config and existing_config.scan and existing_config.scan.pii:
+        elif existing_config and existing_config.scan and existing_config.scan.pii_analysis:
             print_info(f"Confidence threshold: {final_confidence} (from config)")
         else:
             print_info(f"Confidence threshold: {final_confidence} (default)")
@@ -374,20 +377,28 @@ def scan_command(
         print_step(4, 6, "Load Scan Configuration")
 
         # Load defaults for PII configuration from defaults.yaml
-        default_entity_types = pii_defaults.get("entity_types", [])
-        default_strategies = pii_defaults.get("default_strategies", {})
-        default_allowlist = pii_defaults.get("allowlist", [])
-        default_sample_strategy = pii_defaults.get("sample_strategy", "stratified")
+        default_entity_types = pii_analysis_defaults.get("entity_types", [])
+        default_strategies = pii_analysis_defaults.get("default_strategies", {})
+        default_allowlist = pii_analysis_defaults.get("allowlist", [])
+        default_sample_strategy = sampling_defaults.get("sample_strategy", "stratified")
 
         # Use existing config values if available (preserves user customizations)
         presidio_config = None
-        if existing_config and existing_config.scan and existing_config.scan.pii:
-            existing_pii = existing_config.scan.pii
-            entity_types = existing_pii.entity_types
-            strategies = existing_pii.default_strategies
-            allowlist = existing_pii.allowlist
-            sample_strategy = existing_pii.sample_strategy
-            presidio_config = existing_pii.presidio_config
+        if existing_config and existing_config.scan:
+            entity_types = default_entity_types
+            strategies = default_strategies
+            allowlist = default_allowlist
+            sample_strategy = default_sample_strategy
+
+            if existing_config.scan.pii_analysis:
+                existing_pii = existing_config.scan.pii_analysis
+                entity_types = existing_pii.entity_types
+                strategies = existing_pii.default_strategies
+                allowlist = existing_pii.allowlist
+                presidio_config = existing_pii.presidio_config
+
+            if existing_config.scan.sampling:
+                sample_strategy = existing_config.scan.sampling.sample_strategy
         else:
             entity_types = default_entity_types
             strategies = default_strategies
@@ -471,14 +482,16 @@ def scan_command(
                 include_patterns=include_patterns,
                 exclude_patterns=exclude_patterns,
             ),
-            pii=ScanPIIConfig(
+            sampling=ScanSamplingConfig(
+                sample_size=final_sample_size,
+                sample_strategy=sample_strategy,
+            ),
+            pii_analysis=ScanPIIAnalysisConfig(
                 enabled=pii_config_enabled,
-                confidence_threshold=final_confidence,  # Already resolved with precedence
-                sample_size=final_sample_size,  # Already resolved with precedence
+                confidence_threshold=final_confidence,
                 entity_types=entity_types,
                 default_strategies=strategies,
                 allowlist=allowlist,
-                sample_strategy=sample_strategy,
                 presidio_config=presidio_config,
             ),
         )
@@ -518,7 +531,7 @@ def scan_command(
                 cursor_field=detected_cursor_field,  # Use detected field or None
                 write_disposition="merge",
                 primary_key="_id",
-                pii_fields=pii_config,
+                pii_anonymized_fields=pii_config,
             )
 
         # Merge with existing collections if config exists

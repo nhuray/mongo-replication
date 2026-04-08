@@ -8,10 +8,13 @@ Complete reference for configuring the MongoDB Replication Tool. This document d
 - [Scan Configuration](#scan-configuration)
   - [Discovery Settings](#discovery-settings)
   - [PII Detection Settings](#pii-detection-settings)
-- [Replication Configuration](#replication-configuration)
-  - [Default Settings](#default-settings)
+  - [Replication Configuration](#replication-configuration)
+  - [Collection Discovery](#collection-discovery)
+  - [State Management](#state-management)
+  - [Performance Settings](#performance-settings)
+  - [Collection Defaults](#collection-defaults)
   - [Collection-Specific Configuration](#collection-specific-configuration)
-  - [Schema (Relationships)](#schema-relationships)
+  - [Schema Relationships](#schema-relationships)
 - [Complete Examples](#complete-examples)
 
 ## Configuration File Structure
@@ -22,13 +25,18 @@ Configuration files use YAML format with two main root sections:
 scan:
   # Settings for scanning and analyzing collections
   discovery: {...}
-  pii: {...}
+  sampling: {...}
+  pii_analysis: {...}
+  cursor_detection: {...}
 
 replication:
   # Settings for replicating collections
+  discovery: {...}
+  state_management: {...}
+  performance: {...}
   defaults: {...}
   collections: {...}
-  schema: [...]
+  schema_relationships: [...]
 ```
 
 ## Scan Configuration
@@ -60,20 +68,44 @@ scan:
 - Example: `["^tmp_", "^cache_", "_audit$"]`
 - Applied after include patterns
 
-### PII Detection Settings
+### Sampling Configuration
+
+Controls how many documents are sampled for PII detection and cursor field detection.
+
+```yaml
+scan:
+  sampling:
+    sample_size: 1000
+    sample_strategy: "stratified"
+```
+
+#### Options
+
+**`sample_size`** (integer, default: `1000`)
+- Number of documents to sample per collection for PII detection
+- Larger samples = more accurate detection but slower
+- Smaller samples = faster but might miss PII in rare fields
+- Recommended range: 500-5000
+
+**`sample_strategy`** (string, default: `"stratified"`)
+- Sampling strategy for PII detection
+- Options:
+  - `"random"`: Random sampling (faster, simpler)
+  - `"stratified"`: Ensures diverse sample across collection (recommended)
+
+### PII Analysis Settings
 
 Configuration for automatic PII detection using Microsoft Presidio.
 
 ```yaml
 scan:
-  pii:
+  pii_analysis:
     enabled: true
     confidence_threshold: 0.85
     entity_types: [...]
-    sample_size: 1000
-    sample_strategy: "stratified"
     default_strategies: {...}
     allowlist: [...]
+    presidio_config: null
 ```
 
 #### Options
@@ -101,18 +133,6 @@ scan:
   - `IBAN_CODE`: International Bank Account Numbers
   - `IP_ADDRESS`: IPv4 and IPv6 addresses
   - `URL`: Web URLs
-
-**`sample_size`** (integer, default: `1000`)
-- Number of documents to sample per collection for PII detection
-- Larger samples = more accurate detection but slower
-- Smaller samples = faster but might miss PII in rare fields
-- Recommended range: 500-5000
-
-**`sample_strategy`** (string, default: `"stratified"`)
-- Sampling strategy for PII detection
-- Options:
-  - `"random"`: Random sampling (faster, simpler)
-  - `"stratified"`: Ensures diverse sample across collection (recommended)
 
 **`default_strategies`** (object, default: see below)
 - Default anonymization strategy per PII entity type
@@ -181,7 +201,7 @@ URL: "hash"              # Hash the URL
 **Example configuration:**
 ```yaml
 scan:
-  pii:
+  pii_analysis:
     presidio_config: "config/custom_presidio.yaml"
 ```
 
@@ -192,27 +212,19 @@ See [Custom Presidio Configuration](#custom-presidio-configuration) section belo
 
 The `replication` section controls how collections are replicated from source to destination.
 
-### Default Settings
+### Collection Discovery
 
-Global settings that apply to all collections unless overridden in collection-specific configuration.
+Controls which collections are automatically discovered and replicated.
 
 ```yaml
 replication:
-  defaults:
+  discovery:
     replicate_all: true
     include_patterns: []
     exclude_patterns: []
-    write_disposition: "merge"
-    cursor_fields: [...]
-    fallback_cursor: "_id"
-    initial_value: "2020-01-01T00:00:00Z"
-    max_parallel_collections: 5
-    batch_size: 1000
-    transform_error_mode: "skip"
-    state: {...}
 ```
 
-#### Collection Discovery & Filtering
+#### Options
 
 **`replicate_all`** (boolean, default: `true`)
 - If `true`: Auto-discover and replicate all collections not explicitly excluded
@@ -231,6 +243,86 @@ replication:
 - Applied after include patterns
 - Example: `["^tmp_", "^test_", "_backup$"]`
 - Useful for excluding temporary or system collections
+
+### State Management
+
+Configuration for replication state tracking.
+
+```yaml
+replication:
+  state_management:
+    runs_collection: "_rep_runs"
+    state_collection: "_rep_state"
+```
+
+#### Options
+
+**`runs_collection`** (string, default: `"_rep_runs"`)
+- Collection name for storing job run history
+- Each document represents one complete replication job run
+- Contains:
+  - Job ID
+  - Start/end timestamps
+  - Status (success/failure)
+  - Collections replicated
+  - Error messages (if any)
+
+**`state_collection`** (string, default: `"_rep_state"`)
+- Collection name for storing per-collection replication state
+- Each document represents the replication state for one collection
+- Contains:
+  - Collection name
+  - Last cursor value (for incremental loading)
+  - Last successful replication timestamp
+  - Document counts
+- Used for resuming interrupted replications
+
+### Performance Settings
+
+Configuration for parallel processing and batch sizes.
+
+```yaml
+replication:
+  performance:
+    max_parallel_collections: 5
+    batch_size: 1000
+```
+
+#### Options
+
+**`max_parallel_collections`** (integer, default: `5`)
+- Maximum number of collections to replicate concurrently
+- Higher values = faster overall but more resource intensive
+- Considerations:
+  - Network bandwidth
+  - Source database load
+  - Destination database load
+  - Available memory
+- Recommended range: 3-10
+
+**`batch_size`** (integer, default: `1000`)
+- Number of documents to process in each batch
+- Larger batches = fewer round trips but more memory usage
+- Smaller batches = more frequent state updates
+- Considerations:
+  - Document size
+  - Network latency
+  - Memory availability
+- Recommended range: 500-5000
+
+### Collection Defaults
+
+Global settings that apply to all collections unless overridden in collection-specific configuration.
+
+```yaml
+replication:
+  defaults:
+    write_disposition: "merge"
+    cursor_fields: [...]
+    cursor_fallback_field: "_id"
+    cursor_initial_value: "2020-01-01T00:00:00Z"
+    transform_error_mode: "skip"
+```
 
 #### Write Strategies
 
@@ -266,39 +358,17 @@ replication:
   - Should be monotonically increasing
   - Should represent the last modification time
 
-**`fallback_cursor`** (string, default: `"_id"`)
+**`cursor_fallback_field`** (string, default: `"_id"`)
 - Field to use for incremental loading when no `cursor_fields` match
 - Used when collection doesn't have timestamp fields
 - Default `_id` works for most cases (uses ObjectId timestamp)
 - Alternative: Any indexed field with ascending values
 
-**`initial_value`** (string, default: `"2020-01-01T00:00:00Z"`)
+**`cursor_initial_value`** (string, default: `"2020-01-01T00:00:00Z"`)
 - Initial cursor value for first-time replication
 - Used when no previous replication state exists
 - Format: ISO 8601 datetime string
 - Determines starting point for incremental replication
-
-#### Performance Settings
-
-**`max_parallel_collections`** (integer, default: `5`)
-- Maximum number of collections to replicate concurrently
-- Higher values = faster overall but more resource intensive
-- Considerations:
-  - Network bandwidth
-  - Source database load
-  - Destination database load
-  - Available memory
-- Recommended range: 3-10
-
-**`batch_size`** (integer, default: `1000`)
-- Number of documents to process in each batch
-- Larger batches = fewer round trips but more memory usage
-- Smaller batches = more frequent state updates
-- Considerations:
-  - Document size
-  - Network latency
-  - Memory availability
-- Recommended range: 500-5000
 
 #### Transformation Error Handling
 
@@ -311,37 +381,6 @@ replication:
   - `"fail"`: Raise exception and stop replication
     - Best for: Development/testing
     - Ensures transformations work correctly
-
-#### State Management
-
-**`state`** (object)
-- Configuration for replication state tracking
-
-```yaml
-state:
-  runs_collection: "_rep_runs"
-  state_collection: "_rep_state"
-```
-
-**`runs_collection`** (string, default: `"_rep_runs"`)
-- Collection name for storing job run history
-- Each document represents one complete replication job run
-- Contains:
-  - Job ID
-  - Start/end timestamps
-  - Status (success/failure)
-  - Collections replicated
-  - Error messages (if any)
-
-**`state_collection`** (string, default: `"_rep_state"`)
-- Collection name for storing per-collection replication state
-- Each document represents the replication state for one collection
-- Contains:
-  - Collection name
-  - Last cursor value (for incremental loading)
-  - Last successful replication timestamp
-  - Document counts
-- Used for resuming interrupted replications
 
 ### Collection-Specific Configuration
 
@@ -357,7 +396,7 @@ replication:
       primary_key: "_id"
       match: {...}
       fields_exclude: [...]
-      pii: {...}
+      pii_anonymized_fields: {...}
       field_transforms: [...]
 ```
 
@@ -415,35 +454,28 @@ replication:
 
 #### PII Configuration
 
-**`pii`** (object, optional)
-- Configure PII detection and anonymization for this collection
+**`pii_anonymized_fields`** (object, optional)
+- Configure PII fields anonymization for this collection
 
 ```yaml
-pii:
-  enabled: true
-  fields:
-    email: "fake"
-    phone: "hash"
-    ssn: "redact"
+pii_anonymized_fields:
+  email: "fake"
+  phone: "hash"
+  ssn: "redact"
 ```
 
-**`pii.enabled`** (boolean, default: `false`)
-- Enable PII anonymization for this collection
-- When `true`, fields specified in `fields` will be anonymized
-
-**`pii.fields`** (object, optional)
-- Map of field names to anonymization strategies
+**`pii_anonymized_fields`** (object, optional)
 - Keys: Field names (supports dot notation for nested fields)
 - Values: Strategy name (`"fake"`, `"redact"`, `"hash"`, `"mask"`, `"null"`)
 - Example:
-  ```yaml
-  fields:
-    email: "fake"              # Generate fake email
-    phone: "hash"              # Hash phone number
-    ssn: "redact"              # Redact SSN
-    "contact.email": "fake"    # Nested field
-    password_hash: "null"      # Remove completely
-  ```
+```yaml
+pii_anonymized_fields:
+  email: "fake"              # Generate fake email
+  phone: "hash"              # Hash phone number
+  ssn: "redact"              # Redact SSN
+  "contact.email": "fake"    # Nested field
+  password_hash: "null"      # Remove completely
+```
 
 #### Field Transformations
 
@@ -468,32 +500,33 @@ field_transforms:
 
 Example transformations:
 ```yaml
-# Remove all non-digits from phone numbers
-- field: "phone"
-  type: "regex_replace"
-  pattern: "\\D"
-  replacement: ""
+field_transforms:
+  # Remove all non-digits from phone numbers
+  - field: "phone"
+    type: "regex_replace"
+    pattern: "\\D"
+    replacement: ""
 
-# Convert URLs to domains
-- field: "website"
-  type: "regex_replace"
-  pattern: "^https?://([^/]+).*"
-  replacement: "\\1"
+  # Convert URLs to domains
+  - field: "website"
+    type: "regex_replace"
+    pattern: "^https?://([^/]+).*"
+    replacement: "\\1"
 
-# Mask email domains
-- field: "email"
-  type: "regex_replace"
-  pattern: "@.*$"
-  replacement: "@example.com"
+  # Mask email domains
+  - field: "email"
+    type: "regex_replace"
+    pattern: "@.*$"
+    replacement: "@example.com"
 ```
 
-### Schema (Relationships)
+### Schema Relationships
 
 Define parent-child relationships between collections for cascade replication.
 
 ```yaml
 replication:
-  schema:
+  schema_relationships:
     - parent: customers
       child: orders
       parent_field: _id
@@ -573,21 +606,27 @@ scan:
       - "^tmp_"
       - "^test_"
 
-  pii:
+  sampling:
+    sample_size: 1000
+    sample_strategy: stratified
+
+  pii_analysis:
     enabled: true
     confidence_threshold: 0.85
-    sample_size: 1000
 
 replication:
-  defaults:
+  discovery:
     replicate_all: true
-    write_disposition: "merge"
-    batch_size: 1000
-    max_parallel_collections: 5
-
     exclude_patterns:
       - "^system\\."
       - "^tmp_"
+
+  performance:
+    max_parallel_collections: 5
+    batch_size: 1000
+
+  defaults:
+    write_disposition: "merge"
 
   collections:
     users:
@@ -595,11 +634,9 @@ replication:
       primary_key: "_id"
       fields_exclude:
         - password_hash
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "hash"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "hash"
 
     orders:
       cursor_field: "created_at"
@@ -612,19 +649,19 @@ replication:
 
 ```yaml
 replication:
-  defaults:
+  discovery:
     replicate_all: true
+
+  defaults:
     write_disposition: "merge"
 
   collections:
     customers:
       primary_key: "_id"
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "hash"
-          ssn: "redact"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "hash"
+        ssn: "redact"
 
     orders:
       primary_key: "_id"
@@ -632,7 +669,7 @@ replication:
     order_items:
       primary_key: "_id"
 
-  schema:
+  schema_relationships:
     - parent: customers
       child: orders
       parent_field: _id
@@ -664,18 +701,20 @@ replication:
           pattern: ".*@(.*)$"
           replacement: "\\1"
 
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          name: "hash"
+      pii_anonymized_fields:
+        email: "fake"
+        name: "hash"
 ```
 
 ### Example 4: Advanced PII Detection
 
 ```yaml
 scan:
-  pii:
+  sampling:
+    sample_size: 2000
+    sample_strategy: "stratified"
+
+  pii_analysis:
     enabled: true
     confidence_threshold: 0.90
     entity_types:
@@ -703,13 +742,11 @@ scan:
 replication:
   collections:
     sensitive_data:
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "redact"
-          ssn: "redact"
-          credit_card: "null"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "redact"
+        ssn: "redact"
+        credit_card: "null"
 ```
 
 ## Custom Presidio Configuration
@@ -726,7 +763,7 @@ The `presidio_config` field allows you to define custom PII recognizers using YA
 2. **Reference it in your config:**
    ```yaml
    scan:
-     pii:
+     pii_analysis:
        presidio_config: "config/my_job_presidio.yaml"
    ```
 
@@ -897,7 +934,7 @@ Full configuration with multiple custom recognizers:
 
 ```yaml
 scan:
-  pii:
+  pii_analysis:
     enabled: true
     confidence_threshold: 0.85
     presidio_config: "config/healthcare_presidio.yaml"

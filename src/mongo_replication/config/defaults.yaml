@@ -30,10 +30,21 @@ scan:
     exclude_patterns:
       []  # Don't exclude any collections
 
-  # PII Detection Settings
+  # Sampling Settings
   # ----------------------
-  # Configure automatic PII detection using Microsoft Presidio
-  pii:
+  sampling:
+    # Number of documents to analyze per collection
+    # Larger sample = more accurate but slower
+    sample_size: 1000
+
+    # Sampling strategy: 'stratified' or 'random'
+    # stratified = distributed across collection, random = random selection
+    sample_strategy: stratified
+
+  # PII Analysis Settings
+  # ----------------------
+  # Configure automatic PII analysis using Microsoft Presidio
+  pii_analysis:
     enabled: true
 
     # Confidence threshold (0.0-1.0)
@@ -52,14 +63,6 @@ scan:
       - IBAN_CODE
       - IP_ADDRESS
       - URL
-
-    # Number of documents to analyze per collection
-    # Larger sample = more accurate but slower
-    sample_size: 1000
-
-    # Sampling strategy: 'stratified' or 'random'
-    # stratified = distributed across collection, random = random selection
-    sample_strategy: stratified
 
     # Anonymization strategies per entity type
     # Options:
@@ -95,9 +98,9 @@ scan:
 # This section is typically generated after running 'mongorep scan'.
 
 replication:
-  # Default settings for all collections
-  # These can be overridden per collection below
-  defaults:
+  # Collection Discovery
+  # ---------------------
+  discovery:
     # If true, auto-discover all collections not explicitly configured.
     replicate_all: true
 
@@ -109,39 +112,43 @@ replication:
     exclude_patterns:
       []  # Exclude no collections
 
-    # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
-    write_disposition: merge
+  # State Management
+  # ---------------------
+  # Configuration for replication state tracking.
+  state_management:
+    # Collection name for storing job run history.
+    runs_collection: _rep_runs
 
-    # List of field names to try as cursor fields for incremental loading (in priority order).
-    cursor_fields:
-      - "updated_at"
-      - "updatedAt"
-      - "meta.updated_at"
-      - "meta.updatedAt"
+    # Collection name for storing replication state.
+    state_collection: _rep_state
 
-    # Field to use when no cursor_fields match or doesn't exist.
-    fallback_cursor: _id
-
-    # Initial cursor value for first-time replication.
-    initial_value: "2020-01-01T00:00:00Z"
-
+  # Performance Settings
+  # ---------------------
+  performance:
     # Maximum number of collections to replicate concurrently.
     max_parallel_collections: 5
 
     # Number of documents to process in each batch
     batch_size: 1000
 
+  # Default Collection Settings
+  # ---------------------------
+  # These can be overridden per collection below
+  defaults:
+    # Field to use when cursor field doesn't exist in a document.
+    cursor_fallback_field: _id
+
+    # Initial cursor value for first-time replication.
+    cursor_initial_value: "_id"
+
+    # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
+    write_disposition: merge
+
+    # Default primary key field for merges and deduplication
+    primary_key: _id
+
     # How to handle errors during field transformations (fail or skip).
     transform_error_mode : skip
-
-    # State Management
-    # Configuration for replication state tracking.
-    state:
-        # Collection name for storing job run history.
-        runs_collection: _rep_runs
-
-        # Collection name for storing replication state.
-        state_collection: _rep_state
 
   # Collection-specific configuration
   # Override defaults and specify PII fields for each collection

@@ -44,31 +44,34 @@ scan:
       []  # Don't exclude any collections
 {%- endif %}
 
-  # PII Detection Settings
+  # Sampling Settings
   # ----------------------
-  # Configure automatic PII detection using Microsoft Presidio
-  pii:
-    enabled: {{ scan.pii.enabled | lower }}
+  sampling:
+    # Number of documents to analyze per collection
+    # Larger sample = more accurate but slower
+    sample_size: {{ scan.sampling.sample_size }}
+
+    # Sampling strategy: 'stratified' or 'random'
+    # stratified = distributed across collection, random = random selection
+    sample_strategy: {{ scan.sampling.sample_strategy }}
+
+  # PII Analysis Settings
+  # ----------------------
+  # Configure automatic PII analysis using Microsoft Presidio
+  pii_analysis:
+    enabled: {{ scan.pii_analysis.enabled | lower }}
 
     # Confidence threshold (0.0-1.0)
     # Higher = fewer false positives, Lower = more sensitive
-    confidence_threshold: {{ scan.pii.confidence_threshold }}
+    confidence_threshold: {{ scan.pii_analysis.confidence_threshold }}
 
     # PII entity types to detect
     # Common types: EMAIL_ADDRESS, PHONE_NUMBER, PERSON, CREDIT_CARD,
     #                US_SSN, IBAN_CODE, IP_ADDRESS, URL
     entity_types:
-{%- for entity_type in scan.pii.entity_types %}
+{%- for entity_type in scan.pii_analysis.entity_types %}
       - {{ entity_type }}
 {%- endfor %}
-
-    # Number of documents to analyze per collection
-    # Larger sample = more accurate but slower
-    sample_size: {{ scan.pii.sample_size }}
-
-    # Sampling strategy: 'stratified' or 'random'
-    # stratified = distributed across collection, random = random selection
-    sample_strategy: {{ scan.pii.sample_strategy }}
 
     # Anonymization strategies per entity type
     # Options:
@@ -76,15 +79,15 @@ scan:
     #   - hash: SHA-256 hash (best for IDs, maintains uniqueness)
     #   - fake: Generate realistic fake data (best for emails, names)
     default_strategies:
-{%- for entity_type, strategy in scan.pii.default_strategies.items() %}
+{%- for entity_type, strategy in scan.pii_analysis.default_strategies.items() %}
       {{ entity_type }}: {{ strategy }}
 {%- endfor %}
 
     # Allowlist: Fields to skip PII detection (false positives)
     # Format: collection.field (e.g., users.user_id)
     allowlist:
-{%- if scan.pii.allowlist %}
-{% for item in scan.pii.allowlist %}
+{%- if scan.pii_analysis.allowlist %}
+{% for item in scan.pii_analysis.allowlist %}
       - '{{ item }}'
 {%- endfor %}
 {%- else %}
@@ -97,7 +100,7 @@ scan:
     # Set to null to use default Presidio configuration
     # Example: config/custom_presidio.yaml
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
-    presidio_config: {{ scan.pii.presidio_config | tojson if scan.pii.presidio_config else 'null' }}
+    presidio_config: {{ scan.pii_analysis.presidio_config | tojson if scan.pii_analysis.presidio_config else 'null' }}
 {%- endif %}
 
 {%- if replication %}
@@ -108,16 +111,16 @@ scan:
 # This section is typically generated after running 'mongorep scan'.
 
 replication:
-  # Default settings for all collections
-  # These can be overridden per collection below
-  defaults:
+  # Collection Discovery
+  # ---------------------
+  discovery:
     # If true, auto-discover all collections not explicitly configured.
-    replicate_all: {{ replication.defaults.replicate_all | lower }}
+    replicate_all: {{ replication.discovery.replicate_all | lower }}
 
     # Regex patterns for collections to include (empty = include all).
     include_patterns:
-{%- if replication.defaults.include_patterns %}
-{%- for item in replication.defaults.include_patterns %}
+{%- if replication.discovery.include_patterns %}
+{%- for item in replication.discovery.include_patterns %}
       - "{{ item }}"
 {%- endfor %}
 {%- else %}
@@ -126,50 +129,51 @@ replication:
 
     # Regex patterns for collections to exclude.
     exclude_patterns:
-{%- if replication.defaults.exclude_patterns %}
-{%- for item in replication.defaults.exclude_patterns %}
+{%- if replication.discovery.exclude_patterns %}
+{%- for item in replication.discovery.exclude_patterns %}
       - "{{ item }}"
 {%- endfor %}
 {%- else %}
       []  # Exclude no collections
 {%- endif %}
 
+  # State Management
+  # ---------------------
+  # Configuration for replication state tracking.
+  state_management:
+    # Collection name for storing job run history.
+    runs_collection: {{ replication.state_management.runs_collection }}
+
+    # Collection name for storing replication state.
+    state_collection: {{ replication.state_management.state_collection }}
+
+  # Performance Settings
+  # ---------------------
+  performance:
+    # Maximum number of collections to replicate concurrently.
+    max_parallel_collections: {{ replication.performance.max_parallel_collections }}
+
+    # Number of documents to process in each batch
+    batch_size: {{ replication.performance.batch_size }}
+
+  # Default Collection Settings
+  # ---------------------------
+  # These can be overridden per collection below
+  defaults:
+    # Field to use when cursor field doesn't exist in a document.
+    cursor_fallback_field: {{ replication.defaults.cursor_fallback_field }}
+
+    # Initial cursor value for first-time replication.
+    cursor_initial_value: "{{ replication.defaults.cursor_initial_value }}"
+
     # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
     write_disposition: {{ replication.defaults.write_disposition }}
 
-    # List of field names to try as cursor fields for incremental loading (in priority order).
-    cursor_fields:
-{%- if replication.defaults.cursor_fields %}
-{%- for item in replication.defaults.cursor_fields %}
-      - "{{ item }}"
-{%- endfor %}
-{%- else %}
-      []  # No cursor fields defined
-{%- endif %}
-
-    # Field to use when no cursor_fields match or doesn't exist.
-    fallback_cursor: {{ replication.defaults.fallback_cursor }}
-
-    # Initial cursor value for first-time replication.
-    initial_value: "{{ replication.defaults.initial_value }}"
-
-    # Maximum number of collections to replicate concurrently.
-    max_parallel_collections: {{ replication.defaults.max_parallel_collections }}
-
-    # Number of documents to process in each batch
-    batch_size: {{ replication.defaults.batch_size }}
+    # Default primary key field for merges and deduplication
+    primary_key: {{ replication.defaults.primary_key }}
 
     # How to handle errors during field transformations (fail or skip).
     transform_error_mode : {{ replication.defaults.transform_error_mode }}
-
-    # State Management
-    # Configuration for replication state tracking.
-    state:
-        # Collection name for storing job run history.
-        runs_collection: {{ replication.defaults.state.runs_collection }}
-
-        # Collection name for storing replication state.
-        state_collection: {{ replication.defaults.state.state_collection }}
 
   # Collection-specific configuration
   # Override defaults and specify PII fields for each collection
@@ -183,10 +187,10 @@ replication:
       write_disposition: {{ coll_config.write_disposition }}
       # Primary key field for merges and deduplication
       primary_key: {{ coll_config.primary_key }}
-{%- if coll_config.pii_fields %}
+{%- if coll_config.pii_anonymized_fields %}
       # PII fields and their anonymization strategies
-      pii_fields:
-{%- for field, strategy in coll_config.pii_fields.items() %}
+      pii_anonymized_fields:
+{%- for field, strategy in coll_config.pii_anonymized_fields.items() %}
         {{ field }}: {{ strategy }}
 {%- endfor %}
 {%- endif %}
@@ -213,19 +217,19 @@ replication:
 {%- endif %}
 
 
-{%- if replication.schema %}
+{%- if replication.schema_relationships %}
 
   # =============================================================================
   # RELATIONSHIPS
   # =============================================================================
   # Define parent-child relationships for cascading replication.
-  # Used with --select option to replicate related data across collections.
+  # Used with --ids or --query option to replicate related data across collections.
   #
-  # Example: mongorep run job --select customers=id1,id2
+  # Example: mongorep run job --ids customers=id1,id2
   # This will replicate specified customers AND their related orders/items.
 
-  schema:
-{%- for rel in replication.schema %}
+  schema_relationships:
+{%- for rel in replication.schema_relationships %}
     - parent: {{ rel.parent }}
       child: {{ rel.child }}
       # Field in parent collection (usually _id)

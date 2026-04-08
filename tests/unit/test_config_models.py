@@ -9,7 +9,8 @@ from pydantic import ValidationError
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
-    ScanPIIConfig,
+    ScanSamplingConfig,
+    ScanPIIAnalysisConfig,
     Config,
 )
 from mongo_replication.config.manager import (
@@ -41,30 +42,60 @@ class TestScanDiscoveryConfig:
         assert len(config.exclude_patterns) == 2
 
 
-class TestScanPIIConfig:
-    """Tests for ScanPIIConfig."""
+class TestScanSamplingConfig:
+    """Tests for ScanSamplingConfig."""
 
     def test_default_values(self):
         """Test default values."""
-        config = ScanPIIConfig()
+        config = ScanSamplingConfig()
+
+        assert config.sample_size == 1000
+        assert config.sample_strategy == "stratified"
+
+    def test_custom_values(self):
+        """Test custom values."""
+        config = ScanSamplingConfig(
+            sample_size=500,
+            sample_strategy="random",
+        )
+
+        assert config.sample_size == 500
+        assert config.sample_strategy == "random"
+
+    def test_invalid_sample_size_raises_error(self):
+        """Test that invalid sample size raises error."""
+        with pytest.raises(ValueError, match="sample_size must be"):
+            ScanSamplingConfig(sample_size=0)
+
+        with pytest.raises(ValueError, match="sample_size must be"):
+            ScanSamplingConfig(sample_size=-10)
+
+    def test_invalid_sample_strategy_raises_error(self):
+        """Test that invalid sample strategy raises error."""
+        with pytest.raises(ValidationError, match="Input should be 'random' or 'stratified'"):
+            ScanSamplingConfig(sample_strategy="invalid")
+
+
+class TestScanPIIAnalysisConfig:
+    """Tests for ScanPIIAnalysisConfig."""
+
+    def test_default_values(self):
+        """Test default values."""
+        config = ScanPIIAnalysisConfig()
 
         assert config.enabled is True
         assert config.confidence_threshold == 0.85
         assert "EMAIL_ADDRESS" in config.entity_types
         assert "PHONE_NUMBER" in config.entity_types
-        assert config.sample_size == 1000
-        assert config.sample_strategy == "stratified"
         assert config.default_strategies["EMAIL_ADDRESS"] == "fake"
         assert config.allowlist == []
 
     def test_custom_values(self):
         """Test custom values."""
-        config = ScanPIIConfig(
+        config = ScanPIIAnalysisConfig(
             enabled=False,
             confidence_threshold=0.9,
             entity_types=["EMAIL_ADDRESS"],
-            sample_size=500,
-            sample_strategy="random",
             default_strategies={"EMAIL_ADDRESS": "hash"},
             allowlist=["metadata.*"],
         )
@@ -72,31 +103,16 @@ class TestScanPIIConfig:
         assert config.enabled is False
         assert config.confidence_threshold == 0.9
         assert config.entity_types == ["EMAIL_ADDRESS"]
-        assert config.sample_size == 500
-        assert config.sample_strategy == "random"
         assert config.default_strategies == {"EMAIL_ADDRESS": "hash"}
         assert config.allowlist == ["metadata.*"]
 
     def test_invalid_confidence_threshold_raises_error(self):
         """Test that invalid confidence threshold raises error."""
         with pytest.raises(ValueError, match="confidence_threshold must be between"):
-            ScanPIIConfig(confidence_threshold=1.5)
+            ScanPIIAnalysisConfig(confidence_threshold=1.5)
 
         with pytest.raises(ValueError, match="confidence_threshold must be between"):
-            ScanPIIConfig(confidence_threshold=-0.1)
-
-    def test_invalid_sample_size_raises_error(self):
-        """Test that invalid sample size raises error."""
-        with pytest.raises(ValueError, match="sample_size must be"):
-            ScanPIIConfig(sample_size=0)
-
-        with pytest.raises(ValueError, match="sample_size must be"):
-            ScanPIIConfig(sample_size=-10)
-
-    def test_invalid_sample_strategy_raises_error(self):
-        """Test that invalid sample strategy raises error."""
-        with pytest.raises(ValidationError, match="Input should be 'random' or 'stratified'"):
-            ScanPIIConfig(sample_strategy="invalid")
+            ScanPIIAnalysisConfig(confidence_threshold=-0.1)
 
 
 class TestScanConfig:
@@ -107,17 +123,20 @@ class TestScanConfig:
         config = ScanConfig()
 
         assert isinstance(config.discovery, ScanDiscoveryConfig)
-        assert isinstance(config.pii, ScanPIIConfig)
+        assert isinstance(config.sampling, ScanSamplingConfig)
+        assert isinstance(config.pii_analysis, ScanPIIAnalysisConfig)
 
     def test_with_custom_configs(self):
         """Test with custom sub-configs."""
         discovery = ScanDiscoveryConfig(include_patterns=["^users.*"])
-        pii = ScanPIIConfig(confidence_threshold=0.9)
+        sampling = ScanSamplingConfig(sample_size=500)
+        pii_analysis = ScanPIIAnalysisConfig(confidence_threshold=0.9)
 
-        config = ScanConfig(discovery=discovery, pii=pii)
+        config = ScanConfig(discovery=discovery, sampling=sampling, pii_analysis=pii_analysis)
 
         assert config.discovery.include_patterns == ["^users.*"]
-        assert config.pii.confidence_threshold == 0.9
+        assert config.sampling.sample_size == 500
+        assert config.pii_analysis.confidence_threshold == 0.9
 
 
 class TestRepConfig:
@@ -167,10 +186,12 @@ scan:
       - '^users.*'
     exclude_patterns:
       - '^system\\\\.'
-  pii:
+  sampling:
+    sample_size: 500
+    sample_strategy: stratified
+  pii_analysis:
     enabled: true
     confidence_threshold: 0.9
-    sample_size: 500
 """
         with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
@@ -183,8 +204,8 @@ scan:
             assert config.scan is not None
             assert config.replication is not None  # defaults
             assert config.scan.discovery.include_patterns == ["^users.*"]
-            assert config.scan.pii.confidence_threshold == 0.9
-            assert config.scan.pii.sample_size == 500
+            assert config.scan.pii_analysis.confidence_threshold == 0.9
+            assert config.scan.sampling.sample_size == 500
         finally:
             config_path.unlink()
 
@@ -192,15 +213,16 @@ scan:
         """Test loading replication section only."""
         yaml_content = """
 replication:
-  defaults:
+  discovery:
     replicate_all: true
+  performance:
     batch_size: 1000
   collections:
     users:
       cursor_field: updated_at
       write_disposition: merge
       primary_key: _id
-      pii_fields:
+      pii_anonymized_fields:
         email: fake
 """
         with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -213,7 +235,7 @@ replication:
 
             assert config.scan is not None  # defaults
             assert config.replication is not None
-            assert config.replication.defaults.replicate_all is True
+            assert config.replication.discovery.replicate_all is True
             assert "users" in config.replication.collections
         finally:
             config_path.unlink()
@@ -222,7 +244,7 @@ replication:
         """Test loading only scan config."""
         yaml_content = """
 scan:
-  pii:
+  pii_analysis:
     enabled: true
 replication:
   defaults:
@@ -238,7 +260,7 @@ replication:
             scan_config = load_scan_config(config_path)
 
             assert isinstance(scan_config, ScanConfig)
-            assert scan_config.pii.enabled is True
+            assert scan_config.pii_analysis.enabled is True
         finally:
             config_path.unlink()
 
@@ -246,10 +268,10 @@ replication:
         """Test loading only replication config."""
         yaml_content = """
 scan:
-  pii:
+  pii_analysis:
     enabled: true
 replication:
-  defaults:
+  discovery:
     replicate_all: true
   collections: {}
 """
@@ -261,7 +283,7 @@ replication:
         try:
             rep_config = load_replication_config(config_path)
 
-            assert rep_config.defaults.replicate_all is True
+            assert rep_config.discovery.replicate_all is True
         finally:
             config_path.unlink()
 
@@ -270,7 +292,8 @@ replication:
         # Create config
         scan = ScanConfig(
             discovery=ScanDiscoveryConfig(include_patterns=["^users.*"]),
-            pii=ScanPIIConfig(confidence_threshold=0.9),
+            sampling=ScanSamplingConfig(sample_size=500),
+            pii_analysis=ScanPIIAnalysisConfig(confidence_threshold=0.9),
         )
         config = Config(scan=scan)
 
@@ -286,7 +309,8 @@ replication:
 
             assert loaded.scan is not None
             assert loaded.scan.discovery.include_patterns == ["^users.*"]
-            assert loaded.scan.pii.confidence_threshold == 0.9
+            assert loaded.scan.sampling.sample_size == 500
+            assert loaded.scan.pii_analysis.confidence_threshold == 0.9
         finally:
             temp_path.unlink()
 
