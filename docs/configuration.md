@@ -201,7 +201,7 @@ URL: "hash"              # Hash the URL
 **Example configuration:**
 ```yaml
 scan:
-  pii:
+  pii_analysis:
     presidio_config: "config/custom_presidio.yaml"
 ```
 
@@ -396,7 +396,7 @@ replication:
       primary_key: "_id"
       match: {...}
       fields_exclude: [...]
-      pii: {...}
+      pii_anonymized_fields: {...}
       field_transforms: [...]
 ```
 
@@ -454,35 +454,28 @@ replication:
 
 #### PII Configuration
 
-**`pii`** (object, optional)
-- Configure PII detection and anonymization for this collection
+**`pii_anonymized_fields`** (object, optional)
+- Configure PII fields anonymization for this collection
 
 ```yaml
-pii:
-  enabled: true
-  fields:
-    email: "fake"
-    phone: "hash"
-    ssn: "redact"
+pii_anonymized_fields:
+  email: "fake"
+  phone: "hash"
+  ssn: "redact"
 ```
 
-**`pii.enabled`** (boolean, default: `false`)
-- Enable PII anonymization for this collection
-- When `true`, fields specified in `fields` will be anonymized
-
-**`pii.fields`** (object, optional)
-- Map of field names to anonymization strategies (formerly `pii_anonymized_fields`)
+**`pii_anonymized_fields`** (object, optional)
 - Keys: Field names (supports dot notation for nested fields)
 - Values: Strategy name (`"fake"`, `"redact"`, `"hash"`, `"mask"`, `"null"`)
 - Example:
-  ```yaml
-  fields:
-    email: "fake"              # Generate fake email
-    phone: "hash"              # Hash phone number
-    ssn: "redact"              # Redact SSN
-    "contact.email": "fake"    # Nested field
-    password_hash: "null"      # Remove completely
-  ```
+```yaml
+pii_anonymized_fields:
+  email: "fake"              # Generate fake email
+  phone: "hash"              # Hash phone number
+  ssn: "redact"              # Redact SSN
+  "contact.email": "fake"    # Nested field
+  password_hash: "null"      # Remove completely
+```
 
 #### Field Transformations
 
@@ -507,23 +500,24 @@ field_transforms:
 
 Example transformations:
 ```yaml
-# Remove all non-digits from phone numbers
-- field: "phone"
-  type: "regex_replace"
-  pattern: "\\D"
-  replacement: ""
+field_transforms:
+  # Remove all non-digits from phone numbers
+  - field: "phone"
+    type: "regex_replace"
+    pattern: "\\D"
+    replacement: ""
 
-# Convert URLs to domains
-- field: "website"
-  type: "regex_replace"
-  pattern: "^https?://([^/]+).*"
-  replacement: "\\1"
+  # Convert URLs to domains
+  - field: "website"
+    type: "regex_replace"
+    pattern: "^https?://([^/]+).*"
+    replacement: "\\1"
 
-# Mask email domains
-- field: "email"
-  type: "regex_replace"
-  pattern: "@.*$"
-  replacement: "@example.com"
+  # Mask email domains
+  - field: "email"
+    type: "regex_replace"
+    pattern: "@.*$"
+    replacement: "@example.com"
 ```
 
 ### Schema Relationships
@@ -640,11 +634,9 @@ replication:
       primary_key: "_id"
       fields_exclude:
         - password_hash
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "hash"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "hash"
 
     orders:
       cursor_field: "created_at"
@@ -666,12 +658,10 @@ replication:
   collections:
     customers:
       primary_key: "_id"
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "hash"
-          ssn: "redact"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "hash"
+        ssn: "redact"
 
     orders:
       primary_key: "_id"
@@ -711,11 +701,9 @@ replication:
           pattern: ".*@(.*)$"
           replacement: "\\1"
 
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          name: "hash"
+      pii_anonymized_fields:
+        email: "fake"
+        name: "hash"
 ```
 
 ### Example 4: Advanced PII Detection
@@ -754,13 +742,11 @@ scan:
 replication:
   collections:
     sensitive_data:
-      pii:
-        enabled: true
-        fields:
-          email: "fake"
-          phone: "redact"
-          ssn: "redact"
-          credit_card: "null"
+      pii_anonymized_fields:
+        email: "fake"
+        phone: "redact"
+        ssn: "redact"
+        credit_card: "null"
 ```
 
 ## Custom Presidio Configuration
