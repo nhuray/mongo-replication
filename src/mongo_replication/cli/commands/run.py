@@ -235,10 +235,9 @@ def run_command(
 
         try:
             job_config = job_manager.get_job(job)
-        except KeyError:
-            print_error(
-                f"Job '{job}' not found. Available jobs: {', '.join(job_manager.list_jobs())}"
-            )
+        except ValueError as e:
+            print_error(str(e))
+            print_info(f"Available jobs: {', '.join(job_manager.list_jobs())}")
             raise typer.Exit(code=1)
 
         # Check for config path
