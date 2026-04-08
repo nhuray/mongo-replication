@@ -113,8 +113,8 @@ scan:
       - {{ field }}
 {%- endfor %}
 
-  # Schema Relationship Analysis
-  # ----------------------------
+  # Schema Relationship Inference
+  # ------------------------------
   # Automatically infer relationships between collections based on field names
   schema_relationships:
     enabled: {{ scan.schema_relationships.enabled | lower }}

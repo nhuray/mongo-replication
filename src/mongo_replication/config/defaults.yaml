@@ -104,11 +104,11 @@ scan:
       - meta.updated_at
       - meta.updatedAt
 
-  # Schema Relationship Detection
+  # Schema Relationship Inference
   # ------------------------------
-  # Automatically detect parent-child relationships between collections
+  # Automatically infer parent-child relationships between collections
   schema_relationships:
-    # Enable automatic schema relationship detection
+    # Enable automatic schema relationship inference
     # When enabled, scan will analyze field names to infer relationships
     # Example: field 'customer_id' or 'customerId' in 'orders' suggests relationship to 'customers'
     enabled: false

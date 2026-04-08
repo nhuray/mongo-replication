@@ -10,7 +10,7 @@ Complete reference for configuring the MongoDB Replication Tool. This document d
   - [Sampling Configuration](#sampling-configuration)
   - [PII Analysis Settings](#pii-analysis-settings)
   - [Cursor Detection Settings](#cursor-detection-settings)
-  - [Schema Relationship Analysis](#schema-relationship-analysis)
+  - [Schema Relationship Inference](#schema-relationship-inference)
 - [Replication Configuration](#replication-configuration)
   - [Collection Discovery](#collection-discovery)
   - [State Management](#state-management)
@@ -239,9 +239,9 @@ scan:
 - Detected cursor fields are automatically set in collection configurations
 - If no cursor field is found, replication will use full collection scan
 
-### Schema Relationship Analysis
+### Schema Relationship Inference
 
-Configuration for automatic schema relationship detection during scan.
+Configuration for automatic schema relationship inference during scan.
 
 ```yaml
 scan:

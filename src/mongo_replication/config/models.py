@@ -127,7 +127,7 @@ class ScanCursorDetectionConfig(BaseModel):
 
 
 class ScanSchemaRelationshipsConfig(BaseModel):
-    """Configuration for schema relationship detection during scan."""
+    """Configuration for schema relationship inference during scan."""
 
     enabled: bool = False
     """Whether to analyze and infer schema relationships between collections."""
@@ -151,7 +151,7 @@ class ScanConfig(BaseModel):
     schema_relationships: ScanSchemaRelationshipsConfig = Field(
         default_factory=ScanSchemaRelationshipsConfig
     )
-    """Schema relationship detection configuration."""
+    """Schema relationship inference configuration."""
 
 
 # =============================================================================

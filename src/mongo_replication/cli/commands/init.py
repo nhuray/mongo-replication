@@ -580,8 +580,8 @@ def init_command(
             enabled=False,
         )
 
-    # Step 9: Schema Relationship Analysis
-    print_step(9, 10, "Schema Relationship Analysis (Optional)")
+    # Step 9: Schema Relationship Inference
+    print_step(9, 10, "Schema Relationship Inference (Optional)")
     console.print()
 
     console.print("[dim]Automatically detect relationships between collections.[/dim]")
@@ -590,7 +590,7 @@ def init_command(
     console.print()
 
     enable_schema_analysis = questionary.confirm(
-        "Enable schema relationship analysis?",
+        "Enable schema relationship inference?",
         default=False,
         style=custom_style,
         instruction="(useful for cascade replication)",
@@ -603,9 +603,9 @@ def init_command(
     )
 
     if enable_schema_analysis:
-        print_success("Schema relationship analysis will be performed during scan")
+        print_success("Schema relationship inference will be performed during scan")
     else:
-        print_success("Schema relationship analysis disabled")
+        print_success("Schema relationship inference disabled")
 
     # Step 10: Save Configuration
     print_step(10, 10, "Save Configuration")

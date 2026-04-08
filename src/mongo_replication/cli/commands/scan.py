@@ -437,16 +437,16 @@ def scan_command(
                 print_info("Skipping PII analysis (disabled in configuration)")
             console.print()
 
-        # Step 6: Analyze Schema Relationships (optional)
+        # Step 6: Infer Schema Relationships (optional)
         schema_relationships = []
         should_analyze_relationships = False
 
-        # Check if schema relationship analysis is enabled in config
+        # Check if schema relationship inference is enabled in config
         if existing_config and existing_config.scan and existing_config.scan.schema_relationships:
             should_analyze_relationships = existing_config.scan.schema_relationships.enabled
 
         if should_analyze_relationships:
-            print_step(6, 7, "Analyze Schema Relationships")
+            print_step(6, 7, "Infer Schema Relationships")
             print_info("Inferring relationships between collections...")
 
             try:
@@ -477,10 +477,10 @@ def scan_command(
                 else:
                     print_info("No relationships detected")
             except Exception as e:
-                print_warning(f"Schema relationship analysis failed: {e}")
+                print_warning(f"Schema relationship inference failed: {e}")
                 schema_relationships = []
         else:
-            print_info("Skipping schema relationship analysis (disabled in configuration)")
+            print_info("Skipping schema relationship inference (disabled in configuration)")
             console.print()
 
         # Step 7: Generate configuration file
