@@ -34,10 +34,12 @@ from mongo_replication.config.models import (
     Config,
     CollectionConfig,
     ReplicationConfig,
+    SchemaRelationshipConfig,
 )
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.jobs import JobManager
 from mongo_replication.engine.pii import CollectionSampler, PIIAnalysisEngine
+from mongo_replication.engine.relationships import SchemaRelationshipAnalyzer
 
 
 def detect_cursor_field(
@@ -177,7 +179,7 @@ def scan_command(
 
     try:
         # Step 1: Load job configuration and existing scan config
-        print_step(1, 6, "Load Job Configuration")
+        print_step(1, 7, "Load Job Configuration")
 
         job_manager = JobManager()
 
@@ -280,7 +282,7 @@ def scan_command(
             exclude_patterns = existing_config.scan.discovery.exclude_patterns or []
 
         # Step 2: Connect to database and discover collections
-        print_step(2, 6, "Discover Collections")
+        print_step(2, 7, "Discover Collections")
 
         # Parse database name from URI
         db_name = job_config.source_uri.split("/")[-1].split("?")[0]
@@ -335,7 +337,7 @@ def scan_command(
             print_success(f"Selected {len(selected_collections)} collections")
 
         # Step 3: Sample documents
-        print_step(3, 6, "Sample Documents")
+        print_step(3, 7, "Sample Documents")
 
         sampler = CollectionSampler(
             database=source_db,
@@ -357,7 +359,7 @@ def scan_command(
         )
 
         # Step 4: Load or build scan configuration (needed before PII analysis)
-        print_step(4, 6, "Load Scan Configuration")
+        print_step(4, 7, "Load Scan Configuration")
 
         # Get configuration values from existing config (which already has defaults merged)
         entity_types = []
@@ -392,7 +394,7 @@ def scan_command(
         # should_analyze_pii was already determined above based on CLI flag and config
         pii_analyses = {}
         if should_analyze_pii:
-            print_step(5, 6, "Analyze PII")
+            print_step(5, 7, "Analyze PII")
             print_info("This may take a few minutes (loading NLP models + analysis)...")
 
             try:
@@ -435,8 +437,54 @@ def scan_command(
                 print_info("Skipping PII analysis (disabled in configuration)")
             console.print()
 
-        # Step 6: Generate configuration file
-        print_step(6, 6, "Generate Configuration")
+        # Step 6: Analyze Schema Relationships (optional)
+        schema_relationships = []
+        should_analyze_relationships = False
+
+        # Check if schema relationship analysis is enabled in config
+        if existing_config and existing_config.scan and existing_config.scan.schema_relationships:
+            should_analyze_relationships = existing_config.scan.schema_relationships.enabled
+
+        if should_analyze_relationships:
+            print_step(6, 7, "Analyze Schema Relationships")
+            print_info("Inferring relationships between collections...")
+
+            try:
+                # Prepare samples for analyzer (collection_name -> list of documents)
+                collection_samples = {}
+                for collection_name, sampling_result in sampling_results.items():
+                    collection_samples[collection_name] = sampling_result.sample_docs
+
+                # Run schema relationship analyzer
+                analyzer = SchemaRelationshipAnalyzer(collection_samples)
+                inferred_relationships = analyzer.infer_relationships()
+
+                # Convert Relationship objects to SchemaRelationshipConfig
+                schema_relationships = [
+                    SchemaRelationshipConfig(
+                        parent=rel.parent,
+                        child=rel.child,
+                        parent_field=rel.parent_field,
+                        child_field=rel.child_field,
+                    )
+                    for rel in inferred_relationships
+                ]
+
+                if schema_relationships:
+                    print_success(f"Found {len(schema_relationships)} potential relationships")
+                    for rel in schema_relationships:
+                        print_info(f"  {rel.child}.{rel.child_field} → {rel.parent}")
+                else:
+                    print_info("No relationships detected")
+            except Exception as e:
+                print_warning(f"Schema relationship analysis failed: {e}")
+                schema_relationships = []
+        else:
+            print_info("Skipping schema relationship analysis (disabled in configuration)")
+            console.print()
+
+        # Step 7: Generate configuration file
+        print_step(7, 7, "Generate Configuration")
         console.print()
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -508,6 +556,7 @@ def scan_command(
         # Merge with existing collections if config exists
         merged_collections_dict = {}
         defaults_dict = {}
+        merged_schema_relationships = []
 
         if existing_config and existing_config.replication:
             # Start with existing collections (convert CollectionConfig objects to dicts)
@@ -535,12 +584,35 @@ def scan_command(
                 coll_dict.pop("name", None)  # Remove 'name' to avoid duplicate in validator
                 merged_collections_dict[coll_name] = coll_dict
 
+        # Merge schema relationships (preserve existing + add new inferred ones)
+        if existing_config and existing_config.schema_relationships:
+            # Keep existing relationships
+            merged_schema_relationships = existing_config.schema_relationships
+
+            # Add newly inferred relationships (avoid duplicates)
+            existing_tuples = {
+                (rel.parent_collection, rel.child_collection, rel.child_field)
+                for rel in merged_schema_relationships
+            }
+            for new_rel in schema_relationships:
+                rel_tuple = (
+                    new_rel.parent_collection,
+                    new_rel.child_collection,
+                    new_rel.child_field,
+                )
+                if rel_tuple not in existing_tuples:
+                    merged_schema_relationships.append(new_rel)
+        else:
+            # No existing relationships, use inferred ones
+            merged_schema_relationships = schema_relationships
+
         config = Config(
             scan=scan_config,
             replication=ReplicationConfig(
                 defaults=defaults_dict,
                 collections=merged_collections_dict,
             ),
+            schema_relationships=merged_schema_relationships,
         )
 
         # Save configuration
@@ -580,16 +652,17 @@ def scan_command(
 
         # Print summary
         elapsed = time.time() - start_time
-        print_summary(
-            "Scan Complete",
-            {
-                "Collections Scanned": len(selected_collections),
-                "Documents Sampled": f"{total_samples:,}",
-                "PII Fields Found": total_pii_fields if not no_pii else "N/A",
-                "Config File": str(output_path),
-                "Time Elapsed": f"{elapsed:.1f}s",
-            },
-        )
+        summary_dict = {
+            "Collections Scanned": len(selected_collections),
+            "Documents Sampled": f"{total_samples:,}",
+            "PII Fields Found": total_pii_fields if not no_pii else "N/A",
+            "Relationships Found": len(schema_relationships)
+            if should_analyze_relationships
+            else "N/A",
+            "Config File": str(output_path),
+            "Time Elapsed": f"{elapsed:.1f}s",
+        }
+        print_summary("Scan Complete", summary_dict)
 
     except KeyboardInterrupt:
         console.print()

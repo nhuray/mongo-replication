@@ -112,6 +112,12 @@ scan:
 {%- for field in scan.cursor_detection.cursor_fields %}
       - {{ field }}
 {%- endfor %}
+
+  # Schema Relationship Analysis
+  # ----------------------------
+  # Automatically infer relationships between collections based on field names
+  schema_relationships:
+    enabled: {{ scan.schema_relationships.enabled | lower }}
 {%- endif %}
 
 {% if replication %}

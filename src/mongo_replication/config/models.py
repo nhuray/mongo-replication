@@ -126,6 +126,13 @@ class ScanCursorDetectionConfig(BaseModel):
     """List of cursor field candidates to try (checked in priority order during scan)."""
 
 
+class ScanSchemaRelationshipsConfig(BaseModel):
+    """Configuration for schema relationship detection during scan."""
+
+    enabled: bool = False
+    """Whether to analyze and infer schema relationships between collections."""
+
+
 class ScanConfig(BaseModel):
     """Configuration for the scan command."""
 
@@ -140,6 +147,11 @@ class ScanConfig(BaseModel):
 
     cursor_detection: ScanCursorDetectionConfig = Field(default_factory=ScanCursorDetectionConfig)
     """Cursor field detection configuration."""
+
+    schema_relationships: ScanSchemaRelationshipsConfig = Field(
+        default_factory=ScanSchemaRelationshipsConfig
+    )
+    """Schema relationship detection configuration."""
 
 
 # =============================================================================
