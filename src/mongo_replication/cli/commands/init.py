@@ -35,6 +35,7 @@ from mongo_replication.config.models import (
     ReplicationDiscoveryConfig,
 )
 from mongo_replication.engine.connection import ConnectionManager
+from mongo_replication.engine.pii.presidio_anonymizer import DEFAULT_ENTITY_STRATEGIES
 
 # Custom style for questionary
 custom_style = Style(
@@ -435,7 +436,14 @@ def init_command(
 
         entity_types = questionary.checkbox(
             "Select PII entity types to detect:",
-            choices=[questionary.Choice(title=et, checked=True) for et in default_entity_types],
+            choices=[
+                questionary.Choice(
+                    title=f"{et} → {DEFAULT_ENTITY_STRATEGIES.get(et, 'replace')}",
+                    value=et,
+                    checked=True,
+                )
+                for et in default_entity_types
+            ],
             style=custom_style,
             instruction="(Space to select/deselect, Enter to confirm)",
         ).ask()
@@ -448,10 +456,12 @@ def init_command(
         print_step(6, 10, "PII Anonymization Strategies")
         console.print()
 
-        console.print("[dim]Available strategies:[/dim]")
-        console.print("[dim]  • redact: Replace with ***[/dim]")
-        console.print("[dim]  • hash: SHA-256 hash[/dim]")
-        console.print("[dim]  • fake: Generate fake data (emails, names, etc.)[/dim]")
+        console.print("[dim]Available operators (see docs/presidio.md for details):[/dim]")
+        console.print("[dim]  Built-in: replace, redact, mask, hash, encrypt, keep[/dim]")
+        console.print(
+            "[dim]  Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.[/dim]"
+        )
+        console.print("[dim]  Aliases: fake, partial_redact, sha256, etc.[/dim]")
         console.print()
 
         use_custom_strategies = questionary.confirm(
@@ -460,27 +470,31 @@ def init_command(
             style=custom_style,
         ).ask()
 
-        default_strategies = {
-            "EMAIL_ADDRESS": "fake",
-            "PHONE_NUMBER": "fake",
-            "PERSON": "fake",
-            "CREDIT_CARD": "hash",
-            "IBAN_CODE": "hash",
-            "US_SSN": "redact",
-            "IP_ADDRESS": "hash",
-            "URL": "hash",
-            "LOCATION": "redact",
-            "CRYPTO": "hash",
-        }
+        # Use actual defaults from presidio.yaml configuration
+        default_strategies = DEFAULT_ENTITY_STRATEGIES.copy()
 
         if use_custom_strategies:
+            # Common operators for user selection
+            common_operators = [
+                "replace",
+                "redact",
+                "mask",
+                "hash",
+                "fake",
+                "fake_email",
+                "fake_name",
+                "fake_phone",
+                "smart_redact",
+                "keep",
+            ]
+
             custom_strategies = {}
             for entity_type in entity_types:
-                default_strategy = default_strategies.get(entity_type, "redact")
+                default_strategy = default_strategies.get(entity_type, "replace")
                 strategy = questionary.select(
                     f"Strategy for {entity_type}:",
-                    choices=["redact", "hash", "fake"],
-                    default=default_strategy,
+                    choices=common_operators,
+                    default=default_strategy if default_strategy in common_operators else "replace",
                     style=custom_style,
                 ).ask()
                 custom_strategies[entity_type] = strategy
