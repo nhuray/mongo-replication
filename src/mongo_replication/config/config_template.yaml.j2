@@ -101,6 +101,17 @@ scan:
     # Example: config/custom_presidio.yaml
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
     presidio_config: {{ scan.pii_analysis.presidio_config | tojson if scan.pii_analysis.presidio_config else 'null' }}
+
+  # Cursor Detection Settings
+  # --------------------------
+  # Configure which cursor fields to look for during scan
+  cursor_detection:
+    # List of field names to try as cursor fields for incremental loading (in priority order)
+    # The scan command checks for these fields and auto-detects which ones exist
+    cursor_fields:
+{%- for field in scan.cursor_detection.cursor_fields %}
+      - {{ field }}
+{%- endfor %}
 {%- endif %}
 
 {%- if replication %}

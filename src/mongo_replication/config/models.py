@@ -120,19 +120,10 @@ class ScanPIIAnalysisConfig(BaseModel):
 class ScanCursorDetectionConfig(BaseModel):
     """Configuration for cursor field detection during scan."""
 
-    sample_size: int = 1000
-    """Number of documents to analyze per collection."""
-
-    sample_strategy: Literal["random", "stratified"] = "stratified"
-    """Sampling strategy: 'random' or 'stratified'."""
-
-    @field_validator("sample_size")
-    @classmethod
-    def validate_sample_size(cls, v: int) -> int:
-        """Validate sample_size is at least 1."""
-        if v < 1:
-            raise ValueError(f"sample_size must be >= 1, got {v}")
-        return v
+    cursor_fields: List[str] = Field(
+        default_factory=lambda: ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
+    )
+    """List of cursor field candidates to try (checked in priority order during scan)."""
 
 
 class ScanConfig(BaseModel):

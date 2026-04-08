@@ -29,6 +29,7 @@ from mongo_replication.config.models import (
     ScanDiscoveryConfig,
     ScanSamplingConfig,
     ScanPIIAnalysisConfig,
+    ScanCursorDetectionConfig,
     Config,
     ReplicationConfig,
 )
@@ -302,8 +303,50 @@ def init_command(
         # Replicate all - no patterns needed
         print_success("Will replicate all collections")
 
-    # Step 4: PII Analysis Settings
-    print_step(4, 8, "PII Analysis Settings")
+    # Step 4: Cursor Detection Settings
+    print_step(4, 9, "Cursor Detection Settings")
+    console.print()
+
+    console.print(
+        "[dim]Cursor fields are used to track incremental changes during replication.[/dim]"
+    )
+    console.print(
+        "[dim]Default candidates: updated_at, updatedAt, meta.updated_at, meta.updatedAt[/dim]"
+    )
+    console.print()
+
+    customize_cursor_fields = questionary.confirm(
+        "Customize cursor field candidates?",
+        default=False,
+        style=custom_style,
+        instruction="(use default candidates if unsure)",
+    ).ask()
+
+    cursor_fields = ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]  # Default
+    if customize_cursor_fields:
+        console.print()
+        console.print("[dim]Enter cursor field candidates (one per line, in priority order):[/dim]")
+        cursor_fields = []
+        while True:
+            field = questionary.text(
+                "Cursor field:",
+                style=custom_style,
+                instruction="(e.g., 'updated_at' or 'meta.last_modified', empty to finish)",
+            ).ask()
+            if not field:
+                break
+            cursor_fields.append(field)
+
+        if not cursor_fields:
+            print_warning("No fields provided, using default candidates")
+            cursor_fields = ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
+        else:
+            print_success(f"Configured {len(cursor_fields)} cursor field candidate(s)")
+    else:
+        print_success("Using default cursor field candidates")
+
+    # Step 5: PII Analysis Settings
+    print_step(5, 9, "PII Analysis Settings")
     console.print()
 
     enable_pii = questionary.confirm(
@@ -382,8 +425,8 @@ def init_command(
             print_warning("No entity types selected, using all defaults")
             entity_types = default_entity_types
 
-        # Step 5: PII Anonymization Strategies
-        print_step(5, 8, "PII Anonymization Strategies")
+        # Step 6: PII Anonymization Strategies
+        print_step(6, 9, "PII Anonymization Strategies")
         console.print()
 
         console.print("[dim]Available strategies:[/dim]")
@@ -429,8 +472,8 @@ def init_command(
             # Use defaults
             print_success("Using default strategies")
 
-        # Step 6: Presidio Configuration (Optional)
-        print_step(6, 8, "Presidio Configuration (Optional)")
+        # Step 7: Presidio Configuration (Optional)
+        print_step(7, 9, "Presidio Configuration (Optional)")
         console.print()
 
         console.print("[dim]Presidio allows custom PII recognizers via YAML configuration.[/dim]")
@@ -470,8 +513,8 @@ def init_command(
         else:
             print_success("Using default Presidio configuration")
 
-        # Step 7: Allowlist (Optional)
-        print_step(7, 8, "Field Allowlist (Optional)")
+        # Step 8: Allowlist (Optional)
+        print_step(8, 9, "Field Allowlist (Optional)")
         console.print()
 
         console.print("[dim]Allowlist field patterns to exclude from PII Analysis.[/dim]")
@@ -537,8 +580,8 @@ def init_command(
             enabled=False,
         )
 
-    # Step 8: Save Configuration
-    print_step(8, 8, "Save Configuration")
+    # Step 9: Save Configuration
+    print_step(9, 9, "Save Configuration")
     console.print()
 
     # Determine output path
@@ -566,10 +609,15 @@ def init_command(
         exclude_patterns=exclude_patterns,
     )
 
+    cursor_detection_config = ScanCursorDetectionConfig(
+        cursor_fields=cursor_fields,
+    )
+
     scan_config = ScanConfig(
         discovery=discovery_config,
         sampling=sampling_config,
         pii_analysis=pii_analysis_config,
+        cursor_detection=cursor_detection_config,
     )
 
     # Load system defaults for replication
@@ -604,6 +652,8 @@ def init_command(
         console.print(f"  • Include patterns: {len(include_patterns)}")
     if exclude_patterns:
         console.print(f"  • Exclude patterns: {len(exclude_patterns)}")
+
+    console.print(f"  • Cursor field candidates: {len(cursor_fields)}")
 
     if pii_analysis_config:
         console.print("  • PII Analysis: [green]Enabled[/green]")

@@ -497,11 +497,14 @@ def scan_command(
         )
 
         # Build replication config from PII analysis
-        # Load replication defaults for cursor_fields
-        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
-        cursor_fields = replication_defaults_raw.get(
+        # Load cursor_fields from scan.cursor_detection config
+        cursor_detection_config = system_defaults.get("scan", {}).get("cursor_detection", {})
+        cursor_fields = cursor_detection_config.get(
             "cursor_fields", ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
         )
+
+        # Load replication defaults for other settings
+        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
 
         new_collection_configs = {}
         for collection_name in selected_collections:

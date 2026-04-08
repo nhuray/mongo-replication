@@ -41,6 +41,17 @@ scan:
     # stratified = distributed across collection, random = random selection
     sample_strategy: stratified
 
+  # Cursor Detection Settings
+  # ----------------------
+  cursor_detection:
+
+    # List of field names to try as cursor fields for incremental loading (in priority order).
+    cursor_fields:
+      - updated_at
+      - updatedAt
+      - meta.updated_at
+      - meta.updatedAt
+
   # PII Analysis Settings
   # ----------------------
   # Configure automatic PII analysis using Microsoft Presidio
@@ -139,7 +150,7 @@ replication:
     cursor_fallback_field: _id
 
     # Initial cursor value for first-time replication.
-    cursor_initial_value: "_id"
+    cursor_initial_value: "2020-01-01T00:00:00Z"
 
     # Default write strategy: merge (upsert), append (insert), replace (drop/recreate).
     write_disposition: merge
