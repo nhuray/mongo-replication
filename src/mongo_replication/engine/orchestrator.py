@@ -225,7 +225,7 @@ class ReplicationOrchestrator:
                 )
 
             # Create PII handler from collection config
-            pii_handler = create_pii_handler_from_config(config)
+            pii_handler = create_pii_handler_from_config(config.pii_anonymized_fields)
 
             # Debug: Log match filter being used
             logger.info(

@@ -8,6 +8,7 @@ A production-grade MongoDB replication tool with built-in PII redaction, paralle
 - **Parallel Replication**: Process multiple collections simultaneously with configurable worker pools
 - **Incremental Loading**: Cursor-based state management for efficient incremental updates
 - **PII Redaction**: Built-in support for detecting and anonymizing sensitive data using Microsoft Presidio
+- **Schema Relationship Inference**: Automatically detect parent-child relationships between collections
 - **Cascade Filtering**: Replicate related documents across collections based on defined relationships
 - **Native BSON Support**: Preserves MongoDB data types (ObjectId, Date, Decimal128, etc.)
 - **Multiple Write Modes**: Support for replace, append, and merge strategies
@@ -78,6 +79,7 @@ mongorep scan my_job
 This will:
 - Analyze document schemas
 - Detect PII fields automatically using Presidio
+- Infer schema relationships between collections (if enabled)
 - Update configuration with findings
 - Generate PII detection report
 
@@ -374,17 +376,16 @@ mongorep run my_job --query customers='{"status": "active", "createdAt": {"$gte"
 **Define Relationships in Configuration:**
 
 ```yaml
-replication:
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customer_id
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customer_id
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: order_id
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: order_id
 ```
 
 The tool will:

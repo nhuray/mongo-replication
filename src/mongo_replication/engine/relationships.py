@@ -196,3 +196,230 @@ class RelationshipGraph:
             return {"name": collection, "children": children}
 
         return build_tree(root_collection, set())
+
+
+class SchemaRelationshipAnalyzer:
+    """
+    Analyzes document samples to infer relationships between collections.
+
+    Detects relationships by matching collection names with field names.
+    For example:
+    - Collection 'customers' with _id field
+    - Collection 'orders' with 'customer_id' or 'customerId' field
+    → Inferred relationship: customers → orders
+    """
+
+    def __init__(self, collection_samples: Dict[str, List[Dict]]):
+        """
+        Initialize analyzer with document samples.
+
+        Args:
+            collection_samples: Dict mapping collection names to lists of sample documents
+                                Example: {"customers": [{...}, {...}], "orders": [{...}]}
+        """
+        self.collection_samples = collection_samples
+        self.collection_names = set(collection_samples.keys())
+
+    def infer_relationships(self) -> List[Relationship]:
+        """
+        Infer relationships between collections based on field names.
+
+        Returns:
+            List of inferred Relationship objects
+
+        Algorithm:
+        1. For each collection, extract all field names from samples
+        2. For each field, try to match it to another collection name
+        3. Match patterns:
+           - Exact match: field "customer_id" → collection "customers"
+           - Camel case: field "customerId" → collection "customers"
+           - Plural to singular: field "customer_id" → collection "customers"
+           - Nested fields: field "meta.customer_id" → collection "customers"
+        """
+        relationships = []
+
+        for child_collection, samples in self.collection_samples.items():
+            if not samples:
+                continue
+
+            # Extract all fields from samples
+            fields = self._extract_fields_from_samples(samples)
+
+            # Try to find parent relationships
+            for field_path in fields:
+                parent_collection = self._match_field_to_collection(field_path)
+
+                if parent_collection and parent_collection != child_collection:
+                    # Infer that this is a parent-child relationship
+                    relationship = Relationship(
+                        parent=parent_collection,
+                        child=child_collection,
+                        parent_field="_id",  # Assume primary key is _id
+                        child_field=field_path,
+                    )
+                    relationships.append(relationship)
+
+        # Deduplicate relationships (same parent-child pair)
+        unique_relationships = self._deduplicate_relationships(relationships)
+
+        return unique_relationships
+
+    def _extract_fields_from_samples(self, samples: List[Dict]) -> Set[str]:
+        """
+        Extract all field paths from sample documents.
+
+        Args:
+            samples: List of sample documents
+
+        Returns:
+            Set of field paths (supports nested fields with dot notation)
+        """
+        fields = set()
+
+        for doc in samples:
+            fields.update(self._extract_fields_recursive(doc))
+
+        return fields
+
+    def _extract_fields_recursive(self, obj: any, prefix: str = "") -> Set[str]:
+        """
+        Recursively extract field paths from a document.
+
+        Args:
+            obj: Document or nested object
+            prefix: Current field path prefix
+
+        Returns:
+            Set of field paths
+        """
+        fields = set()
+
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                field_path = f"{prefix}.{key}" if prefix else key
+                fields.add(field_path)
+
+                # Recurse into nested objects (but not too deep)
+                if isinstance(value, dict) and prefix.count(".") < 2:
+                    fields.update(self._extract_fields_recursive(value, field_path))
+
+        return fields
+
+    def _match_field_to_collection(self, field_path: str) -> Optional[str]:
+        """
+        Try to match a field name to a collection name.
+
+        Args:
+            field_path: Field path (e.g., "customer_id", "customerId", "meta.customerId")
+
+        Returns:
+            Matched collection name, or None if no match
+
+        Matching logic:
+        1. Extract base field name (last part of path)
+        2. Normalize field name (remove _id, Id suffixes)
+        3. Try to match against collection names (singular/plural variants)
+        """
+        # Get the last part of the path (e.g., "meta.customer_id" → "customer_id")
+        field_name = field_path.split(".")[-1]
+
+        # Skip common non-relationship fields
+        if field_name in {"_id", "id", "created_at", "updated_at", "createdAt", "updatedAt"}:
+            return None
+
+        # Extract potential collection reference from field name
+        # Handle patterns: customer_id, customerId, customer_ids, customerIds
+        potential_names = self._extract_collection_references(field_name)
+
+        # Try to find matching collection
+        for name in potential_names:
+            if name in self.collection_names:
+                return name
+
+        return None
+
+    def _extract_collection_references(self, field_name: str) -> List[str]:
+        """
+        Extract potential collection names from a field name.
+
+        Args:
+            field_name: Field name (e.g., "customer_id", "customerId")
+
+        Returns:
+            List of potential collection names to try
+        """
+        potential_names = []
+
+        # Pattern 1: snake_case with _id or _ids suffix
+        # "customer_id" → "customer"
+        # "customer_ids" → "customers"
+        if "_id" in field_name:
+            base = field_name.replace("_ids", "").replace("_id", "")
+            potential_names.append(base)
+            potential_names.append(base + "s")  # Try plural
+
+            # If base ends with 'y', try replacing with 'ies'
+            # "category_id" → "categories"
+            if base.endswith("y"):
+                potential_names.append(base[:-1] + "ies")
+
+        # Pattern 2: camelCase with Id or Ids suffix
+        # "customerId" → "customer"
+        # "customerIds" → "customers"
+        if field_name.endswith("Ids"):
+            base = field_name[:-3]  # Remove "Ids"
+            # Convert camelCase to snake_case
+            snake_case = self._camel_to_snake(base)
+            potential_names.append(snake_case + "s")  # Plural
+            potential_names.append(snake_case)
+        elif field_name.endswith("Id") and not field_name.endswith("_id"):
+            base = field_name[:-2]  # Remove "Id"
+            # Convert camelCase to snake_case
+            snake_case = self._camel_to_snake(base)
+            potential_names.append(snake_case)
+            potential_names.append(snake_case + "s")  # Try plural
+
+            # If base ends with 'y', try replacing with 'ies'
+            if snake_case.endswith("y"):
+                potential_names.append(snake_case[:-1] + "ies")
+
+        return potential_names
+
+    def _camel_to_snake(self, name: str) -> str:
+        """
+        Convert camelCase to snake_case.
+
+        Args:
+            name: camelCase string
+
+        Returns:
+            snake_case string
+        """
+        import re
+
+        # Insert underscore before uppercase letters
+        snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+        return snake
+
+    def _deduplicate_relationships(self, relationships: List[Relationship]) -> List[Relationship]:
+        """
+        Remove duplicate relationships (same parent-child pair).
+
+        If multiple fields point to the same parent, keep the first one found.
+
+        Args:
+            relationships: List of relationships (may contain duplicates)
+
+        Returns:
+            Deduplicated list of relationships
+        """
+        seen = set()
+        unique = []
+
+        for rel in relationships:
+            key = (rel.parent, rel.child)
+            if key not in seen:
+                seen.add(key)
+                unique.append(rel)
+
+        return unique

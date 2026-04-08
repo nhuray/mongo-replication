@@ -126,6 +126,13 @@ class ScanCursorDetectionConfig(BaseModel):
     """List of cursor field candidates to try (checked in priority order during scan)."""
 
 
+class ScanSchemaRelationshipsConfig(BaseModel):
+    """Configuration for schema relationship inference during scan."""
+
+    enabled: bool = False
+    """Whether to analyze and infer schema relationships between collections."""
+
+
 class ScanConfig(BaseModel):
     """Configuration for the scan command."""
 
@@ -140,6 +147,11 @@ class ScanConfig(BaseModel):
 
     cursor_detection: ScanCursorDetectionConfig = Field(default_factory=ScanCursorDetectionConfig)
     """Cursor field detection configuration."""
+
+    schema_relationships: ScanSchemaRelationshipsConfig = Field(
+        default_factory=ScanSchemaRelationshipsConfig
+    )
+    """Schema relationship inference configuration."""
 
 
 # =============================================================================
@@ -351,7 +363,7 @@ class CollectionsConfig(RootModel):
         return self.root.values()
 
 
-class RelationshipConfig(BaseModel):
+class SchemaRelationshipConfig(BaseModel):
     """Defines parent-child relationship between collections for cascading replication."""
 
     parent: str
@@ -367,7 +379,7 @@ class RelationshipConfig(BaseModel):
     """Field in child collection that references parent (e.g., 'customerId')."""
 
     @model_validator(mode="after")
-    def validate_relationship(self) -> "RelationshipConfig":
+    def validate_relationship(self) -> "SchemaRelationshipConfig":
         """Validate relationship configuration."""
         if not self.parent or not self.child:
             raise ValueError("Relationship must specify both parent and child collections")
@@ -400,9 +412,6 @@ class ReplicationConfig(BaseModel):
     collections: CollectionsConfig = Field(default_factory=CollectionsConfig)
     """Per-collection configuration."""
 
-    schema_relationships: List[RelationshipConfig] = Field(default_factory=list)
-    """Collection relationships for cascading replication (optional)."""
-
 
 # =============================================================================
 # ROOT CONFIG
@@ -417,6 +426,9 @@ class Config(BaseModel):
 
     replication: Optional["ReplicationConfig"] = None
     """Configuration for replication (optional)."""
+
+    schema_relationships: List[SchemaRelationshipConfig] = Field(default_factory=list)
+    """Collection relationships for cascading replication (optional)."""
 
     @model_validator(mode="after")
     def validate_config(self) -> "Config":

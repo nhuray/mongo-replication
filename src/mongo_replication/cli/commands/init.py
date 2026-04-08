@@ -304,7 +304,7 @@ def init_command(
         print_success("Will replicate all collections")
 
     # Step 4: Cursor Detection Settings
-    print_step(4, 9, "Cursor Detection Settings")
+    print_step(4, 10, "Cursor Detection Settings")
     console.print()
 
     console.print(
@@ -346,7 +346,7 @@ def init_command(
         print_success("Using default cursor field candidates")
 
     # Step 5: PII Analysis Settings
-    print_step(5, 9, "PII Analysis Settings")
+    print_step(5, 10, "PII Analysis Settings")
     console.print()
 
     enable_pii = questionary.confirm(
@@ -426,7 +426,7 @@ def init_command(
             entity_types = default_entity_types
 
         # Step 6: PII Anonymization Strategies
-        print_step(6, 9, "PII Anonymization Strategies")
+        print_step(6, 10, "PII Anonymization Strategies")
         console.print()
 
         console.print("[dim]Available strategies:[/dim]")
@@ -473,7 +473,7 @@ def init_command(
             print_success("Using default strategies")
 
         # Step 7: Presidio Configuration (Optional)
-        print_step(7, 9, "Presidio Configuration (Optional)")
+        print_step(7, 10, "Presidio Configuration (Optional)")
         console.print()
 
         console.print("[dim]Presidio allows custom PII recognizers via YAML configuration.[/dim]")
@@ -514,7 +514,7 @@ def init_command(
             print_success("Using default Presidio configuration")
 
         # Step 8: Allowlist (Optional)
-        print_step(8, 9, "Field Allowlist (Optional)")
+        print_step(8, 10, "Field Allowlist (Optional)")
         console.print()
 
         console.print("[dim]Allowlist field patterns to exclude from PII Analysis.[/dim]")
@@ -580,8 +580,35 @@ def init_command(
             enabled=False,
         )
 
-    # Step 9: Save Configuration
-    print_step(9, 9, "Save Configuration")
+    # Step 9: Schema Relationship Inference
+    print_step(9, 10, "Schema Relationship Inference (Optional)")
+    console.print()
+
+    console.print("[dim]Automatically detect relationships between collections.[/dim]")
+    console.print("[dim]This analyzes field names to infer parent-child relationships.[/dim]")
+    console.print("[dim]For example: 'customer_id' in 'orders' → relationship to 'customers'[/dim]")
+    console.print()
+
+    enable_schema_analysis = questionary.confirm(
+        "Enable schema relationship inference?",
+        default=False,
+        style=custom_style,
+        instruction="(useful for cascade replication)",
+    ).ask()
+
+    from mongo_replication.config.models import ScanSchemaRelationshipsConfig
+
+    schema_relationships_config = ScanSchemaRelationshipsConfig(
+        enabled=enable_schema_analysis,
+    )
+
+    if enable_schema_analysis:
+        print_success("Schema relationship inference will be performed during scan")
+    else:
+        print_success("Schema relationship inference disabled")
+
+    # Step 10: Save Configuration
+    print_step(10, 10, "Save Configuration")
     console.print()
 
     # Determine output path
@@ -618,6 +645,7 @@ def init_command(
         sampling=sampling_config,
         pii_analysis=pii_analysis_config,
         cursor_detection=cursor_detection_config,
+        schema_relationships=schema_relationships_config,
     )
 
     # Load system defaults for replication
@@ -625,11 +653,9 @@ def init_command(
     replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
 
     # Build replication config with defaults
-    replication_config = ReplicationConfig(
-        defaults=replication_defaults_raw, collections={}, schema_relationships=[]
-    )
+    replication_config = ReplicationConfig(defaults=replication_defaults_raw, collections={})
 
-    rep_config = Config(scan=scan_config, replication=replication_config)
+    rep_config = Config(scan=scan_config, replication=replication_config, schema_relationships=[])
 
     # Save config
     try:

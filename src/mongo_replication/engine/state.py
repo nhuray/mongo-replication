@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from pymongo.database import Database
+from pymongo.errors import OperationFailure
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +86,17 @@ class StateManager:
             # Drop old indexes if they exist (from previous schema)
             try:
                 self.state_collection.drop_index("collection_name_unique")
+                logger.debug("Dropped old collection_name_unique index from previous schema")
+            except OperationFailure as e:
+                # Index doesn't exist - this is expected for new installations
+                if e.code == 27:  # IndexNotFound error code
+                    logger.debug(
+                        "Old collection_name_unique index not found (expected for new installations)"
+                    )
+                else:
+                    logger.warning(f"Failed to drop old collection_name_unique index: {e}")
             except Exception as e:
-                logger.warning(f"Failed to drop old collection_name_unique index: {e}")
-                pass  # Index doesn't exist, that's fine
+                logger.warning(f"Unexpected error dropping old index: {e}")
 
             # Runs collection indexes
             self.runs_collection.create_index("status", name="status_idx")

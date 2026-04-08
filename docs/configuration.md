@@ -7,8 +7,11 @@ Complete reference for configuring the MongoDB Replication Tool. This document d
 - [Configuration File Structure](#configuration-file-structure)
 - [Scan Configuration](#scan-configuration)
   - [Discovery Settings](#discovery-settings)
-  - [PII Detection Settings](#pii-detection-settings)
-  - [Replication Configuration](#replication-configuration)
+  - [Sampling Configuration](#sampling-configuration)
+  - [PII Analysis Settings](#pii-analysis-settings)
+  - [Cursor Detection Settings](#cursor-detection-settings)
+  - [Schema Relationship Inference](#schema-relationship-inference)
+- [Replication Configuration](#replication-configuration)
   - [Collection Discovery](#collection-discovery)
   - [State Management](#state-management)
   - [Performance Settings](#performance-settings)
@@ -28,6 +31,7 @@ scan:
   sampling: {...}
   pii_analysis: {...}
   cursor_detection: {...}
+  schema_relationships: {...}
 
 replication:
   # Settings for replicating collections
@@ -36,7 +40,8 @@ replication:
   performance: {...}
   defaults: {...}
   collections: {...}
-  schema_relationships: [...]
+
+schema_relationships: [...]
 ```
 
 ## Scan Configuration
@@ -206,7 +211,86 @@ scan:
 ```
 
 See [Custom Presidio Configuration](#custom-presidio-configuration) section below for detailed examples.
-  - `"internal_*"`: Exclude all fields starting with "internal_"
+
+### Cursor Detection Settings
+
+Configuration for automatic cursor field detection during scan.
+
+```yaml
+scan:
+  cursor_detection:
+    cursor_fields:
+      - updated_at
+      - updatedAt
+      - meta.updated_at
+      - meta.updatedAt
+```
+
+#### Options
+
+**`cursor_fields`** (list of strings, default: see above)
+- List of field names to try as cursor fields for incremental loading
+- The scan command auto-detects if any of these fields exist in collections
+- Checked in priority order (first match wins)
+- Requirements for cursor fields:
+  - Must be indexed for performance
+  - Should be monotonically increasing
+  - Should represent the last modification time
+- Detected cursor fields are automatically set in collection configurations
+- If no cursor field is found, replication will use full collection scan
+
+### Schema Relationship Inference
+
+Configuration for automatic schema relationship inference during scan.
+
+```yaml
+scan:
+  schema_relationships:
+    enabled: false
+```
+
+#### Options
+
+**`enabled`** (boolean, default: `false`)
+- Whether to automatically infer parent-child relationships between collections during scan
+- When enabled, the scan command analyzes field names to detect relationships
+- Inferred relationships are saved to the root-level `schema_relationships` section
+- Can be used later with `--ids` or `--query` for cascade replication
+
+**How it works:**
+The analyzer examines sampled documents and matches field names to collection names using patterns:
+- **Snake case**: `customer_id` in `orders` → relationship to `customers`
+- **Camel case**: `customerId` in `orders` → relationship to `customers`
+- **Nested fields**: `meta.customer_id` → relationship to `customers`
+- **Plural/singular**: `category_id` → relationship to `categories`
+
+**Ignored fields:**
+Common non-relationship fields are automatically excluded:
+- `_id`, `id` (document identifiers)
+- `created_at`, `updated_at`, `deleted_at` (timestamps)
+- `created_by`, `updated_by`, `deleted_by` (audit fields)
+
+**Example detected relationships:**
+```yaml
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customer_id
+
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: order_id
+```
+
+**When to enable:**
+- ✅ Enable if you plan to use cascade replication with `--ids` or `--query`
+- ✅ Enable for databases with clear naming conventions (e.g., `*_id` fields)
+- ❌ Disable if your field names don't follow conventions
+- ❌ Disable if you want to manually define relationships
+
+See [Schema Relationships](#schema-relationships) section below for using relationships with cascade replication.
 
 ## Replication Configuration
 
@@ -525,17 +609,16 @@ field_transforms:
 Define parent-child relationships between collections for cascade replication.
 
 ```yaml
-replication:
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customerId
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customerId
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: orderId
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: orderId
 ```
 
 When using the `--ids` or `--query` option with the `run` command, the tool will:
@@ -669,16 +752,16 @@ replication:
     order_items:
       primary_key: "_id"
 
-  schema_relationships:
-    - parent: customers
-      child: orders
-      parent_field: _id
-      child_field: customerId
+schema_relationships:
+  - parent: customers
+    child: orders
+    parent_field: _id
+    child_field: customerId
 
-    - parent: orders
-      child: order_items
-      parent_field: _id
-      child_field: orderId
+  - parent: orders
+    child: order_items
+    parent_field: _id
+    child_field: orderId
 ```
 
 ### Example 3: Field Transformations

@@ -41,17 +41,6 @@ scan:
     # stratified = distributed across collection, random = random selection
     sample_strategy: stratified
 
-  # Cursor Detection Settings
-  # ----------------------
-  cursor_detection:
-
-    # List of field names to try as cursor fields for incremental loading (in priority order).
-    cursor_fields:
-      - updated_at
-      - updatedAt
-      - meta.updated_at
-      - meta.updatedAt
-
   # PII Analysis Settings
   # ----------------------
   # Configure automatic PII analysis using Microsoft Presidio
@@ -102,6 +91,29 @@ scan:
     # Example: config/custom_presidio.yaml
     # See: docs/configuration.md and src/mongo_replication/config/presidio.yaml
     presidio_config: null
+
+  # Cursor Detection Settings
+  # --------------------------
+  # Configure which cursor fields to look for during scan
+  cursor_detection:
+    # List of field names to try as cursor fields for incremental loading (in priority order)
+    # The scan command checks for these fields and auto-detects which ones exist
+    cursor_fields:
+      - updated_at
+      - updatedAt
+      - meta.updated_at
+      - meta.updatedAt
+
+  # Schema Relationship Inference
+  # ------------------------------
+  # Automatically infer parent-child relationships between collections
+  schema_relationships:
+    # Enable automatic schema relationship inference
+    # When enabled, scan will analyze field names to infer relationships
+    # Example: field 'customer_id' or 'customerId' in 'orders' suggests relationship to 'customers'
+    enabled: false
+
+
 # =============================================================================
 # REPLICATION CONFIGURATION
 # =============================================================================
@@ -165,3 +177,26 @@ replication:
   # Override defaults and specify PII fields for each collection
   collections:
       {}  # No collection configured
+
+# =============================================================================
+# SCHEMA RELATIONSHIPS (Optional)
+# =============================================================================
+# Define parent-child relationships for cascading replication.
+# Used with --ids or --query option to replicate related data across collections.
+#
+# Example: mongorep run job --ids customers=id1,id2
+# This will replicate specified customers AND their related orders/items.
+#
+# Format:
+# schema_relationships:
+#   - parent: customers
+#     child: orders
+#     parent_field: _id
+#     child_field: customerId
+#   - parent: orders
+#     child: order_items
+#     parent_field: _id
+#     child_field: orderId
+
+schema_relationships:
+  []  # No relationships defined

@@ -4,18 +4,18 @@ import pytest
 from unittest.mock import Mock
 from bson import ObjectId
 
-from mongo_replication.config.models import RelationshipConfig
+from mongo_replication.config.models import SchemaRelationshipConfig
 from mongo_replication.engine.relationships import Relationship, RelationshipGraph
 from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
 from mongo_replication.cli.commands.run import parse_ids_option, parse_query_option
 
 
-class TestRelationshipConfig:
-    """Tests for RelationshipConfig dataclass."""
+class TestSchemaRelationshipConfig:
+    """Tests for SchemaRelationshipConfig dataclass."""
 
     def test_valid_relationship(self):
         """Test creating a valid relationship."""
-        rel = RelationshipConfig(
+        rel = SchemaRelationshipConfig(
             parent="customers",
             child="orders",
             parent_field="_id",
@@ -30,7 +30,7 @@ class TestRelationshipConfig:
     def test_self_reference_raises_error(self):
         """Test that self-referencing relationships raise error."""
         with pytest.raises(ValueError, match="cannot have a relationship with itself"):
-            RelationshipConfig(
+            SchemaRelationshipConfig(
                 parent="users",
                 child="users",
                 parent_field="_id",
@@ -40,7 +40,7 @@ class TestRelationshipConfig:
     def test_missing_parent_raises_error(self):
         """Test that missing parent raises error."""
         with pytest.raises(ValueError, match="must specify both parent and child"):
-            RelationshipConfig(
+            SchemaRelationshipConfig(
                 parent="",
                 child="orders",
                 parent_field="_id",
@@ -50,7 +50,7 @@ class TestRelationshipConfig:
     def test_missing_child_raises_error(self):
         """Test that missing child raises error."""
         with pytest.raises(ValueError, match="must specify both parent and child"):
-            RelationshipConfig(
+            SchemaRelationshipConfig(
                 parent="customers",
                 child="",
                 parent_field="_id",
@@ -60,7 +60,7 @@ class TestRelationshipConfig:
     def test_missing_fields_raises_error(self):
         """Test that missing field names raise error."""
         with pytest.raises(ValueError, match="must specify both parent_field and child_field"):
-            RelationshipConfig(
+            SchemaRelationshipConfig(
                 parent="customers",
                 child="orders",
                 parent_field="",

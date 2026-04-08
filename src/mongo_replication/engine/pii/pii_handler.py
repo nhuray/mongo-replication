@@ -17,27 +17,27 @@ class PIIHandler:
 
     def __init__(
         self,
-        manual_pii_fields: Optional[Dict[str, str]] = None,
+        pii_fields: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize PII handler.
 
         Args:
-            manual_pii_fields: Manual field->strategy mappings for redaction
+            pii_fields: Manual field->strategy mappings for redaction
         """
-        self.manual_pii_fields = manual_pii_fields or {}
+        self.pii_fields = pii_fields or {}
 
     def process_documents(
         self,
         documents: List[Dict[str, Any]],
-        manual_pii_fields: Optional[Dict[str, str]] = None,
+        pii_fields: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Process documents with PII redaction.
 
         Args:
             documents: List of documents to process
-            manual_pii_fields: Manual field->strategy mappings (overrides instance manual_pii_fields if provided)
+            pii_fields: Manual field->strategy mappings (overrides instance manual_pii_fields if provided)
 
         Returns:
             List of documents with PII redacted
@@ -46,11 +46,9 @@ class PIIHandler:
             return documents
 
         # Use provided manual fields, or fall back to instance manual fields
-        manual_pii_fields = (
-            manual_pii_fields if manual_pii_fields is not None else self.manual_pii_fields
-        )
+        pii_fields = pii_fields if pii_fields is not None else self.pii_fields
 
-        return self._apply_manual_redaction(documents, manual_pii_fields)
+        return self._apply_manual_redaction(documents, pii_fields)
 
     def _apply_manual_redaction(
         self,
@@ -71,16 +69,16 @@ class PIIHandler:
         return redacted
 
 
-def create_pii_handler_from_config(config) -> PIIHandler:
+def create_pii_handler_from_config(pii_fields: Dict[str, str]) -> PIIHandler:
     """
     Create a PII handler from collection configuration.
 
     Args:
-        config: CollectionConfig object
+        pii_fields: PII Fields
 
     Returns:
         Configured PIIHandler instance
     """
     return PIIHandler(
-        manual_pii_fields=config.pii_fields,
+        pii_fields=pii_fields,
     )

@@ -112,9 +112,15 @@ scan:
 {%- for field in scan.cursor_detection.cursor_fields %}
       - {{ field }}
 {%- endfor %}
+
+  # Schema Relationship Inference
+  # ------------------------------
+  # Automatically infer relationships between collections based on field names
+  schema_relationships:
+    enabled: {{ scan.schema_relationships.enabled | lower }}
 {%- endif %}
 
-{%- if replication %}
+{% if replication %}
 # =============================================================================
 # REPLICATION CONFIGURATION
 # =============================================================================
@@ -192,8 +198,10 @@ replication:
 {%- if replication.collections %}
 {%- for coll_name, coll_config in replication.collections.items() %}
     {{ coll_name }}:
+{%- if coll_config.cursor_field %}
       # Field to track incremental changes (e.g., updated_at, _id)
       cursor_field: {{ coll_config.cursor_field | tojson }}
+{%- endif %}
       # Write strategy: merge, append, or replace
       write_disposition: {{ coll_config.write_disposition }}
       # Primary key field for merges and deduplication
@@ -226,27 +234,27 @@ replication:
 {%- else %}
       {}  # No collection configured
 {%- endif %}
-
-
-{%- if replication.schema_relationships %}
-
-  # =============================================================================
-  # RELATIONSHIPS
-  # =============================================================================
-  # Define parent-child relationships for cascading replication.
-  # Used with --ids or --query option to replicate related data across collections.
-  #
-  # Example: mongorep run job --ids customers=id1,id2
-  # This will replicate specified customers AND their related orders/items.
-
-  schema_relationships:
-{%- for rel in replication.schema_relationships %}
-    - parent: {{ rel.parent }}
-      child: {{ rel.child }}
-      # Field in parent collection (usually _id)
-      parent_field: {{ rel.parent_field }}
-      # Field in child that references parent
-      child_field: {{ rel.child_field }}
-{%- endfor %}
 {%- endif %}
+
+
+{%- if schema_relationships %}
+
+# =============================================================================
+# SCHEMA RELATIONSHIPS (Optional)
+# =============================================================================
+# Define parent-child relationships for cascading replication.
+# Used with --ids or --query option to replicate related data across collections.
+#
+# Example: mongorep run job --ids customers=id1,id2
+# This will replicate specified customers AND their related orders/items.
+
+schema_relationships:
+{%- for rel in schema_relationships %}
+  - parent: {{ rel.parent }}
+    child: {{ rel.child }}
+    # Field in parent collection (usually _id)
+    parent_field: {{ rel.parent_field }}
+    # Field in child that references parent
+    child_field: {{ rel.child_field }}
+{%- endfor %}
 {%- endif %}
