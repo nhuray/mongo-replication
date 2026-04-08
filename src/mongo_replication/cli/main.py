@@ -18,10 +18,22 @@ from mongo_replication.cli.commands import init, scan, run
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Load .env file from current working directory
+    dotenv_path = Path.cwd() / ".env"
+    if dotenv_path.exists():
+        load_dotenv(dotenv_path=dotenv_path)
+    else:
+        # Try loading from default location (current directory)
+        load_dotenv()
 except ImportError:
-    # dotenv not installed, skip automatic loading
-    pass
+    # python-dotenv not installed - this should not happen in production
+    # but we handle gracefully for development
+    console = Console()
+    console.print(
+        "[yellow]Warning: python-dotenv is not installed. "
+        ".env file will not be loaded automatically.[/yellow]"
+    )
+    console.print("[dim]To use .env files, install: pip install python-dotenv[/dim]\n")
 
 # Ensure parent directories are in path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
