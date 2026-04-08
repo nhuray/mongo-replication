@@ -22,29 +22,6 @@ from mongo_replication.engine.pii.custom_operators import CUSTOM_OPERATORS
 logger = logging.getLogger(__name__)
 
 
-# Default entity-to-strategy mappings (loaded from YAML config)
-# This provides backward compatibility for tests and external code
-DEFAULT_ENTITY_STRATEGIES: Dict[str, str] = {
-    "EMAIL_ADDRESS": "smart_redact",
-    "PERSON": "replace",
-    "PHONE_NUMBER": "mask",
-    "LOCATION": "mask",
-    "US_SSN": "mask",
-    "SSN": "mask",
-    "CREDIT_CARD": "hash",
-    "IBAN_CODE": "hash",
-    "CRYPTO": "hash",
-    "US_PASSPORT": "mask",
-    "US_BANK_ACCOUNT": "mask",
-    "US_DRIVER_LICENSE": "mask",
-    "UK_NHS": "mask",
-    "DATE_TIME": "mask",
-    "IP_ADDRESS": "mask",
-    "URL": "mask",
-    "DEFAULT": "redact",
-}
-
-
 class PresidioAnonymizer:
     """
     Handles PII anonymization using Presidio's AnonymizerEngine with custom operators.

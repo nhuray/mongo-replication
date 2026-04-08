@@ -5,11 +5,31 @@ import re
 import pytest
 
 from mongo_replication.engine.pii import (
-    DEFAULT_ENTITY_STRATEGIES,
     PresidioAnonymizer,
     apply_anonymization,
     get_anonymizer,
 )
+
+# Test entity strategies for unit tests (avoids loading default config)
+TEST_ENTITY_STRATEGIES = {
+    "EMAIL_ADDRESS": "smart_redact",
+    "PERSON": "replace",
+    "PHONE_NUMBER": "mask",
+    "LOCATION": "mask",
+    "US_SSN": "mask",
+    "SSN": "mask",
+    "CREDIT_CARD": "hash",
+    "IBAN_CODE": "hash",
+    "CRYPTO": "hash",
+    "US_PASSPORT": "hash",
+    "US_BANK_ACCOUNT": "hash",
+    "US_DRIVER_LICENSE": "mask",
+    "UK_NHS": "mask",
+    "DATE_TIME": "mask",
+    "IP_ADDRESS": "mask",
+    "URL": "mask",
+    "DEFAULT": "redact",
+}
 
 
 @pytest.fixture
@@ -46,22 +66,22 @@ class TestPresidioAnonymizerInitialization:
         assert anon.strategy_aliases is not None
         assert anon.presidio_config is not None
 
-    def test_default_entity_strategies(self):
-        """Test DEFAULT_ENTITY_STRATEGIES has reasonable defaults."""
+    def test_test_entity_strategies(self):
+        """Test TEST_ENTITY_STRATEGIES has reasonable defaults for testing."""
         # Key entity types should be present
-        assert "EMAIL_ADDRESS" in DEFAULT_ENTITY_STRATEGIES
-        assert "PERSON" in DEFAULT_ENTITY_STRATEGIES
-        assert "PHONE_NUMBER" in DEFAULT_ENTITY_STRATEGIES
-        assert "US_SSN" in DEFAULT_ENTITY_STRATEGIES
-        assert "CREDIT_CARD" in DEFAULT_ENTITY_STRATEGIES
+        assert "EMAIL_ADDRESS" in TEST_ENTITY_STRATEGIES
+        assert "PERSON" in TEST_ENTITY_STRATEGIES
+        assert "PHONE_NUMBER" in TEST_ENTITY_STRATEGIES
+        assert "US_SSN" in TEST_ENTITY_STRATEGIES
+        assert "CREDIT_CARD" in TEST_ENTITY_STRATEGIES
 
         # Should have a default fallback
-        assert "DEFAULT" in DEFAULT_ENTITY_STRATEGIES
+        assert "DEFAULT" in TEST_ENTITY_STRATEGIES
 
         # Check some specific strategy assignments
-        assert DEFAULT_ENTITY_STRATEGIES["EMAIL_ADDRESS"] == "smart_redact"
-        assert DEFAULT_ENTITY_STRATEGIES["PERSON"] == "replace"
-        assert DEFAULT_ENTITY_STRATEGIES["CREDIT_CARD"] == "hash"
+        assert TEST_ENTITY_STRATEGIES["EMAIL_ADDRESS"] == "smart_redact"
+        assert TEST_ENTITY_STRATEGIES["PERSON"] == "replace"
+        assert TEST_ENTITY_STRATEGIES["CREDIT_CARD"] == "hash"
 
     def test_singleton_get_anonymizer(self):
         """Test get_anonymizer returns singleton instance."""

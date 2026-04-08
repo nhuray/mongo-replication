@@ -5,7 +5,6 @@ from .pii_handler import PIIHandler, create_pii_handler_from_config
 from .presidio_analyzer import PresidioAnalyzer, analyze_document
 from .presidio_anonymizer import (
     PresidioAnonymizer,
-    DEFAULT_ENTITY_STRATEGIES,
     apply_anonymization,
     get_anonymizer,
 )
@@ -19,7 +18,6 @@ __all__ = [
     "PresidioAnalyzer",
     "analyze_document",
     "PresidioAnonymizer",
-    "DEFAULT_ENTITY_STRATEGIES",
     "apply_anonymization",
     "get_anonymizer",
     "CollectionSampler",
