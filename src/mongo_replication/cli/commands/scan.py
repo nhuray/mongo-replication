@@ -286,12 +286,17 @@ def scan_command(
         # Parse database name from URI
         db_name = job_config.source_uri.split("/")[-1].split("?")[0]
 
-        conn_mgr = ConnectionManager(
-            source_uri=job_config.source_uri,
-            dest_uri=job_config.source_uri,  # Not used for scan
-            source_db_name=db_name,
-            dest_db_name="unused",
-        )
+        try:
+            conn_mgr = ConnectionManager(
+                source_uri=job_config.source_uri,
+                dest_uri=job_config.source_uri,  # Not used for scan
+                source_db_name=db_name,
+                dest_db_name="unused",
+            )
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1)
+
         source_db = conn_mgr.get_source_db()
 
         # Use CollectionDiscovery to apply include/exclude patterns

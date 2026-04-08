@@ -43,15 +43,67 @@ class ConnectionManager:
             dest_uri: MongoDB connection URI for destination
             source_db_name: Source database name
             dest_db_name: Destination database name
+
+        Raises:
+            ValueError: If source and destination point to the same database
         """
         self.source_uri = source_uri
         self.dest_uri = dest_uri
         self.source_db_name = source_db_name
         self.dest_db_name = dest_db_name
 
+        # Validate that source and destination are different
+        self._validate_different_databases()
+
         # Connection instances (lazy initialization)
         self._source_client: Optional[MongoClient] = None
         self._dest_client: Optional[MongoClient] = None
+
+    def _validate_different_databases(self) -> None:
+        """Validate that source and destination point to different databases.
+
+        Raises:
+            ValueError: If source and destination URIs point to the same database
+        """
+        # Parse host/port from URIs
+        source_normalized = self._normalize_uri(self.source_uri)
+        dest_normalized = self._normalize_uri(self.dest_uri)
+
+        # Check if same host and same database name
+        if source_normalized == dest_normalized and self.source_db_name == self.dest_db_name:
+            raise ValueError(
+                f"Source and destination cannot point to the same database. "
+                f"Both are configured to use '{self.source_db_name}' on '{source_normalized}'. "
+                f"Please use different databases or hosts to prevent data corruption."
+            )
+
+    @staticmethod
+    def _normalize_uri(uri: str) -> str:
+        """Normalize MongoDB URI for comparison (extract host/port).
+
+        Args:
+            uri: MongoDB connection URI
+
+        Returns:
+            Normalized host:port string
+        """
+        # Remove mongodb:// or mongodb+srv:// prefix
+        if uri.startswith("mongodb+srv://"):
+            uri = uri[14:]
+        elif uri.startswith("mongodb://"):
+            uri = uri[10:]
+
+        # Remove credentials (user:pass@)
+        if "@" in uri:
+            uri = uri.split("@", 1)[1]
+
+        # Remove database name and query parameters
+        if "/" in uri:
+            uri = uri.split("/", 1)[0]
+        if "?" in uri:
+            uri = uri.split("?", 1)[0]
+
+        return uri.strip()
 
     @retry(
         retry=retry_if_exception_type((ConnectionFailure, ServerSelectionTimeoutError)),
