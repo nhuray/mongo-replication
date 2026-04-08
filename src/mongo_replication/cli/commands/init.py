@@ -128,11 +128,11 @@ def init_command(
         # Specify custom output path
         mongorep init prod_db --output /path/to/config.yaml
     """
-    print_banner("INITIALIZE SCAN CONFIGURATION", Job=job)
+    print_banner("SETUP CONFIGURATION", Job=job)
 
     console.print()
     console.print(
-        "[bold]This wizard will help you set up scan configuration for PII Analysis.[/bold]"
+        "[bold]This wizard will help you set up the Mongo Replication Tool configuration.[/bold]"
     )
     console.print()
 
