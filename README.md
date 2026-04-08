@@ -1,5 +1,9 @@
 # MongoDB Replication Tool
 
+<p align="center">
+  <img src="docs/banner.png" alt="MongoDB Replication Tool Banner" width="800"/>
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Stars](https://img.shields.io/github/stars/nhuray/mongo-replication?style=social)](https://github.com/nhuray/mongo-replication/stargazers)
