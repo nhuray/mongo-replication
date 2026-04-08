@@ -338,10 +338,10 @@ def run_command(
                 print_info(f"Root IDs: {len(root_ids)} provided")
 
                 # Check if schema (relationships) are defined
-                if not replication_config.schema:
+                if not replication_config.schema_relationships:
                     print_error(
                         "No schema defined in config. "
-                        "Cascade replication requires a 'replication.schema' section."
+                        "Cascade replication requires a 'replication.schema_relationships' section."
                     )
                     print_info(f"See config file: {config_file}")
                     raise typer.Exit(code=1)
@@ -354,7 +354,7 @@ def run_command(
                         parent_field=rel.parent_field,
                         child_field=rel.child_field,
                     )
-                    for rel in replication_config.schema
+                    for rel in replication_config.schema_relationships
                 ]
 
                 graph = RelationshipGraph(relationships)
@@ -490,10 +490,10 @@ def run_command(
                 print_info(f"Query: {json.dumps(root_query, default=str)}")
 
                 # Check if schema (relationships) are defined
-                if not replication_config.schema:
+                if not replication_config.schema_relationships:
                     print_error(
                         "No schema defined in config. "
-                        "Cascade replication requires a 'replication.schema' section."
+                        "Cascade replication requires a 'replication.schema_relationships' section."
                     )
                     print_info(f"See config file: {config_file}")
                     raise typer.Exit(code=1)
@@ -506,7 +506,7 @@ def run_command(
                         parent_field=rel.parent_field,
                         child_field=rel.child_field,
                     )
-                    for rel in replication_config.schema
+                    for rel in replication_config.schema_relationships
                 ]
 
                 graph = RelationshipGraph(relationships)

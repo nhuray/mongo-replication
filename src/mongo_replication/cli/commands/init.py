@@ -578,7 +578,7 @@ def init_command(
 
     # Build replication config with defaults
     replication_config = ReplicationConfig(
-        defaults=replication_defaults_raw, collections={}, schema=[]
+        defaults=replication_defaults_raw, collections={}, schema_relationships=[]
     )
 
     rep_config = Config(scan=scan_config, replication=replication_config)

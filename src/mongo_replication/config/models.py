@@ -414,7 +414,7 @@ class ReplicationConfig(BaseModel):
     collections: CollectionsConfig = Field(default_factory=CollectionsConfig)
     """Per-collection configuration."""
 
-    schema: List[RelationshipConfig] = Field(default_factory=list)
+    schema_relationships: List[RelationshipConfig] = Field(default_factory=list)
     """Collection relationships for cascading replication (optional)."""
 
 
