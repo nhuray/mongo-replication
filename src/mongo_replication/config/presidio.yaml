@@ -381,13 +381,245 @@ recognizer_registry:
 #    - Install with: python -m spacy download <model_name>
 #
 # =============================================================================
+# PII ANONYMIZATION OPERATORS CONFIGURATION
+# =============================================================================
+# This section configures how detected PII entities should be anonymized.
+#
+# IMPORTANT: This is a CUSTOM mongo-replication feature, NOT built into Presidio.
+# The tool will parse this YAML and convert to Presidio's OperatorConfig objects.
+#
+# Available Presidio built-in operators:
+# - replace: Replace with a fixed value
+# - redact: Remove completely (empty string)
+# - mask: Replace characters with masking char
+# - hash: SHA-256 hash (uses random salt by default for security)
+# - encrypt: Encrypt (requires decryption key)
+# - keep: Keep original value (for allowlisting)
+#
+# Custom operators (implemented by mongo-replication):
+# - fake_email: Generate realistic fake email (Mimesis)
+# - fake_name: Generate realistic fake name (Mimesis)
+# - fake_phone: Generate realistic fake phone (Mimesis)
+# - fake_address: Generate realistic fake address (Mimesis)
+# - fake_ssn: Generate realistic fake SSN (Mimesis)
+# - fake_credit_card: Generate realistic fake credit card (Mimesis)
+# - fake_iban: Generate realistic fake IBAN (Mimesis)
+# - fake_us_bank_account: Generate realistic fake US bank account (Mimesis)
+# - stripe_testing_cc: Use Stripe test credit card numbers
+# - smart_redact: Smart redaction preserving format (emails, SSN, phone, IP)
+#
+# Documentation:
+# - Presidio Anonymizer: https://microsoft.github.io/presidio/anonymizer/
+# - Presidio Operators: https://microsoft.github.io/presidio/anonymizer/adding_operators/
+# =============================================================================
+
+anonymization_operators:
+  # Email addresses - use smart redaction to preserve domain and uniqueness
+  EMAIL_ADDRESS:
+    operator: smart_redact
+    params: {}
+
+  # Person names - replace with generic placeholder
+  PERSON:
+    operator: replace
+    params:
+      new_value: "ANONYMOUS"
+
+  # Phone numbers - mask all but last 4 digits
+  PHONE_NUMBER:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 10
+      from_end: false
+
+  # Location - partial masking
+  LOCATION:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 5
+      from_end: false
+
+  # US SSN - mask all but last 4
+  US_SSN:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 7
+      from_end: false
+
+  # Generic SSN - mask all but last 4
+  SSN:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 7
+      from_end: false
+
+  # Credit card - hash completely (too sensitive for masking)
+  CREDIT_CARD:
+    operator: hash
+    params:
+      hash_type: sha256
+
+  # IBAN - hash completely
+  IBAN_CODE:
+    operator: hash
+    params:
+      hash_type: sha256
+
+  # Cryptocurrency - hash completely
+  CRYPTO:
+    operator: hash
+    params:
+      hash_type: sha256
+
+  # US Passport - hash completely
+  US_PASSPORT:
+    operator: hash
+    params:
+      hash_type: sha256
+
+  # US Bank Account - hash completely
+  US_BANK_ACCOUNT:
+    operator: hash
+    params:
+      hash_type: sha256
+
+  # Driver's license - mask
+  US_DRIVER_LICENSE:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 8
+      from_end: false
+
+  # UK NHS number - mask
+  UK_NHS:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 7
+      from_end: false
+
+  # Date/time - mask partially (preserve year, mask day/month)
+  DATE_TIME:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 5
+      from_end: false
+
+  # IP addresses - use smart redaction to preserve first and last octet
+  IP_ADDRESS:
+    operator: smart_redact
+    params: {}
+
+  # URLs - keep (usually not PII)
+  URL:
+    operator: keep
+    params: {}
+
+  # Default operator for any unspecified entity type
+  DEFAULT:
+    operator: mask
+    params:
+      masking_char: "*"
+      chars_to_mask: 10
+      from_end: false
+
+# =============================================================================
+# CUSTOM STRATEGY ALIASES
+# =============================================================================
+# For convenience and readability, you can use these strategy names in your
+# collection configuration instead of operator names.
+#
+# Example in collection config:
+#   pii_fields:
+#     email: "fake_email"      # Use Mimesis to generate fake email
+#     ssn: "hash"              # Use Presidio's hash operator
+#     name: "smart_redact"     # Use smart redaction
+#
+# These aliases map to the operators defined above.
+# =============================================================================
+
+custom_strategy_aliases:
+  # Mimesis-based fake data generation
+  fake_email:
+    description: "Generate realistic fake email address using Mimesis"
+    operator: fake_email
+
+  fake_name:
+    description: "Generate realistic fake full name using Mimesis"
+    operator: fake_name
+
+  fake_phone:
+    description: "Generate realistic fake phone number using Mimesis"
+    operator: fake_phone
+
+  fake_address:
+    description: "Generate realistic fake address using Mimesis"
+    operator: fake_address
+
+  fake_ssn:
+    description: "Generate realistic fake SSN using Mimesis"
+    operator: fake_ssn
+
+  fake_credit_card:
+    description: "Generate realistic fake credit card using Mimesis"
+    operator: fake_credit_card
+
+  fake_iban:
+    description: "Generate realistic fake IBAN using Mimesis"
+    operator: fake_iban
+
+  fake_us_bank_account:
+    description: "Generate realistic fake US bank account using Mimesis"
+    operator: fake_us_bank_account
+
+  # Stripe testing credit cards
+  stripe_testing_cc:
+    description: "Use Stripe test credit card numbers"
+    operator: stripe_testing_cc
+
+  # Smart redaction (format-preserving)
+  smart_redact:
+    description: "Smart redaction that preserves format (emails, SSN, phone, IP)"
+    operator: smart_redact
+
+  # Built-in Presidio operators (convenience aliases)
+  redact:
+    description: "Remove PII completely (empty string)"
+    operator: redact
+
+  mask:
+    description: "Replace characters with asterisks"
+    operator: mask
+
+  hash:
+    description: "SHA-256 hash (uses random salt for security)"
+    operator: hash
+
+  replace:
+    description: "Replace with fixed value"
+    operator: replace
+
+  keep:
+    description: "Keep original value (for allowlisting)"
+    operator: keep
+
+# =============================================================================
 # REFERENCES
 # =============================================================================
 #
 # - Presidio Documentation: https://microsoft.github.io/presidio/
 # - YAML Configuration Guide: https://microsoft.github.io/presidio/samples/python/no_code_config/
 # - Adding Custom Recognizers: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
+# - Presidio Anonymizer: https://microsoft.github.io/presidio/anonymizer/
+# - Custom Operators: https://microsoft.github.io/presidio/anonymizer/adding_operators/
 # - Supported Entity Types: https://microsoft.github.io/presidio/supported_entities/
 # - Regex Pattern Testing: https://regex101.com/
+# - Stripe Test Cards: https://docs.stripe.com/testing
 #
 # =============================================================================
