@@ -612,13 +612,12 @@ def scan_command(
 
             # Add newly inferred relationships (avoid duplicates)
             existing_tuples = {
-                (rel.parent_collection, rel.child_collection, rel.child_field)
-                for rel in merged_schema_relationships
+                (rel.parent, rel.child, rel.child_field) for rel in merged_schema_relationships
             }
             for new_rel in schema_relationships:
                 rel_tuple = (
-                    new_rel.parent_collection,
-                    new_rel.child_collection,
+                    new_rel.parent,
+                    new_rel.child,
                     new_rel.child_field,
                 )
                 if rel_tuple not in existing_tuples:
