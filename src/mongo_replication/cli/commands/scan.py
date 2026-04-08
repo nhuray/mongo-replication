@@ -25,7 +25,7 @@ from mongo_replication.cli.utils.output import (
     print_summary,
     console,
 )
-from mongo_replication.config.manager import save_config, load_defaults
+from mongo_replication.config.manager import save_config, load_config
 from mongo_replication.config.models import (
     ScanConfig,
     ScanDiscoveryConfig,
@@ -192,19 +192,12 @@ def scan_command(
         print_success(f"Loaded job '{job}'")
         print_info(f"Source: {job_config.source_uri.split('@')[-1]}")
 
-        # Load existing config if it exists to use discovery patterns
+        # Load existing config if it exists (load_config already merges with defaults)
         # Determine output path first
         if output is None:
             output_path = Path(f"config/{job}_config.yaml")
         else:
             output_path = Path(output)
-
-        # Load system defaults first
-        system_defaults = load_defaults()
-        scan_defaults = system_defaults.get("scan", {})
-        discovery_defaults = scan_defaults.get("discovery", {})
-        sampling_defaults = scan_defaults.get("sampling", {})
-        pii_analysis_defaults = scan_defaults.get("pii_analysis", {})
 
         existing_config = None
         include_patterns = []
@@ -212,8 +205,6 @@ def scan_command(
 
         if output_path.exists():
             try:
-                from mongo_replication.config.manager import load_config
-
                 existing_config = load_config(output_path)
                 print_info(f"Loaded existing config from {output_path}")
 
@@ -228,47 +219,34 @@ def scan_command(
             except Exception as e:
                 print_warning(f"Could not load existing config (will create new): {e}")
 
-        # Apply precedence: CLI options > Config file > defaults.yaml
-        # This ensures user can override config settings via CLI
+        # Apply CLI option precedence: CLI options > Config file (with defaults already merged)
+        # CLI options always override config values
         final_sample_size = sample_size
         final_confidence = confidence_threshold
-        final_language = language
-        pii_enabled_from_config = pii_analysis_defaults.get("enabled", True)
+        final_language = language or "en"
+        pii_enabled_from_config = True
 
         if existing_config and existing_config.scan:
-            # Use config values if CLI options not provided
+            # Use config values if CLI options not provided (config already has defaults merged)
             if sample_size is None and existing_config.scan.sampling:
                 final_sample_size = existing_config.scan.sampling.sample_size
             if confidence_threshold is None and existing_config.scan.pii_analysis:
                 final_confidence = existing_config.scan.pii_analysis.confidence_threshold
-            # Language is always from CLI if provided, otherwise default
 
             # Check if PII is enabled in config (only if --no-pii not explicitly set)
             if existing_config.scan.pii_analysis:
                 pii_enabled_from_config = existing_config.scan.pii_analysis.enabled
 
-        # Apply defaults from defaults.yaml if still None
-        if final_sample_size is None:
-            final_sample_size = sampling_defaults.get("sample_size", 1000)
-        if final_confidence is None:
-            final_confidence = pii_analysis_defaults.get("confidence_threshold", 0.85)
-        if final_language is None:
-            final_language = "en"
-
         # Show where values came from (for transparency)
         if sample_size is not None:
             print_info(f"Sample size: {final_sample_size} (from CLI)")
-        elif existing_config and existing_config.scan and existing_config.scan.sampling:
-            print_info(f"Sample size: {final_sample_size} (from config)")
         else:
-            print_info(f"Sample size: {final_sample_size} (default)")
+            print_info(f"Sample size: {final_sample_size} (from config)")
 
         if confidence_threshold is not None:
             print_info(f"Confidence threshold: {final_confidence} (from CLI)")
-        elif existing_config and existing_config.scan and existing_config.scan.pii_analysis:
-            print_info(f"Confidence threshold: {final_confidence} (from config)")
         else:
-            print_info(f"Confidence threshold: {final_confidence} (default)")
+            print_info(f"Confidence threshold: {final_confidence} (from config)")
 
         console.print()
 
@@ -292,9 +270,14 @@ def scan_command(
             Interactive="Yes" if interactive else "No",
         )
 
-        # Apply default exclude patterns from defaults.yaml if not already set
-        if not exclude_patterns:
-            exclude_patterns = discovery_defaults.get("exclude_patterns", [])
+        # Apply default exclude patterns if not already set (from config with defaults merged)
+        if (
+            not exclude_patterns
+            and existing_config
+            and existing_config.scan
+            and existing_config.scan.discovery
+        ):
+            exclude_patterns = existing_config.scan.discovery.exclude_patterns or []
 
         # Step 2: Connect to database and discover collections
         print_step(2, 6, "Discover Collections")
@@ -376,35 +359,22 @@ def scan_command(
         # Step 4: Load or build scan configuration (needed before PII analysis)
         print_step(4, 6, "Load Scan Configuration")
 
-        # Load defaults for PII configuration from defaults.yaml
-        default_entity_types = pii_analysis_defaults.get("entity_types", [])
-        default_strategies = pii_analysis_defaults.get("default_strategies", {})
-        default_allowlist = pii_analysis_defaults.get("allowlist", [])
-        default_sample_strategy = sampling_defaults.get("sample_strategy", "stratified")
-
-        # Use existing config values if available (preserves user customizations)
+        # Get configuration values from existing config (which already has defaults merged)
+        entity_types = []
+        strategies = {}
+        allowlist = []
+        sample_strategy = "stratified"
         presidio_config = None
-        if existing_config and existing_config.scan:
-            entity_types = default_entity_types
-            strategies = default_strategies
-            allowlist = default_allowlist
-            sample_strategy = default_sample_strategy
 
+        if existing_config and existing_config.scan:
             if existing_config.scan.pii_analysis:
-                existing_pii = existing_config.scan.pii_analysis
-                entity_types = existing_pii.entity_types
-                strategies = existing_pii.default_strategies
-                allowlist = existing_pii.allowlist
-                presidio_config = existing_pii.presidio_config
+                entity_types = existing_config.scan.pii_analysis.entity_types or []
+                strategies = existing_config.scan.pii_analysis.default_strategies or {}
+                allowlist = existing_config.scan.pii_analysis.allowlist or []
+                presidio_config = existing_config.scan.pii_analysis.presidio_config
 
             if existing_config.scan.sampling:
                 sample_strategy = existing_config.scan.sampling.sample_strategy
-        else:
-            entity_types = default_entity_types
-            strategies = default_strategies
-            allowlist = default_allowlist
-            sample_strategy = default_sample_strategy
-            presidio_config = None
 
         # Show entity type configuration
         if entity_types:
@@ -471,40 +441,38 @@ def scan_command(
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Determine the enabled flag to save:
-        # - If user explicitly passed --no-pii, save enabled=false
-        # - Otherwise, save enabled=true (default behavior)
-        # This means the config will remember the user's preference
-        pii_config_enabled = not no_pii
-
-        scan_config = ScanConfig(
-            discovery=ScanDiscoveryConfig(
-                include_patterns=include_patterns,
-                exclude_patterns=exclude_patterns,
-            ),
-            sampling=ScanSamplingConfig(
-                sample_size=final_sample_size,
-                sample_strategy=sample_strategy,
-            ),
-            pii_analysis=ScanPIIAnalysisConfig(
-                enabled=pii_config_enabled,
-                confidence_threshold=final_confidence,
-                entity_types=entity_types,
-                default_strategies=strategies,
-                allowlist=allowlist,
-                presidio_config=presidio_config,
-            ),
-        )
+        # Preserve existing scan config (don't modify based on CLI flags)
+        # CLI flags are for runtime only, not for updating the saved configuration
+        if existing_config and existing_config.scan:
+            # Keep the existing scan configuration unchanged
+            scan_config = existing_config.scan
+        else:
+            # No existing config - create a minimal scan config
+            # This happens on first scan when no config file exists yet
+            scan_config = ScanConfig(
+                discovery=ScanDiscoveryConfig(
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
+                ),
+                sampling=ScanSamplingConfig(
+                    sample_size=final_sample_size,
+                    sample_strategy=sample_strategy,
+                ),
+                pii_analysis=ScanPIIAnalysisConfig(
+                    enabled=pii_enabled_from_config,
+                    confidence_threshold=final_confidence,
+                    entity_types=entity_types,
+                    default_strategies=strategies,
+                    allowlist=allowlist,
+                    presidio_config=presidio_config,
+                ),
+            )
 
         # Build replication config from PII analysis
-        # Load cursor_fields from scan.cursor_detection config
-        cursor_detection_config = system_defaults.get("scan", {}).get("cursor_detection", {})
-        cursor_fields = cursor_detection_config.get(
-            "cursor_fields", ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
-        )
-
-        # Load replication defaults for other settings
-        replication_defaults_raw = system_defaults.get("replication", {}).get("defaults", {})
+        # Load cursor_fields and replication defaults from existing config (which has defaults merged)
+        cursor_fields = []
+        if existing_config and existing_config.scan and existing_config.scan.cursor_detection:
+            cursor_fields = existing_config.scan.cursor_detection.cursor_fields or cursor_fields
 
         new_collection_configs = {}
         for collection_name in selected_collections:
@@ -538,31 +506,40 @@ def scan_command(
             )
 
         # Merge with existing collections if config exists
-        merged_collections = {}
-
-        # Start with system defaults
-        defaults = replication_defaults_raw.copy()
+        merged_collections_dict = {}
+        defaults_dict = {}
 
         if existing_config and existing_config.replication:
-            # Start with existing collections
-            merged_collections = dict(existing_config.replication.collections)
-            # Merge existing defaults with system defaults (existing takes precedence)
-            defaults = {**replication_defaults_raw, **existing_config.replication.defaults}
+            # Start with existing collections (convert CollectionConfig objects to dicts)
+            # Exclude 'name' field since CollectionsConfig validator will set it from the key
+            for coll_name, coll_config in existing_config.replication.collections.items():
+                coll_dict = coll_config.model_dump()
+                coll_dict.pop("name", None)  # Remove 'name' to avoid duplicate in validator
+                merged_collections_dict[coll_name] = coll_dict
 
-            # Update/add newly scanned collections
+            # Use existing defaults (convert Pydantic model to dict)
+            if existing_config.replication.defaults:
+                defaults_dict = existing_config.replication.defaults.model_dump()
+
+            # Update/add newly scanned collections (convert to dict)
             for coll_name, coll_config in new_collection_configs.items():
-                if coll_name in merged_collections:
+                if coll_name in merged_collections_dict:
                     print_info(f"Updating existing config for collection: {coll_name}")
-                merged_collections[coll_name] = coll_config
+                coll_dict = coll_config.model_dump()
+                coll_dict.pop("name", None)  # Remove 'name' to avoid duplicate in validator
+                merged_collections_dict[coll_name] = coll_dict
         else:
-            # No existing config, use new collections
-            merged_collections = new_collection_configs
+            # No existing config, use new collections (convert to dict)
+            for coll_name, coll_config in new_collection_configs.items():
+                coll_dict = coll_config.model_dump()
+                coll_dict.pop("name", None)  # Remove 'name' to avoid duplicate in validator
+                merged_collections_dict[coll_name] = coll_dict
 
         config = Config(
             scan=scan_config,
             replication=ReplicationConfig(
-                defaults=defaults,
-                collections=merged_collections,
+                defaults=defaults_dict,
+                collections=merged_collections_dict,
             ),
         )
 
@@ -586,7 +563,7 @@ def scan_command(
             print_success(
                 f"Merged configuration to {output_path} "
                 f"(updated: {updated_count}, added: {added_count}, "
-                f"total: {len(merged_collections)} collections)"
+                f"total: {len(merged_collections_dict)} collections)"
             )
         else:
             print_success(f"Saved configuration to {output_path}")

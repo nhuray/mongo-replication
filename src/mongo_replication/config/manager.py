@@ -136,7 +136,6 @@ def load_config(config_path: Path) -> Config:
 
     # Merge config
     merged_config = deep_merge(system_defaults, raw_config)
-    # print(yaml.dump(merged_config, default_flow_style=False))
     logger.debug(f"Merged config: {merged_config}")
 
     # Use Pydantic validation to parse the merged config
