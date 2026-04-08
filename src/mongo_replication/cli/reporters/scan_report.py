@@ -132,8 +132,8 @@ def generate_scan_report(
         for rel in schema_relationships:
             relationships_data.append(
                 {
-                    "parent": rel.parent if hasattr(rel, "parent") else rel.parent_collection,
-                    "child": rel.child if hasattr(rel, "child") else rel.child_collection,
+                    "parent": rel.parent,
+                    "child": rel.child,
                     "parent_field": rel.parent_field,
                     "child_field": rel.child_field,
                 }
