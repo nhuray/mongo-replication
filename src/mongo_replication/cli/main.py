@@ -8,6 +8,7 @@ Usage:
     mongorep run <job> [OPTIONS]     # Execute replication job
 """
 
+import signal
 import sys
 from pathlib import Path
 import typer
@@ -44,6 +45,18 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+
+
+def signal_handler(signum, frame):
+    """Handle interrupt signals (Ctrl+C, SIGTERM) gracefully."""
+    console.print()
+    console.print("[yellow]⚠ Operation interrupted by user[/yellow]")
+    sys.exit(130)  # Standard exit code for SIGINT
+
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 @app.callback()

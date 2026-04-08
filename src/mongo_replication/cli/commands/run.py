@@ -918,7 +918,7 @@ def run_command(
         if result.failed_collections:
             raise typer.Exit(code=1)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         console.print()
         print_warning("Replication cancelled by user")
         raise typer.Exit(code=130)
