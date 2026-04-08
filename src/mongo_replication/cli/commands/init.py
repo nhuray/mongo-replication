@@ -167,6 +167,24 @@ def init_command(
         # Specify custom output path
         mongorep init prod_db --output /path/to/config.yaml
     """
+    try:
+        _run_init_wizard(job, output)
+    except (KeyboardInterrupt, EOFError):
+        # Handle Ctrl+C and Ctrl+D gracefully
+        console.print()
+        print_warning("Configuration cancelled by user")
+        raise typer.Exit(code=130)
+    except typer.Exit:
+        # Re-raise typer exits
+        raise
+    except Exception as e:
+        console.print()
+        print_error(f"Configuration failed: {e}")
+        raise typer.Exit(code=1)
+
+
+def _run_init_wizard(job: str, output: Optional[Path]) -> None:
+    """Run the interactive init wizard (internal implementation)."""
     print_banner("SETUP CONFIGURATION", Job=job)
 
     console.print()

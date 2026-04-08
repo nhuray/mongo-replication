@@ -692,10 +692,13 @@ def scan_command(
         }
         print_summary("Scan Complete", summary_dict)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         console.print()
         print_warning("Scan cancelled by user")
         raise typer.Exit(code=130)
+    except typer.Exit:
+        # Re-raise typer exits
+        raise
     except Exception as e:
         console.print()
         print_error(f"Scan failed: {e}")

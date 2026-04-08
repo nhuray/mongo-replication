@@ -1,8 +1,14 @@
 # MongoDB Replication Tool
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![GitHub Stars](https://img.shields.io/github/stars/nhuray/mongo-replication?style=social)](https://github.com/nhuray/mongo-replication/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/nhuray/mongo-replication)](https://github.com/nhuray/mongo-replication/issues)
+[![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
 A production-grade MongoDB replication tool with built-in PII redaction, parallel processing, cascade filtering, and intelligent state management.
 
-## Features
+## ✨ Features
 
 ### Core Capabilities
 - **Parallel Replication**: Process multiple collections simultaneously with configurable worker pools
@@ -21,7 +27,7 @@ A production-grade MongoDB replication tool with built-in PII redaction, paralle
 - **Configurable State Collections**: Customize state collection names via configuration
 - **Automatic Index Cleanup**: Handles migration from legacy state schemas
 
-## Installation
+## 📦 Installation
 
 ```bash
 pip install mongo-replication
@@ -35,7 +41,7 @@ cd mongo-replication
 uv sync
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Initialize a New Job
 
@@ -105,7 +111,7 @@ mongorep run my_job --interactive
 mongorep run my_job --dry-run
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 ### Basic Configuration Structure
 
@@ -245,7 +251,7 @@ replication:
 
 See [Configuration Documentation](docs/configuration.md) for complete reference.
 
-## CLI Commands
+## 🔧 CLI Commands
 
 ### `init` - Initialize a New Job
 
@@ -344,7 +350,7 @@ Examples:
   mongorep run my_job --dry-run
 ```
 
-## Advanced Usage
+## 🎯 Advanced Usage
 
 ### Cascade Replication
 
@@ -437,10 +443,10 @@ replication:
        fields_exclude:
          - password_hash
          - internal_notes
-         - legacy_data
+          - legacy_data
 ```
 
-## State Management
+## 💾 State Management
 
 The tool maintains two state collections:
 
@@ -459,7 +465,7 @@ Per-collection state including:
 - Link to parent run
 
 
-## Programmatic Usage
+## 🐍 Programmatic Usage
 
 Use as a Python library:
 
@@ -493,7 +499,7 @@ print(f"Documents replicated: {result.total_documents_processed}")
 print(f"Duration: {result.total_duration_seconds}s")
 ```
 
-## Architecture
+## 🏗️ Architecture
 
 See [Technical Design Documentation](docs/technical-design.md) for:
 - System architecture overview
@@ -502,7 +508,7 @@ See [Technical Design Documentation](docs/technical-design.md) for:
 - PII detection pipeline
 - Extension points
 
-## Performance Tips
+## ⚡ Performance Tips
 
 1. **Batch Size**: Adjust based on document size and network latency
    - Large documents: 100-500
@@ -516,7 +522,7 @@ See [Technical Design Documentation](docs/technical-design.md) for:
 
 4. **Incremental Loading**: Use timestamp-based cursor fields for optimal performance
 
-## Troubleshooting
+## 🔍 Troubleshooting
 
 **Performance issues**
 ```bash
@@ -537,7 +543,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please:
 
@@ -547,16 +553,16 @@ Contributions are welcome! Please:
 4. Ensure all tests pass
 5. Submit a pull request
 
-## License
+## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## Support
+## 💬 Support
 
 - **Issues**: [GitHub Issues](https://github.com/nhuray/mongo-replication/issues)
 - **Documentation**: [Full Documentation](https://github.com/nhuray/mongo-replication#readme)
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 Built with:
 - [PyMongo](https://pymongo.readthedocs.io/) - MongoDB Python driver
