@@ -1,6 +1,6 @@
-"""PII handler for manual PII field redaction.
+"""PII handler for manual PII field anonymization.
 
-This module provides PII handling with manual field configuration.
+This module provides PII handling with manual field configuration using Presidio.
 Use the scan command to generate PII field configurations.
 """
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class PIIHandler:
     """
-    PII handler for manual field-based redaction.
+    PII handler for manual field-based anonymization using Presidio.
     """
 
     def __init__(
@@ -23,7 +23,7 @@ class PIIHandler:
         Initialize PII handler.
 
         Args:
-            pii_fields: Manual field->strategy mappings for redaction
+            pii_fields: Manual field->strategy mappings for anonymization
         """
         self.pii_fields = pii_fields or {}
 
@@ -33,14 +33,14 @@ class PIIHandler:
         pii_fields: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Process documents with PII redaction.
+        Process documents with PII anonymization.
 
         Args:
             documents: List of documents to process
             pii_fields: Manual field->strategy mappings (overrides instance manual_pii_fields if provided)
 
         Returns:
-            List of documents with PII redacted
+            List of documents with PII anonymized
         """
         if not documents:
             return documents
@@ -55,15 +55,20 @@ class PIIHandler:
         documents: List[Dict[str, Any]],
         manual_pii_fields: Dict[str, str],
     ) -> List[Dict[str, Any]]:
-        """Apply manual PII redaction."""
+        """Apply manual PII redaction using Presidio anonymizer."""
         if not manual_pii_fields:
             return documents
 
-        from mongo_replication.engine.pii.pii_redaction import redact_document
+        from mongo_replication.engine.pii.presidio_anonymizer import apply_anonymization
 
         redacted = []
         for doc in documents:
-            redacted_doc = redact_document(doc, manual_pii_fields)
+            # Use apply_anonymization with manual field overrides
+            redacted_doc = apply_anonymization(
+                document=doc,
+                pii_map=None,  # No auto-detected PII, only manual overrides
+                manual_overrides=manual_pii_fields,
+            )
             redacted.append(redacted_doc)
 
         return redacted

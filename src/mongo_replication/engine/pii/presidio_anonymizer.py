@@ -1,479 +1,372 @@
-"""PII anonymization using Microsoft Presidio with custom Mimesis operators.
+"""PII anonymization using Microsoft Presidio with custom operators.
 
 This module provides anonymization capabilities that integrate Presidio's
-anonymization engine with Mimesis for realistic synthetic data generation.
+AnonymizerEngine with custom operators for:
+- Built-in Presidio operators (mask, hash, redact, replace, etc.)
+- Custom Mimesis-based operators for realistic synthetic data generation
+- Smart redaction that preserves format
+
+The anonymization operators are configured via YAML (presidio.yaml).
 """
 
 import copy
-import hashlib
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from mimesis import Person, Address
 from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
+
+from mongo_replication.config.presidio_config import PresidioConfig
+from mongo_replication.engine.pii.custom_operators import CUSTOM_OPERATORS
 
 logger = logging.getLogger(__name__)
 
 
-# Default mapping of Presidio entity types to anonymization strategies
-# Using smart redaction that preserves format and some characters for data utility
-DEFAULT_ENTITY_STRATEGIES = {
-    "EMAIL_ADDRESS": "redact",  # Preserves domain + uniqueness: john.doe@corp.com -> jo****oe@corp.com
-    "PERSON": "redact",  # Preserves first/last chars: Joh*** Doe (or Doe*** for single name)
-    "PHONE_NUMBER": "redact",  # Preserves format: +1-***-***-4567
-    "LOCATION": "redact",  # Preserves first/last chars
-    "US_SSN": "redact",  # Preserves format: ***-**-6789
-    "SSN": "redact",  # Preserves format
-    "CREDIT_CARD": "hash",  # Too sensitive, hash completely
-    "IBAN": "hash",  # Too sensitive, hash completely
-    "CRYPTO": "hash",  # Too sensitive, hash completely
-    "US_PASSPORT": "hash",  # Too sensitive, hash completely
-    "US_DRIVER_LICENSE": "redact",  # Preserves format
-    "UK_NHS": "redact",  # Preserves format
-    "DATE_TIME": "redact",  # Preserves format
-    "IP_ADDRESS": "redact",  # Preserves format: 192.***.*.123
-    "URL": "redact",  # Preserves format
-    # Default for any other entity type
+# Default entity-to-strategy mappings (loaded from YAML config)
+# This provides backward compatibility for tests and external code
+DEFAULT_ENTITY_STRATEGIES: Dict[str, str] = {
+    "EMAIL_ADDRESS": "smart_redact",
+    "PERSON": "replace",
+    "PHONE_NUMBER": "mask",
+    "LOCATION": "mask",
+    "US_SSN": "mask",
+    "SSN": "mask",
+    "CREDIT_CARD": "hash",
+    "IBAN_CODE": "hash",
+    "CRYPTO": "hash",
+    "US_PASSPORT": "mask",
+    "US_BANK_ACCOUNT": "mask",
+    "US_DRIVER_LICENSE": "mask",
+    "UK_NHS": "mask",
+    "DATE_TIME": "mask",
+    "IP_ADDRESS": "mask",
+    "URL": "mask",
     "DEFAULT": "redact",
 }
 
 
 class PresidioAnonymizer:
     """
-    Handles PII anonymization using Presidio with custom Mimesis operators.
+    Handles PII anonymization using Presidio's AnonymizerEngine with custom operators.
 
-    Provides integration between Presidio's anonymization engine and Mimesis
-    for generating realistic synthetic data. Supports the same strategies
-    as the existing PIIRedactor for backward compatibility.
+    This class integrates Presidio's anonymization capabilities with custom operators
+    for MongoDB document anonymization. It loads operator configurations from YAML
+    and applies them to detected PII fields.
     """
 
-    def __init__(self, entity_strategy_map: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        presidio_config_path: Optional[str] = None,
+        operator_overrides: Optional[Dict[str, OperatorConfig]] = None,
+    ):
         """
         Initialize the anonymizer.
 
         Args:
-            entity_strategy_map: Optional custom mapping of entity types to strategies.
-                                 If None, uses DEFAULT_ENTITY_STRATEGIES.
+            presidio_config_path: Optional path to custom Presidio YAML config.
+                                 If None, uses bundled default configuration.
+            operator_overrides: Optional operator config overrides (for testing).
         """
-        self.person = Person()
-        self.address = Address()
+        # Initialize Presidio AnonymizerEngine
         self.anonymizer_engine = AnonymizerEngine()
-        self.entity_strategy_map = entity_strategy_map or DEFAULT_ENTITY_STRATEGIES.copy()
+
+        # Register custom operators
+        for operator_class in CUSTOM_OPERATORS:
+            self.anonymizer_engine.add_anonymizer(operator_class)
+            logger.debug(f"Registered custom operator: {operator_class.__name__}")
+
+        # Load operator configurations from YAML
+        self.presidio_config = PresidioConfig(presidio_config_path)
+        self.operator_configs = operator_overrides or self.presidio_config.get_operator_configs()
+        self.strategy_aliases = self.presidio_config.get_strategy_aliases()
+
+        logger.info(
+            f"PresidioAnonymizer initialized with {len(self.operator_configs)} operator configs"
+        )
 
     def apply_anonymization(
         self,
         document: Dict[str, Any],
-        pii_map: Dict[str, Tuple[str, float]],
+        pii_map: Optional[Dict[str, Tuple[str, float]]] = None,
         manual_overrides: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
-        Apply anonymization to a document based on detected PII.
+        Apply anonymization to a document based on detected PII or manual field mappings.
 
         Args:
             document: The MongoDB document to anonymize
-            pii_map: Map of field paths to (entity_type, confidence) from analyzer
+            pii_map: Optional map of field paths to (entity_type, confidence) from analyzer
             manual_overrides: Optional manual field->strategy overrides
 
         Returns:
             Anonymized document with PII fields redacted
+
+        Example:
+            >>> anonymizer = PresidioAnonymizer()
+            >>> doc = {"email": "john@example.com", "ssn": "123-45-6789"}
+            >>> pii_map = {"email": ("EMAIL_ADDRESS", 0.95), "ssn": ("US_SSN", 0.99)}
+            >>> anonymized = anonymizer.apply_anonymization(doc, pii_map)
         """
         # Deep copy to avoid modifying original
         anonymized = copy.deepcopy(document)
 
-        # Merge auto-detected PII with manual overrides (manual takes precedence)
-        final_strategies = self._merge_strategies(pii_map, manual_overrides)
+        # Determine which fields to anonymize and with what operators
+        field_operators = self._build_field_operators(pii_map, manual_overrides)
 
         # Apply anonymization to each field
-        for field_path, strategy in final_strategies.items():
-            self._anonymize_field(anonymized, field_path, strategy)
+        for field_path, operator_config in field_operators.items():
+            self._anonymize_field(anonymized, field_path, operator_config)
 
         return anonymized
 
-    def _merge_strategies(
+    def _build_field_operators(
         self,
-        pii_map: Dict[str, Tuple[str, float]],
+        pii_map: Optional[Dict[str, Tuple[str, float]]],
         manual_overrides: Optional[Dict[str, str]],
-    ) -> Dict[str, str]:
+    ) -> Dict[str, OperatorConfig]:
         """
-        Merge auto-detected PII strategies with manual overrides.
+        Build mapping of field paths to OperatorConfig objects.
 
-        Manual overrides take precedence. If a manual override has value None,
-        that field will be excluded from anonymization (even if auto-detected).
+        Merges auto-detected PII with manual overrides (manual takes precedence).
 
         Args:
             pii_map: Auto-detected PII fields with entity types and confidence
             manual_overrides: Manual field->strategy overrides
 
         Returns:
-            Final mapping of field_path -> strategy
+            Dictionary mapping field paths to OperatorConfig objects
         """
-        strategies: Dict[str, str] = {}
+        field_operators: Dict[str, OperatorConfig] = {}
 
-        # Start with auto-detected fields, map entity types to strategies
-        for field_path, (entity_type, _) in pii_map.items():
-            strategy = self.entity_strategy_map.get(
-                entity_type, self.entity_strategy_map["DEFAULT"]
-            )
-            strategies[field_path] = strategy
+        # Start with auto-detected fields
+        if pii_map:
+            for field_path, (entity_type, _) in pii_map.items():
+                # Get operator config for this entity type
+                operator_config = self.operator_configs.get(
+                    entity_type, self.operator_configs.get("DEFAULT")
+                )
+                if operator_config:
+                    field_operators[field_path] = operator_config
 
         # Apply manual overrides
         if manual_overrides:
-            for field_path, strategy in manual_overrides.items():
-                if strategy is None:
+            for field_path, strategy_name in manual_overrides.items():
+                if strategy_name is None:
                     # None means "don't anonymize this field"
-                    strategies.pop(field_path, None)
+                    field_operators.pop(field_path, None)
                 else:
-                    # Manual strategy overrides auto-detected
-                    strategies[field_path] = strategy
+                    # Convert strategy name to operator config
+                    operator_config = self._strategy_to_operator_config(strategy_name)
+                    if operator_config:
+                        field_operators[field_path] = operator_config
 
-        return strategies
+        return field_operators
 
-    def _anonymize_field(self, document: Dict[str, Any], field_path: str, strategy: str) -> None:
+    def _strategy_to_operator_config(self, strategy_name: str) -> Optional[OperatorConfig]:
         """
-        Anonymize a specific field in a document.
+        Convert a strategy name to an OperatorConfig.
+
+        Strategy names can be:
+        1. Operator names directly (e.g., "mask", "hash", "redact")
+        2. Strategy aliases from YAML (e.g., "fake_email", "smart_redact")
+        3. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
+
+        Args:
+            strategy_name: The strategy name to convert
+
+        Returns:
+            OperatorConfig object, or None if strategy not found
+        """
+        # First check if it's a strategy alias
+        operator_name = self.strategy_aliases.get(strategy_name, strategy_name)
+
+        # Check if it's an entity type with configured operator
+        if strategy_name in self.operator_configs:
+            return self.operator_configs[strategy_name]
+
+        # Create OperatorConfig for the operator name
+        # For simple operators like "mask", "hash", "redact", use default params
+        return OperatorConfig(operator_name, {})
+
+    def _anonymize_field(
+        self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
+    ) -> None:
+        """
+        Anonymize a specific field in a document using Presidio.
+
+        This method treats each field value as text and uses Presidio's
+        AnonymizerEngine to anonymize it.
 
         Args:
             document: The document to modify
             field_path: Dot-notation path to the field
-            strategy: Anonymization strategy to apply
+            operator_config: The OperatorConfig to apply
         """
         # Handle nested fields with dot notation
         if "." in field_path:
-            self._anonymize_nested_field(document, field_path, strategy)
+            self._anonymize_nested_field(document, field_path, operator_config)
         elif field_path in document:
-            document[field_path] = self._apply_strategy(document[field_path], strategy)
+            # Get the field value
+            value = document[field_path]
+            # Anonymize it
+            anonymized_value = self._anonymize_value(value, operator_config)
+            # Update the document
+            document[field_path] = anonymized_value
 
     def _anonymize_nested_field(
-        self, document: Dict[str, Any], field_path: str, strategy: str
+        self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
     ) -> None:
         """
         Anonymize a nested field using dot notation.
 
+        Supports array fields - e.g., "contacts.email" will anonymize email in all array elements.
+
         Args:
             document: The document containing the nested field
-            field_path: Dot-separated path to the field (e.g., "user.address.street")
-            strategy: The anonymization strategy to apply
+            field_path: Dot-separated path to the field (e.g., "address.street" or "contacts.email")
+            operator_config: The OperatorConfig to apply
         """
         parts = field_path.split(".")
-        current = document
+        self._anonymize_nested_recursive(document, parts, operator_config)
 
-        # Navigate to the parent of the target field
-        for part in parts[:-1]:
-            # Handle array notation like "items[0]"
-            if "[" in part:
-                array_name, index = part.replace("]", "").split("[")
-                index = int(index)
-
-                if array_name in current and isinstance(current[array_name], list):
-                    if len(current[array_name]) > index:
-                        current = current[array_name][index]
-                    else:
-                        return  # Index out of bounds
-                else:
-                    return  # Field doesn't exist
-            elif part in current and isinstance(current[part], dict):
-                current = current[part]
-            else:
-                return  # Field path doesn't exist
-
-        # Apply anonymization to the final field
-        final_field = parts[-1]
-        if final_field in current:
-            current[final_field] = self._apply_strategy(current[final_field], strategy)
-
-    def _apply_strategy(self, value: Any, strategy: str) -> Any:
+    def _anonymize_nested_recursive(
+        self, current: Any, remaining_parts: list, operator_config: OperatorConfig
+    ) -> None:
         """
-        Apply an anonymization strategy to a value.
+        Recursively anonymize a nested field, handling arrays.
+
+        Args:
+            current: Current position in the document
+            remaining_parts: Remaining parts of the field path
+            operator_config: The OperatorConfig to apply
+        """
+        if not remaining_parts:
+            return
+
+        # Base case: we've reached the final field
+        if len(remaining_parts) == 1:
+            final_field = remaining_parts[0]
+
+            if isinstance(current, dict) and final_field in current:
+                current[final_field] = self._anonymize_value(current[final_field], operator_config)
+            elif isinstance(current, list):
+                # Apply to all elements in the array
+                for item in current:
+                    if isinstance(item, dict) and final_field in item:
+                        item[final_field] = self._anonymize_value(
+                            item[final_field], operator_config
+                        )
+            return
+
+        # Recursive case: navigate deeper
+        next_part = remaining_parts[0]
+        rest = remaining_parts[1:]
+
+        if isinstance(current, dict) and next_part in current:
+            next_value = current[next_part]
+
+            if isinstance(next_value, list):
+                # Apply to all elements in the array
+                for item in next_value:
+                    self._anonymize_nested_recursive(item, rest, operator_config)
+            else:
+                # Continue with single object
+                self._anonymize_nested_recursive(next_value, rest, operator_config)
+
+    def _anonymize_value(self, value: Any, operator_config: OperatorConfig) -> Any:
+        """
+        Anonymize a single value using Presidio's AnonymizerEngine.
+
+        This method treats the value as text and creates a synthetic RecognizerResult
+        that spans the entire value, then uses Presidio to anonymize it.
 
         Args:
             value: The value to anonymize
-            strategy: The strategy to apply
+            operator_config: The OperatorConfig to apply
 
         Returns:
             Anonymized value
-
-        Raises:
-            ValueError: If strategy is not recognized
         """
-        strategy_map = {
-            "fake_email": self._fake_email,
-            "fake_name": self._fake_name,
-            "fake_phone": self._fake_phone,
-            "fake_address": self._fake_address,
-            "hash": self._hash,
-            "redact": self._redact,
-            "mask": self._mask,
-            "null": self._null,
-        }
+        if value is None:
+            return None
 
-        if strategy not in strategy_map:
-            raise ValueError(
-                f"Unknown anonymization strategy: {strategy}. "
-                f"Available strategies: {', '.join(strategy_map.keys())}"
+        # Convert value to string for anonymization
+        text = str(value)
+
+        if not text.strip():
+            return value
+
+        # Create a synthetic RecognizerResult that spans the entire text
+        # This allows us to use Presidio's anonymize() method for field-level anonymization
+        recognizer_result = RecognizerResult(
+            entity_type="PII",  # Generic entity type
+            start=0,
+            end=len(text),
+            score=1.0,
+        )
+
+        try:
+            # Use Presidio's anonymize method with our operator config
+            result = self.anonymizer_engine.anonymize(
+                text=text,
+                analyzer_results=[recognizer_result],
+                operators={"PII": operator_config},  # Map our generic entity to the operator
             )
 
-        return strategy_map[strategy](value)
+            return result.text
 
-    # Anonymization strategy implementations (using Mimesis)
-
-    def _fake_email(self, value: Any) -> str:
-        """Generate a fake email address."""
-        return self.person.email()
-
-    def _fake_name(self, value: Any) -> str:
-        """Generate a fake full name."""
-        return self.person.full_name()
-
-    def _fake_phone(self, value: Any) -> str:
-        """Generate a fake phone number."""
-        return self.person.phone_number()
-
-    def _fake_address(self, value: Any) -> str:
-        """Generate a fake address."""
-        return self.address.address()
-
-    def _hash(self, value: Any) -> str:
-        """
-        Hash a value using SHA-256.
-
-        Preserves referential integrity - same input always produces same hash.
-        Adds a salt based on the value type for better security.
-        """
-        if value is None:
-            return hashlib.sha256(b"").hexdigest()
-
-        value_str = str(value)
-        return hashlib.sha256(value_str.encode("utf-8")).hexdigest()
-
-    def _redact(self, value: Any) -> str:
-        """
-        Smart redaction that preserves first 3 and last 3 characters.
-
-        Preserves format for well-known patterns:
-        - Email: john.doe@corp.com -> jo****oe@corp.com (preserves domain + uniqueness)
-        - SSN: ***-**-6789
-        - Phone: +1-***-***-4567 or (555) ***-4567
-        - IP: 192.***.*.123
-        - General: abc***xyz (for strings >= 7 chars)
-
-        For shorter strings (< 7 chars), shows partial information or masks completely.
-        """
-        if value is None:
-            return "***"
-
-        value_str = str(value).strip()
-        if len(value_str) == 0:
-            return "***"
-
-        # Detect and handle specific formats
-
-        # Email format: user@domain.com -> abc***@ex***.com
-        if "@" in value_str:
-            return self._redact_email(value_str)
-
-        # IP address format (check before phone, since IPs can look like phones)
-        # 192.168.1.1 -> 192.***.*.1
-        if self._is_ip_format(value_str):
-            return self._redact_ip(value_str)
-
-        # SSN format: 123-45-6789 -> ***-**-6789
-        if self._is_ssn_format(value_str):
-            return self._redact_ssn(value_str)
-
-        # Phone number format (various)
-        if self._is_phone_format(value_str):
-            return self._redact_phone(value_str)
-
-        # URL format: https://example.com/path -> htt***://***.com/pa***th
-        if value_str.startswith(("http://", "https://", "ftp://")):
-            return self._redact_url(value_str)
-
-        # Generic redaction: preserve first 3 and last 3 characters
-        if len(value_str) <= 6:
-            # Too short to show both sides, mask more aggressively
-            if len(value_str) <= 3:
-                return "***"
-            else:
-                # Show first char only for 4-6 char strings
-                return value_str[0] + "***"
-        else:
-            # Show first 3 and last 3
-            return value_str[:3] + "***" + value_str[-3:]
-
-    def _redact_email(self, email: str) -> str:
-        """
-        Redact email preserving domain and uniqueness.
-
-        Transforms: john.smith@corp.com -> jo****th@corp.com
-
-        This approach:
-        - Preserves the full domain (important for unique indexes)
-        - Shows first 2 and last 2 chars of local part for readability
-        - Maintains uniqueness by hashing the middle portion
-        - Prevents duplicate key errors on unique email indexes
-        """
-        try:
-            local, domain = email.rsplit("@", 1)
-
-            # Redact local part while preserving uniqueness
-            if len(local) <= 4:
-                # For short local parts, show first char + hash
-                if len(local) > 0:
-                    # Hash the local part to maintain uniqueness
-                    hash_val = hashlib.sha256(local.encode("utf-8")).hexdigest()[:4]
-                    local_redacted = local[0] + hash_val
-                else:
-                    local_redacted = "****"
-            else:
-                # For longer local parts, show first 2 and last 2 chars with hash in middle
-                # This preserves readability while maintaining uniqueness
-                hash_val = hashlib.sha256(local.encode("utf-8")).hexdigest()[:4]
-                local_redacted = local[:2] + hash_val + local[-2:]
-
-            # Keep domain unchanged to avoid duplicate keys
-            return f"{local_redacted}@{domain}"
-        except Exception:
-            # Fallback to generic redaction if parsing fails
-            return email[:3] + "***" + email[-3:] if len(email) >= 7 else email[0] + "***"
-
-    def _redact_ssn(self, ssn: str) -> str:
-        """Redact SSN preserving format: 123-45-6789 -> ***-**-6789"""
-        # Replace digits but preserve separators
-        result = ""
-        parts = ssn.split("-")
-        if len(parts) == 3:
-            # Standard XXX-XX-XXXX format
-            # Mask first two groups, show last 4
-            result = "***-**-" + parts[2]
-        else:
-            # Non-standard format, use generic masking
-            result = ""
-            for char in ssn:
-                if char.isdigit():
-                    result += "*"
-                else:
-                    result += char
-            # Try to preserve last 4 digits
-            digits_only = [i for i, c in enumerate(ssn) if c.isdigit()]
-            if len(digits_only) >= 4:
-                for i in digits_only[-4:]:
-                    result = result[:i] + ssn[i] + result[i + 1 :]
-
-        return result
-
-    def _redact_phone(self, phone: str) -> str:
-        """Redact phone preserving format and last 4 digits"""
-        # Count digits
-        digits = [c for c in phone if c.isdigit()]
-        if len(digits) < 4:
-            # Too few digits, mask all
-            return "***"
-
-        # Keep last 4 digits, mask the rest
-        result = ""
-        digits_seen = 0
-        total_digits = len(digits)
-
-        for char in phone:
-            if char.isdigit():
-                if digits_seen < total_digits - 4:
-                    result += "*"
-                else:
-                    result += char
-                digits_seen += 1
-            else:
-                result += char
-
-        return result
-
-    def _redact_ip(self, ip: str) -> str:
-        """Redact IP address: 192.168.1.1 -> 192.***.*.1"""
-        parts = ip.split(".")
-        if len(parts) == 4:
-            # Mask middle two octets, keep first and last
-            return f"{parts[0]}.***.***.{parts[3]}"
-        else:
-            # Not standard IPv4, use generic redaction
-            return ip[:3] + "***" + ip[-3:] if len(ip) >= 7 else "***"
-
-    def _redact_url(self, url: str) -> str:
-        """Redact URL preserving structure"""
-        # Simple approach: preserve protocol and last few chars
-        if len(url) <= 12:
-            return url[:4] + "***"
-        else:
-            return url[:8] + "***" + url[-4:]
-
-    def _is_ssn_format(self, value: str) -> bool:
-        """Check if value looks like SSN format"""
-        # XXX-XX-XXXX or XXXXXXXXX
-        import re
-
-        return bool(re.match(r"^\d{3}-?\d{2}-?\d{4}$", value))
-
-    def _is_phone_format(self, value: str) -> bool:
-        """Check if value looks like phone number"""
-        # Has multiple digits and common phone separators
-        digit_count = sum(c.isdigit() for c in value)
-        has_phone_chars = any(c in value for c in ["-", "(", ")", "+", " "])
-        return digit_count >= 7 and (has_phone_chars or digit_count >= 10)
-
-    def _is_ip_format(self, value: str) -> bool:
-        """Check if value looks like IP address"""
-        import re
-
-        return bool(re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", value))
-
-    def _mask(self, value: Any) -> str:
-        """
-        Mask a value completely with asterisks.
-
-        Similar to redact but shows no original characters.
-        """
-        if value is None:
-            return "***"
-
-        value_str = str(value)
-        if len(value_str) == 0:
-            return "***"
-
-        # Preserve structure for things like phone numbers, SSNs
-        # e.g., "123-45-6789" becomes "***-**-****"
-        masked = ""
-        for char in value_str:
-            if char.isalnum():
-                masked += "*"
-            else:
-                masked += char
-
-        return masked if masked else "***"
-
-    def _null(self, value: Any) -> None:
-        """Replace value with None."""
-        return None
+        except Exception as e:
+            logger.error(
+                f"Error anonymizing value with operator '{operator_config.operator_name}': {e}"
+            )
+            # Return original value on error to avoid data loss
+            return value
 
 
-# Singleton instance for easy import
-anonymizer = PresidioAnonymizer()
+# Singleton instance for easy import (uses default config)
+_default_anonymizer = None
+
+
+def get_anonymizer(presidio_config_path: Optional[str] = None) -> PresidioAnonymizer:
+    """
+    Get or create a PresidioAnonymizer instance.
+
+    Args:
+        presidio_config_path: Optional path to custom Presidio configuration
+
+    Returns:
+        PresidioAnonymizer instance
+    """
+    global _default_anonymizer
+
+    if presidio_config_path:
+        # Return new instance with custom config
+        return PresidioAnonymizer(presidio_config_path=presidio_config_path)
+
+    # Return singleton with default config
+    if _default_anonymizer is None:
+        _default_anonymizer = PresidioAnonymizer()
+
+    return _default_anonymizer
 
 
 def apply_anonymization(
     document: Dict[str, Any],
-    pii_map: Dict[str, Tuple[str, float]],
+    pii_map: Optional[Dict[str, Tuple[str, float]]] = None,
     manual_overrides: Optional[Dict[str, str]] = None,
-    entity_strategy_map: Optional[Dict[str, str]] = None,
+    presidio_config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Convenience function to anonymize a document.
 
     Args:
         document: The MongoDB document to anonymize
-        pii_map: Map of field paths to (entity_type, confidence) from analyzer
+        pii_map: Optional map of field paths to (entity_type, confidence) from analyzer
         manual_overrides: Optional manual field->strategy overrides
-        entity_strategy_map: Optional custom entity type to strategy mapping
+        presidio_config_path: Optional path to custom Presidio configuration
 
     Returns:
         Anonymized document
     """
-    anon = PresidioAnonymizer(entity_strategy_map=entity_strategy_map)
-    return anon.apply_anonymization(document, pii_map, manual_overrides)
+    anonymizer = get_anonymizer(presidio_config_path)
+    return anonymizer.apply_anonymization(document, pii_map, manual_overrides)

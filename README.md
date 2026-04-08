@@ -175,22 +175,17 @@ scan:
       - IP_ADDRESS
       - URL
 
-    # Anonymization strategies per entity type
-    # Options:
-    #   - redact: Replace with *** (best for sensitive data like SSN)
-    #   - hash: SHA-256 hash (best for IDs, maintains uniqueness)
-    #   - fake: Generate realistic fake data (best for emails, names)
-    default_strategies:
-      EMAIL_ADDRESS: fake
-      PHONE_NUMBER: fake
-      PERSON: fake
-      CREDIT_CARD: hash
-      IBAN_CODE: hash
-      US_SSN: redact
-      IP_ADDRESS: hash
-      URL: hash
-      LOCATION: redact
-      CRYPTO: hash
+    # Anonymization operators per entity type
+    # See docs/presidio.md for all available operators:
+    #   Built-in: replace, redact, mask, hash, encrypt, keep
+    #   Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.
+    # Default mappings (configured in src/mongo_replication/config/presidio.yaml):
+    #   EMAIL_ADDRESS: smart_redact  (preserves domain)
+    #   PERSON: replace              (replaces with "ANONYMOUS")
+    #   PHONE_NUMBER: mask           (shows last 4 digits)
+    #   US_SSN: mask                 (shows last 4 digits)
+    #   CREDIT_CARD: hash            (SHA-256 hash)
+    #   See docs/presidio.md for complete list
 
     # Allowlist: Fields to skip PII detection (false positives)
     # Format: collection.field (e.g., users.user_id)
