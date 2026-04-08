@@ -5,8 +5,9 @@ Usage:
     mongorep init <job> [OPTIONS]
 """
 
+import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import questionary
 import typer
@@ -35,6 +36,9 @@ from mongo_replication.config.models import (
     ReplicationDiscoveryConfig,
 )
 from mongo_replication.engine.connection import ConnectionManager
+from mongo_replication.config.presidio_config import PresidioConfig
+
+logger = logging.getLogger(__name__)
 
 # Custom style for questionary
 custom_style = Style(
@@ -51,6 +55,41 @@ custom_style = Style(
         ("disabled", "fg:#858585 italic"),
     ]
 )
+
+
+def load_entity_strategies_from_config(
+    presidio_config_path: Optional[str] = None,
+) -> Dict[str, str]:
+    """Load entity type to strategy mappings from Presidio YAML config.
+
+    Args:
+        presidio_config_path: Optional path to custom Presidio config.
+                             If None, uses the bundled default configuration.
+
+    Returns:
+        Dictionary mapping entity types to operator names.
+        Example: {"EMAIL_ADDRESS": "smart_redact", "PERSON": "replace", ...}
+    """
+    try:
+        presidio_config = PresidioConfig(presidio_config_path)
+        operator_configs = presidio_config.get_operator_configs()
+
+        # Extract just the operator names from OperatorConfig objects
+        entity_strategies = {}
+        for entity_type, operator_config in operator_configs.items():
+            entity_strategies[entity_type] = operator_config.operator_name
+
+        return entity_strategies
+    except Exception as e:
+        logger.warning(f"Failed to load Presidio config: {e}, using minimal defaults")
+        # Fallback to minimal defaults if config loading fails
+        return {
+            "EMAIL_ADDRESS": "redact",
+            "PERSON": "redact",
+            "PHONE_NUMBER": "redact",
+            "CREDIT_CARD": "redact",
+            "DEFAULT": "redact",
+        }
 
 
 def validate_connection(uri: str, db_name: str) -> bool:
@@ -380,6 +419,51 @@ def init_command(
     if enable_pii:
         console.print()
 
+        # Ask for Presidio config first (moved from Step 7)
+        console.print(
+            "[dim]Presidio configuration defines PII detection and anonymization strategies.[/dim]"
+        )
+        console.print("[dim]You can use the default config or provide a custom one.[/dim]")
+        console.print()
+
+        use_custom_presidio = questionary.confirm(
+            "Use custom Presidio configuration?",
+            default=False,
+            style=custom_style,
+            instruction="(recommended for domain-specific PII patterns)",
+        ).ask()
+
+        presidio_config = None
+        if use_custom_presidio:
+            # Suggest default path
+            default_presidio_path = f"config/{job}_presidio.yaml"
+
+            presidio_path = questionary.text(
+                "Enter Presidio configuration file path:",
+                default=default_presidio_path,
+                style=custom_style,
+                instruction="(relative or absolute path)",
+            ).ask()
+
+            if presidio_path:
+                presidio_config = presidio_path
+                console.print()
+                console.print(
+                    f"[yellow]Note:[/yellow] Copy the default template to get started:\n"
+                    f"  src/mongo_replication/config/presidio.yaml → {presidio_config}"
+                )
+                console.print()
+                console.print("[dim]See docs/configuration.md for examples and guidance.[/dim]")
+            else:
+                print_warning("No path provided, using default Presidio configuration")
+        else:
+            print_success("Using default Presidio configuration")
+
+        console.print()
+
+        # Load entity strategies from the config (default or custom)
+        entity_strategies = load_entity_strategies_from_config(presidio_config)
+
         # Confidence threshold
         confidence = questionary.text(
             "PII confidence threshold (0.0-1.0):",
@@ -435,7 +519,14 @@ def init_command(
 
         entity_types = questionary.checkbox(
             "Select PII entity types to detect:",
-            choices=[questionary.Choice(title=et, checked=True) for et in default_entity_types],
+            choices=[
+                questionary.Choice(
+                    title=f"{et} → {entity_strategies.get(et, entity_strategies.get('DEFAULT', 'redact'))}",
+                    value=et,
+                    checked=True,
+                )
+                for et in default_entity_types
+            ],
             style=custom_style,
             instruction="(Space to select/deselect, Enter to confirm)",
         ).ask()
@@ -448,10 +539,12 @@ def init_command(
         print_step(6, 10, "PII Anonymization Strategies")
         console.print()
 
-        console.print("[dim]Available strategies:[/dim]")
-        console.print("[dim]  • redact: Replace with ***[/dim]")
-        console.print("[dim]  • hash: SHA-256 hash[/dim]")
-        console.print("[dim]  • fake: Generate fake data (emails, names, etc.)[/dim]")
+        console.print("[dim]Available operators (see docs/presidio.md for details):[/dim]")
+        console.print("[dim]  Built-in: replace, redact, mask, hash, encrypt, keep[/dim]")
+        console.print(
+            "[dim]  Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.[/dim]"
+        )
+        console.print("[dim]  Aliases: fake, partial_redact, sha256, etc.[/dim]")
         console.print()
 
         use_custom_strategies = questionary.confirm(
@@ -460,27 +553,33 @@ def init_command(
             style=custom_style,
         ).ask()
 
-        default_strategies = {
-            "EMAIL_ADDRESS": "fake",
-            "PHONE_NUMBER": "fake",
-            "PERSON": "fake",
-            "CREDIT_CARD": "hash",
-            "IBAN_CODE": "hash",
-            "US_SSN": "redact",
-            "IP_ADDRESS": "hash",
-            "URL": "hash",
-            "LOCATION": "redact",
-            "CRYPTO": "hash",
-        }
+        # Use strategies loaded from the Presidio config
+        default_strategies = entity_strategies.copy()
 
         if use_custom_strategies:
+            # Common operators for user selection
+            common_operators = [
+                "replace",
+                "redact",
+                "mask",
+                "hash",
+                "fake",
+                "fake_email",
+                "fake_name",
+                "fake_phone",
+                "smart_redact",
+                "keep",
+            ]
+
             custom_strategies = {}
             for entity_type in entity_types:
-                default_strategy = default_strategies.get(entity_type, "redact")
+                default_strategy = default_strategies.get(
+                    entity_type, default_strategies.get("DEFAULT", "replace")
+                )
                 strategy = questionary.select(
                     f"Strategy for {entity_type}:",
-                    choices=["redact", "hash", "fake"],
-                    default=default_strategy,
+                    choices=common_operators,
+                    default=default_strategy if default_strategy in common_operators else "replace",
                     style=custom_style,
                 ).ask()
                 custom_strategies[entity_type] = strategy
@@ -491,49 +590,8 @@ def init_command(
             # Use defaults
             print_success("Using default strategies")
 
-        # Step 7: Presidio Configuration (Optional)
-        print_step(7, 10, "Presidio Configuration (Optional)")
-        console.print()
-
-        console.print("[dim]Presidio allows custom PII recognizers via YAML configuration.[/dim]")
-        console.print("[dim]Use this to detect domain-specific PII patterns.[/dim]")
-        console.print()
-
-        use_custom_presidio = questionary.confirm(
-            "Use custom Presidio configuration?",
-            default=False,
-            style=custom_style,
-            instruction="(recommended for domain-specific PII patterns)",
-        ).ask()
-
-        presidio_config = None
-        if use_custom_presidio:
-            # Suggest default path
-            default_presidio_path = f"config/{job}_presidio.yaml"
-
-            presidio_path = questionary.text(
-                "Enter Presidio configuration file path:",
-                default=default_presidio_path,
-                style=custom_style,
-                instruction="(relative or absolute path)",
-            ).ask()
-
-            if presidio_path:
-                presidio_config = presidio_path
-                console.print()
-                console.print(
-                    f"[yellow]Note:[/yellow] Copy the default template to get started:\n"
-                    f"  src/mongo_replication/config/presidio.yaml → {presidio_config}"
-                )
-                console.print()
-                console.print("[dim]See docs/configuration.md for examples and guidance.[/dim]")
-            else:
-                print_warning("No path provided, using default Presidio configuration")
-        else:
-            print_success("Using default Presidio configuration")
-
-        # Step 8: Allowlist (Optional)
-        print_step(8, 10, "Field Allowlist (Optional)")
+        # Step 7: Allowlist (Optional)
+        print_step(7, 10, "Field Allowlist (Optional)")
         console.print()
 
         console.print("[dim]Allowlist field patterns to exclude from PII Analysis.[/dim]")
