@@ -65,27 +65,28 @@ class ConnectionManager:
         Raises:
             ValueError: If source and destination URIs point to the same database
         """
-        # Parse host/port from URIs
-        source_normalized = self._normalize_uri(self.source_uri)
-        dest_normalized = self._normalize_uri(self.dest_uri)
+        # Parse host/port/database from URIs
+        source_normalized = self._normalize_uri(self.source_uri, self.source_db_name)
+        dest_normalized = self._normalize_uri(self.dest_uri, self.dest_db_name)
 
-        # Check if same host and same database name
-        if source_normalized == dest_normalized and self.source_db_name == self.dest_db_name:
+        # Check if same host and same database
+        if source_normalized == dest_normalized:
             raise ValueError(
                 f"Source and destination cannot point to the same database. "
-                f"Both are configured to use '{self.source_db_name}' on '{source_normalized}'. "
+                f"Both are configured to use '{source_normalized}'. "
                 f"Please use different databases or hosts to prevent data corruption."
             )
 
     @staticmethod
-    def _normalize_uri(uri: str) -> str:
-        """Normalize MongoDB URI for comparison (extract host/port).
+    def _normalize_uri(uri: str, db_name: str) -> str:
+        """Normalize MongoDB URI for comparison (extract host/port/database).
 
         Args:
             uri: MongoDB connection URI
+            db_name: Database name
 
         Returns:
-            Normalized host:port string
+            Normalized host:port/database string
         """
         # Remove mongodb:// or mongodb+srv:// prefix
         if uri.startswith("mongodb+srv://"):
@@ -97,13 +98,14 @@ class ConnectionManager:
         if "@" in uri:
             uri = uri.split("@", 1)[1]
 
-        # Remove database name and query parameters
+        # Remove any database name from URI and query parameters
         if "/" in uri:
             uri = uri.split("/", 1)[0]
         if "?" in uri:
             uri = uri.split("?", 1)[0]
 
-        return uri.strip()
+        # Append the database name for full comparison
+        return f"{uri.strip()}/{db_name}"
 
     @retry(
         retry=retry_if_exception_type((ConnectionFailure, ServerSelectionTimeoutError)),
