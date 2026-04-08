@@ -13,7 +13,7 @@ import typer
 from typing_extensions import Annotated
 
 from mongo_replication.cli.interactive.selectors import select_collections
-from mongo_replication.cli.reporters.pii_report import generate_pii_report
+from mongo_replication.cli.reporters.scan_report import generate_scan_report
 from mongo_replication.cli.reporters.progress import progress_wrapper
 from mongo_replication.cli.utils.output import (
     print_banner,
@@ -521,6 +521,9 @@ def scan_command(
         if existing_config and existing_config.scan and existing_config.scan.cursor_detection:
             cursor_fields = existing_config.scan.cursor_detection.cursor_fields or cursor_fields
 
+        # Track cursor field info for reporting
+        cursor_field_info = {}
+
         new_collection_configs = {}
         for collection_name in selected_collections:
             pii_config = {}
@@ -529,6 +532,7 @@ def scan_command(
 
             # Detect cursor field from sampled documents
             detected_cursor_field = None
+            sample_value = None
             if collection_name in sampling_results:
                 sampling_result = sampling_results[collection_name]
                 if sampling_result.sample_docs:
@@ -541,6 +545,24 @@ def scan_command(
                         print_info(
                             f"Detected cursor field '{detected_cursor_field}' for collection '{collection_name}'"
                         )
+                        # Extract sample value for reporting
+                        if "." in detected_cursor_field:
+                            # Handle nested fields
+                            parts = detected_cursor_field.split(".")
+                            value = sample_doc
+                            for part in parts:
+                                value = value.get(part) if isinstance(value, dict) else None
+                                if value is None:
+                                    break
+                            sample_value = str(value) if value is not None else "N/A"
+                        else:
+                            sample_value = str(sample_doc.get(detected_cursor_field, "N/A"))
+
+            # Store cursor field info for reporting
+            cursor_field_info[collection_name] = {
+                "cursor_field": detected_cursor_field,
+                "sample_value": sample_value,
+            }
 
             # Add collection to config (even if no PII fields)
             # This ensures all scanned collections get a replication config entry
@@ -590,13 +612,12 @@ def scan_command(
 
             # Add newly inferred relationships (avoid duplicates)
             existing_tuples = {
-                (rel.parent_collection, rel.child_collection, rel.child_field)
-                for rel in merged_schema_relationships
+                (rel.parent, rel.child, rel.child_field) for rel in merged_schema_relationships
             }
             for new_rel in schema_relationships:
                 rel_tuple = (
-                    new_rel.parent_collection,
-                    new_rel.child_collection,
+                    new_rel.parent,
+                    new_rel.child,
                     new_rel.child_field,
                 )
                 if rel_tuple not in existing_tuples:
@@ -639,15 +660,17 @@ def scan_command(
         else:
             print_success(f"Saved configuration to {output_path}")
 
-        # Generate markdown PII report
-        if not no_pii:
-            report_path = output_path.parent / f"{job}_pii_report.md"
-            generate_pii_report(
-                job_id=job,
-                pii_analyses=pii_analyses,
-                output_path=report_path,
-            )
-            print_success(f"Saved PII report to {report_path}")
+        # Generate markdown scan report (includes PII, cursor detection, and relationships)
+        report_path = output_path.parent / f"{job}_scan_report.md"
+        generate_scan_report(
+            job_id=job,
+            pii_analyses=pii_analyses if not no_pii else {},
+            output_path=report_path,
+            cursor_fields=cursor_field_info,
+            schema_relationships=schema_relationships if should_analyze_relationships else None,
+            total_samples=total_samples,
+        )
+        print_success(f"Saved scan report to {report_path}")
 
         # Print summary
         elapsed = time.time() - start_time
@@ -659,6 +682,7 @@ def scan_command(
             if should_analyze_relationships
             else "N/A",
             "Config File": str(output_path),
+            "Scan Report": str(report_path),
             "Time Elapsed": f"{elapsed:.1f}s",
         }
         print_summary("Scan Complete", summary_dict)
