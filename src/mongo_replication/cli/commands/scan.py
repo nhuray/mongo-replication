@@ -262,7 +262,7 @@ def scan_command(
             else ("Disabled (config)" if not pii_enabled_from_config else "Enabled")
         )
         print_banner(
-            "SCAN COLLECTIONS & ANALYZE PII",
+            "SCAN SOURCE DATABASE",
             Job=job,
             **{"Sample Size": f"{final_sample_size} docs/collection"},
             **{"Confidence": f"{final_confidence:.0%}"},
