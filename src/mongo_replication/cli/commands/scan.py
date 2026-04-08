@@ -13,7 +13,7 @@ import typer
 from typing_extensions import Annotated
 
 from mongo_replication.cli.interactive.selectors import select_collections
-from mongo_replication.cli.reporters.pii_report import generate_pii_report
+from mongo_replication.cli.reporters.scan_report import generate_scan_report
 from mongo_replication.cli.reporters.progress import progress_wrapper
 from mongo_replication.cli.utils.output import (
     print_banner,
@@ -663,7 +663,7 @@ def scan_command(
 
         # Generate markdown scan report (includes PII, cursor detection, and relationships)
         report_path = output_path.parent / f"{job}_scan_report.md"
-        generate_pii_report(
+        generate_scan_report(
             job_id=job,
             pii_analyses=pii_analyses if not no_pii else {},
             output_path=report_path,

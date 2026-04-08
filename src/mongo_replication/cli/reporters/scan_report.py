@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from mongo_replication.engine.pii import CollectionPIIAnalysis
 
 
-def generate_pii_report(
+def generate_scan_report(
     job_id: str,
     pii_analyses: Dict[str, CollectionPIIAnalysis],
     output_path: Path,
