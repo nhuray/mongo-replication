@@ -714,12 +714,16 @@ def run_command(
         source_db_name = job_config.source_uri.split("/")[-1].split("?")[0]
         dest_db_name = job_config.destination_uri.split("/")[-1].split("?")[0]
 
-        conn_mgr = ConnectionManager(
-            source_uri=job_config.source_uri,
-            dest_uri=job_config.destination_uri,
-            source_db_name=source_db_name,
-            dest_db_name=dest_db_name,
-        )
+        try:
+            conn_mgr = ConnectionManager(
+                source_uri=job_config.source_uri,
+                dest_uri=job_config.destination_uri,
+                source_db_name=source_db_name,
+                dest_db_name=dest_db_name,
+            )
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1)
 
         print_success("Connected to source and destination")
 

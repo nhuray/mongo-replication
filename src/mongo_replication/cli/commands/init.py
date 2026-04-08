@@ -34,6 +34,7 @@ from mongo_replication.config.models import (
     ReplicationConfig,
     ReplicationDiscoveryConfig,
 )
+from mongo_replication.engine.connection import ConnectionManager
 
 # Custom style for questionary
 custom_style = Style(
@@ -127,11 +128,11 @@ def init_command(
         # Specify custom output path
         mongorep init prod_db --output /path/to/config.yaml
     """
-    print_banner("INITIALIZE SCAN CONFIGURATION", Job=job)
+    print_banner("SETUP CONFIGURATION", Job=job)
 
     console.print()
     console.print(
-        "[bold]This wizard will help you set up scan configuration for PII Analysis.[/bold]"
+        "[bold]This wizard will help you set up the Mongo Replication Tool configuration.[/bold]"
     )
     console.print()
 
@@ -202,6 +203,23 @@ def init_command(
             raise typer.Exit(code=1)
 
     print_success(f"Connected to destination database: {dest_db_name}")
+
+    # Validate that source and destination are different databases
+    console.print()
+    with console.status("[bold blue]Validating database configuration..."):
+        try:
+            # This will raise ValueError if source and destination point to same database
+            ConnectionManager(
+                source_uri=source_uri,
+                dest_uri=dest_uri,
+                source_db_name=source_db_name,
+                dest_db_name=dest_db_name,
+            )
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(code=1)
+
+    print_success("Source and destination databases are different")
 
     # Step 3: Collection Discovery
     print_step(3, 8, "Collection Discovery")
