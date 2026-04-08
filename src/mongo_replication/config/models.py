@@ -262,8 +262,12 @@ class ReplicationDefaultsConfig(BaseModel):
     """How to handle errors during field transformations."""
 
 
-class CollectionConfig(BaseModel):
-    """Configuration for a single collection."""
+class CollectionConfig(ReplicationDefaultsConfig):
+    """Configuration for a single collection.
+
+    Inherits all default settings from ReplicationDefaultsConfig, allowing
+    per-collection overrides of any default setting.
+    """
 
     name: str
     """Collection name."""
@@ -273,15 +277,6 @@ class CollectionConfig(BaseModel):
 
     cursor_initial_value: Optional[str] = None
     """Initial cursor value for first-time replication (overrides defaults)."""
-
-    primary_key: str = "_id"
-    """Primary key field (usually '_id')."""
-
-    write_disposition: Literal["merge", "append", "replace"] = "merge"
-    """Write strategy for this collection."""
-
-    transform_error_mode: Literal["skip", "fail"] = "skip"
-    """Error handling mode: skip or fail."""
 
     match: Optional[Dict[str, Any]] = None
     """MongoDB match filter to apply during replication."""
