@@ -249,7 +249,7 @@ class ReplicationDefaultsConfig(BaseModel):
     cursor_fallback_field: str = "_id"
     """Field to use when cursor_field doesn't exist or no cursor_fields match."""
 
-    cursor_initial_value: str = "_id"
+    cursor_initial_value: str = "2020-01-01T00:00:00Z"
     """Initial cursor value for first-time replication."""
 
     primary_key: str = "_id"
