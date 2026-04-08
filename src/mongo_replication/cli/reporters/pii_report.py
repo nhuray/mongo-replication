@@ -1,10 +1,14 @@
 """
-PII report generator - creates markdown reports from PII analysis.
+Scan report generator - creates markdown reports from scan analysis.
+
+Includes PII analysis, cursor field detection, and schema relationships.
 """
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional, Any
 from datetime import datetime
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mongo_replication.engine.pii import CollectionPIIAnalysis
 
@@ -13,40 +17,57 @@ def generate_pii_report(
     job_id: str,
     pii_analyses: Dict[str, CollectionPIIAnalysis],
     output_path: Path,
+    cursor_fields: Optional[Dict[str, Any]] = None,
+    schema_relationships: Optional[List[Any]] = None,
+    total_samples: int = 0,
 ) -> None:
     """
-    Generate a markdown PII analysis report.
+    Generate a markdown scan report with PII analysis, cursor detection, and schema relationships.
 
     Args:
         job_id: Job identifier
         pii_analyses: Dictionary mapping collection names to PII analyses
         output_path: Path to write the markdown report
+        cursor_fields: Dictionary mapping collection names to cursor field info
+        schema_relationships: List of schema relationships
+        total_samples: Total number of documents sampled
     """
-    lines = []
+    # Setup Jinja2 environment
+    template_dir = Path(__file__).parent / "templates"
+    env = Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=select_autoescape(["html", "xml"]),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
 
-    # Header
-    lines.append(f"# PII Analysis Report: {job_id}")
-    lines.append("")
-    lines.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append("")
+    template = env.get_template("scan_report.md.j2")
 
-    # Summary
-    total_collections = len(pii_analyses)
-    collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii)
-    total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values())
+    # Build summary data
+    total_collections = len(pii_analyses) if pii_analyses else 0
+    collections_with_pii = sum(1 for a in pii_analyses.values() if a.has_pii) if pii_analyses else 0
+    total_pii_fields = sum(a.pii_field_count for a in pii_analyses.values()) if pii_analyses else 0
 
-    lines.append("## Summary")
-    lines.append("")
-    lines.append(f"- **Total Collections:** {total_collections}")
-    lines.append(f"- **Collections with PII:** {collections_with_pii}")
-    lines.append(f"- **Total PII Fields:** {total_pii_fields}")
-    lines.append("")
+    collections_with_cursor = 0
+    if cursor_fields:
+        collections_with_cursor = sum(
+            1 for info in cursor_fields.values() if info.get("cursor_field")
+        )
 
-    # Collections with PII
-    if collections_with_pii > 0:
-        lines.append("## Collections with PII")
-        lines.append("")
+    summary = {
+        "total_collections": total_collections,
+        "total_samples": f"{total_samples:,}",
+        "collections_with_pii": collections_with_pii,
+        "total_pii_fields": total_pii_fields,
+        "collections_with_cursor": collections_with_cursor,
+        "total_relationships": len(schema_relationships) if schema_relationships else 0,
+    }
 
+    # Prepare PII data
+    collections_with_pii_data = []
+    collections_without_pii_data = []
+
+    if pii_analyses:
         # Sort collections by PII field count (descending)
         sorted_collections = sorted(
             [(name, analysis) for name, analysis in pii_analyses.items() if analysis.has_pii],
@@ -55,57 +76,83 @@ def generate_pii_report(
         )
 
         for collection_name, analysis in sorted_collections:
-            lines.append(f"### {collection_name}")
-            lines.append("")
-            lines.append(f"**Samples Analyzed:** {analysis.total_samples}")
-            lines.append("")
+            # Sort fields by prevalence (descending)
+            sorted_fields = sorted(
+                analysis.fields_with_pii,
+                key=lambda x: x.prevalence_pct,
+                reverse=True,
+            )
 
-            if analysis.fields_with_pii:
-                lines.append(
-                    "| Field | Entity Type | Strategy | Prevalence | Avg Confidence | Detections |"
+            fields_data = [
+                {
+                    "field_path": field.field_path,
+                    "entity_type": field.entity_type,
+                    "suggested_strategy": field.suggested_strategy,
+                    "prevalence_pct": f"{field.prevalence_pct:.1f}",
+                    "avg_confidence": f"{field.avg_confidence:.2f}",
+                    "detections": field.detections,
+                    "total_samples": field.total_samples,
+                }
+                for field in sorted_fields
+            ]
+
+            collections_with_pii_data.append(
+                {
+                    "name": collection_name,
+                    "total_samples": analysis.total_samples,
+                    "fields": fields_data,
+                }
+            )
+
+        collections_without_pii_data = sorted(
+            [name for name, analysis in pii_analyses.items() if not analysis.has_pii]
+        )
+
+    # Prepare cursor field data
+    cursor_data_with = []
+    cursor_data_without = []
+
+    if cursor_fields:
+        for collection_name, info in sorted(cursor_fields.items()):
+            cursor_field = info.get("cursor_field")
+            if cursor_field:
+                cursor_data_with.append(
+                    {
+                        "collection": collection_name,
+                        "cursor_field": cursor_field,
+                        "sample_value": info.get("sample_value", "N/A"),
+                    }
                 )
-                lines.append(
-                    "|-------|-------------|----------|------------|----------------|------------|"
-                )
+            else:
+                cursor_data_without.append(collection_name)
 
-                # Sort fields by prevalence (descending)
-                sorted_fields = sorted(
-                    analysis.fields_with_pii,
-                    key=lambda x: x.prevalence_pct,
-                    reverse=True,
-                )
+    # Prepare relationship data
+    relationships_data = []
+    if schema_relationships:
+        for rel in schema_relationships:
+            relationships_data.append(
+                {
+                    "parent": rel.parent if hasattr(rel, "parent") else rel.parent_collection,
+                    "child": rel.child if hasattr(rel, "child") else rel.child_collection,
+                    "parent_field": rel.parent_field,
+                    "child_field": rel.child_field,
+                }
+            )
 
-                for field_stat in sorted_fields:
-                    lines.append(
-                        f"| `{field_stat.field_path}` "
-                        f"| {field_stat.entity_type} "
-                        f"| `{field_stat.suggested_strategy}` "
-                        f"| {field_stat.prevalence_pct:.1f}% "
-                        f"| {field_stat.avg_confidence:.2f} "
-                        f"| {field_stat.detections}/{field_stat.total_samples} |"
-                    )
-
-                lines.append("")
-
-    # Collections without PII
-    collections_without_pii = [
-        name for name, analysis in pii_analyses.items() if not analysis.has_pii
-    ]
-
-    if collections_without_pii:
-        lines.append("## Collections without PII")
-        lines.append("")
-
-        for collection_name in sorted(collections_without_pii):
-            lines.append(f"- `{collection_name}`")
-
-        lines.append("")
-
-    # Footer
-    lines.append("---")
-    lines.append("")
-    lines.append("*This report was generated by the MongoDB Replication Tool.*")
-    lines.append("")
+    # Render template
+    report = template.render(
+        job_id=job_id,
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        summary=summary,
+        pii_enabled=pii_analyses is not None and len(pii_analyses) > 0,
+        cursor_detection_enabled=cursor_fields is not None,
+        relationships_enabled=schema_relationships is not None,
+        collections_with_pii=collections_with_pii_data,
+        collections_without_pii=collections_without_pii_data,
+        collections_with_cursor=cursor_data_with,
+        collections_without_cursor=cursor_data_without,
+        relationships=relationships_data,
+    )
 
     # Write to file
-    output_path.write_text("\n".join(lines))
+    output_path.write_text(report)
