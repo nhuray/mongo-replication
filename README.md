@@ -399,26 +399,18 @@ The tool will:
 3. Cascade through the entire relationship chain
 4. Replicate all matching documents
 
-### PII Redaction
+### PII Anonymization
 
-Built-in PII detection and anonymization:
+Built-in PII anonymization:
 
 ```yaml
 replication:
    collections:
      users:
-       pii:
-         enabled: true
-         fields:
-           - email
-           - phone
-           - ssn
-         detection_mode: field_name  # or 'content'
-         anonymization:
-           email: mask          # user@example.com → u***@example.com
-           phone: hash          # Hash the value
-           ssn: redact          # Replace with [REDACTED]
-           address: replace     # Replace with fake data
+        pii_anonymized_fields:
+          email: fake_email              # Generate realistic fake email
+          phone: fake_phone              # Generate realistic fake phone
+          ssn: mask                      # Mask all but last 4 digits
 ```
 
 ### Field Transformations
