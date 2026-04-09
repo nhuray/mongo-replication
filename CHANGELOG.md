@@ -1,6 +1,13 @@
 # CHANGELOG
 
 
+## v0.1.1 (2026-04-09)
+
+### Bug Fixes
+
+* fix: update README.md ([`9b9a9da`](https://github.com/nhuray/mongo-replication/commit/9b9a9da8276bbc9cea0c2b6f53f3022b5757f64d))
+
+
 ## v0.1.0 (2026-04-09)
 
 ### Bug Fixes
@@ -62,6 +69,8 @@ was not working. ([`425afb8`](https://github.com/nhuray/mongo-replication/commit
 - All 270 tests now passing ([`4363f61`](https://github.com/nhuray/mongo-replication/commit/4363f61c0b9a1c9ed86c7e975aacea98c3fc2fea))
 
 ### Chores
+
+* chore(release): 0.1.0 [skip ci] ([`e1a3fd6`](https://github.com/nhuray/mongo-replication/commit/e1a3fd697176231a71e08f9a526ca8c68fc328e9))
 
 * chore: update to use PAT for release workflow ([`d96dc03`](https://github.com/nhuray/mongo-replication/commit/d96dc0321ed58a50a6fc1f0993a9c38b598cca9b))
 
