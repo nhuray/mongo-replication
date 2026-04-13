@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v0.2.0 (2026-04-13)
+
+### Features
+
+* feat: add per-collection batch_size override (#18)
+
+- Added batch_size field to CollectionConfig to override performance.batch_size
+- Removed duplicate cursor_initial_value validator (now inherits from parent)
+- Updated orchestrator to use per-collection batch_size when replicating
+- Enhanced CLI display to show batch_size information:
+  * Changed 'Batch Size' to 'Default Batch Size' in banner and info
+  * Show batch_size for each collection during config building
+  * Display batch_size in live progress when overridden
+- Kept cursor_field and cursor_initial_value overrides (needed for per-collection customization)
+
+This allows fine-tuning batch sizes per collection:
+- Large collections can use smaller batches (avoid memory issues)
+- Small collections can use larger batches (better performance)
+- Auto-discovered collections use global default ([`ab91376`](https://github.com/nhuray/mongo-replication/commit/ab91376e9e53043ed39f604f48cd3b992208c049))
+
+
 ## v0.1.4 (2026-04-13)
 
 ### Bug Fixes
@@ -38,6 +59,10 @@ as load_config in manager.py:
 
 This approach is more maintainable and less fragile than manually listing
 every field, and automatically works if new fields are added. ([`e98299f`](https://github.com/nhuray/mongo-replication/commit/e98299f2c22caeaab0adab5aeab1312e01d66316))
+
+### Chores
+
+* chore(release): 0.1.4 [skip ci] ([`417eb21`](https://github.com/nhuray/mongo-replication/commit/417eb21551a5691330d9039b424fd9433977681f))
 
 
 ## v0.1.3 (2026-04-13)
