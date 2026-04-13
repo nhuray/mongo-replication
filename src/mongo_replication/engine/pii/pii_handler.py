@@ -63,11 +63,10 @@ class PIIHandler:
 
         redacted = []
         for doc in documents:
-            # Use apply_anonymization with manual field overrides
+            # Use apply_anonymization with PII field strategy
             redacted_doc = apply_anonymization(
                 document=doc,
-                pii_map=None,  # No auto-detected PII, only manual overrides
-                manual_overrides=manual_pii_fields,
+                pii_field_strategy=manual_pii_fields,
             )
             redacted.append(redacted_doc)
 

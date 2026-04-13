@@ -11,7 +11,7 @@ The anonymization operators are configured via YAML (presidio.yaml).
 
 import copy
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
@@ -64,16 +64,14 @@ class PresidioAnonymizer:
     def apply_anonymization(
         self,
         document: Dict[str, Any],
-        pii_map: Optional[Dict[str, Tuple[str, float]]] = None,
-        manual_overrides: Optional[Dict[str, str]] = None,
+        pii_field_strategy: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
-        Apply anonymization to a document based on detected PII or manual field mappings.
+        Apply anonymization to a document based on PII field strategy mappings.
 
         Args:
             document: The MongoDB document to anonymize
-            pii_map: Optional map of field paths to (entity_type, confidence) from analyzer
-            manual_overrides: Optional manual field->strategy overrides
+            pii_field_strategy: Field path to anonymization strategy mapping
 
         Returns:
             Anonymized document with PII fields redacted
@@ -81,14 +79,14 @@ class PresidioAnonymizer:
         Example:
             >>> anonymizer = PresidioAnonymizer()
             >>> doc = {"email": "john@example.com", "ssn": "123-45-6789"}
-            >>> pii_map = {"email": ("EMAIL_ADDRESS", 0.95), "ssn": ("US_SSN", 0.99)}
-            >>> anonymized = anonymizer.apply_anonymization(doc, pii_map)
+            >>> pii_field_strategy = {"email": "smart_redact", "ssn": "hash"}
+            >>> anonymized = anonymizer.apply_anonymization(doc, pii_field_strategy)
         """
         # Deep copy to avoid modifying original
         anonymized = copy.deepcopy(document)
 
         # Determine which fields to anonymize and with what operators
-        field_operators = self._build_field_operators(pii_map, manual_overrides)
+        field_operators = self._build_field_operators(pii_field_strategy)
 
         # Apply anonymization to each field
         for field_path, operator_config in field_operators.items():
@@ -98,40 +96,23 @@ class PresidioAnonymizer:
 
     def _build_field_operators(
         self,
-        pii_map: Optional[Dict[str, Tuple[str, float]]],
-        manual_overrides: Optional[Dict[str, str]],
+        pii_field_strategy: Optional[Dict[str, str]],
     ) -> Dict[str, OperatorConfig]:
         """
         Build mapping of field paths to OperatorConfig objects.
 
-        Merges auto-detected PII with manual overrides (manual takes precedence).
-
         Args:
-            pii_map: Auto-detected PII fields with entity types and confidence
-            manual_overrides: Manual field->strategy overrides
+            pii_field_strategy: Field path to strategy mapping
 
         Returns:
             Dictionary mapping field paths to OperatorConfig objects
         """
         field_operators: Dict[str, OperatorConfig] = {}
 
-        # Start with auto-detected fields
-        if pii_map:
-            for field_path, (entity_type, _) in pii_map.items():
-                # Get operator config for this entity type
-                operator_config = self.operator_configs.get(
-                    entity_type, self.operator_configs.get("DEFAULT")
-                )
-                if operator_config:
-                    field_operators[field_path] = operator_config
-
-        # Apply manual overrides
-        if manual_overrides:
-            for field_path, strategy_name in manual_overrides.items():
-                if strategy_name is None:
-                    # None means "don't anonymize this field"
-                    field_operators.pop(field_path, None)
-                else:
+        # Apply PII field strategies
+        if pii_field_strategy:
+            for field_path, strategy_name in pii_field_strategy.items():
+                if strategy_name is not None:
                     # Convert strategy name to operator config
                     operator_config = self._strategy_to_operator_config(strategy_name)
                     if operator_config:
@@ -329,8 +310,7 @@ def get_anonymizer(presidio_config_path: Optional[str] = None) -> PresidioAnonym
 
 def apply_anonymization(
     document: Dict[str, Any],
-    pii_map: Optional[Dict[str, Tuple[str, float]]] = None,
-    manual_overrides: Optional[Dict[str, str]] = None,
+    pii_field_strategy: Optional[Dict[str, str]] = None,
     presidio_config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -338,12 +318,11 @@ def apply_anonymization(
 
     Args:
         document: The MongoDB document to anonymize
-        pii_map: Optional map of field paths to (entity_type, confidence) from analyzer
-        manual_overrides: Optional manual field->strategy overrides
+        pii_field_strategy: Optional field path to strategy mapping
         presidio_config_path: Optional path to custom Presidio configuration
 
     Returns:
         Anonymized document
     """
     anonymizer = get_anonymizer(presidio_config_path)
-    return anonymizer.apply_anonymization(document, pii_map, manual_overrides)
+    return anonymizer.apply_anonymization(document, pii_field_strategy)

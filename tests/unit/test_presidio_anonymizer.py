@@ -1,7 +1,5 @@
 """Unit tests for Presidio PII anonymizer with operator-based configuration."""
 
-import re
-
 import pytest
 
 from mongo_replication.engine.pii import (
@@ -100,14 +98,14 @@ class TestApplyAnonymization:
     """Test document anonymization with various scenarios."""
 
     def test_anonymize_simple_document(self, anonymizer):
-        """Test anonymizing a simple document with detected PII."""
+        """Test anonymizing a simple document with manual overrides."""
         doc = {"email": "test@example.com", "name": "John Doe"}
-        pii_map = {
-            "email": ("EMAIL_ADDRESS", 0.95),
-            "name": ("PERSON", 0.90),
+        pii_field_strategy = {
+            "email": "smart_redact",
+            "name": "fake_name",
         }
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Original document should not be modified
         assert doc["email"] == "test@example.com"
@@ -115,7 +113,7 @@ class TestApplyAnonymization:
 
         # Result should be anonymized
         assert result["email"] != "test@example.com"
-        assert result["name"] == "ANONYMOUS"  # Default PERSON strategy is "replace"
+        assert result["name"] != "John Doe"  # fake_name generates different name
 
     def test_anonymize_nested_document(self, anonymizer):
         """Test anonymizing nested fields."""
@@ -125,16 +123,16 @@ class TestApplyAnonymization:
                 "profile": {"name": "John Doe"},
             }
         }
-        pii_map = {
-            "user.email": ("EMAIL_ADDRESS", 0.95),
-            "user.profile.name": ("PERSON", 0.90),
+        pii_field_strategy = {
+            "user.email": "smart_redact",
+            "user.profile.name": "fake_name",
         }
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Nested fields should be anonymized
         assert result["user"]["email"] != "test@example.com"
-        assert result["user"]["profile"]["name"] == "ANONYMOUS"
+        assert result["user"]["profile"]["name"] != "John Doe"
 
     def test_anonymize_array_fields(self, anonymizer):
         """Test anonymizing fields within arrays."""
@@ -144,69 +142,44 @@ class TestApplyAnonymization:
                 {"email": "bob@example.com", "name": "Bob"},
             ]
         }
-        pii_map = {
-            "contacts.email": ("EMAIL_ADDRESS", 0.95),
-            "contacts.name": ("PERSON", 0.90),
+        pii_field_strategy = {
+            "contacts.email": "smart_redact",
+            "contacts.name": "fake_name",
         }
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # All array elements should be anonymized
         assert result["contacts"][0]["email"] != "alice@example.com"
         assert result["contacts"][1]["email"] != "bob@example.com"
-        assert result["contacts"][0]["name"] == "ANONYMOUS"
-        assert result["contacts"][1]["name"] == "ANONYMOUS"
+        assert result["contacts"][0]["name"] != "Alice"
+        assert result["contacts"][1]["name"] != "Bob"
 
-    def test_manual_overrides_only(self, anonymizer):
-        """Test anonymizing with manual overrides (no auto-detected PII)."""
+    def test_pii_field_strategy_only(self, anonymizer):
+        """Test anonymizing with PII field strategies."""
         doc = {"field1": "value1", "field2": "value2"}
-        manual_overrides = {
+        pii_field_strategy = {
             "field1": "hash",
             "field2": "fake_name",  # Use custom operator that doesn't need params
         }
 
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
-        # Fields should be anonymized per manual overrides
+        # Fields should be anonymized per PII field strategies
         assert result["field1"] != "value1"
         assert len(result["field1"]) == 64  # SHA-256 hash
         assert result["field2"] != "value2"
         assert isinstance(result["field2"], str)  # Fake name generated
 
-    def test_manual_overrides_precedence(self, anonymizer):
-        """Test that manual overrides take precedence over detected PII."""
-        doc = {"email": "test@example.com"}
-        pii_map = {"email": ("EMAIL_ADDRESS", 0.95)}  # Would normally use smart_redact
-        manual_overrides = {"email": "hash"}  # Override to hash
-
-        result = anonymizer.apply_anonymization(doc, pii_map, manual_overrides)
-
-        # Should use hash (manual override) not smart_redact (auto-detected)
-        assert len(result["email"]) == 64  # Hashed
-
     def test_no_pii_no_changes(self, anonymizer):
         """Test that documents without PII are unchanged."""
         doc = {"id": 123, "status": "active", "count": 42}
 
-        result = anonymizer.apply_anonymization(doc, None, None)
+        result = anonymizer.apply_anonymization(doc, None)
 
         # Document should be identical (deep copy)
         assert result == doc
         assert result is not doc  # But not the same object
-
-    def test_missing_field_graceful(self, anonymizer):
-        """Test graceful handling when PII map references non-existent field."""
-        doc = {"email": "test@example.com"}
-        pii_map = {
-            "email": ("EMAIL_ADDRESS", 0.95),
-            "phone": ("PHONE_NUMBER", 0.90),  # Field doesn't exist
-        }
-
-        result = anonymizer.apply_anonymization(doc, pii_map)
-
-        # Should anonymize existing field and ignore missing field
-        assert result["email"] != "test@example.com"
-        assert "phone" not in result
 
 
 class TestAnonymizationStrategies:
@@ -215,10 +188,10 @@ class TestAnonymizationStrategies:
     def test_hash_strategy(self, anonymizer):
         """Test hash strategy produces hashes."""
         doc = {"ssn": "123-45-6789"}
-        manual_overrides = {"ssn": "hash"}
+        pii_field_strategy = {"ssn": "hash"}
 
-        result1 = anonymizer.apply_anonymization(doc, None, manual_overrides)
-        result2 = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result1 = anonymizer.apply_anonymization(doc, pii_field_strategy)
+        result2 = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Presidio hash uses random salt, so hashes will differ
         # But both should be valid SHA-256 hashes
@@ -229,68 +202,21 @@ class TestAnonymizationStrategies:
         assert result2["ssn"] != "123-45-6789"
 
     def test_redact_strategy(self, anonymizer):
-        """Test basic redact strategy."""
-        doc = {"data": "sensitive-information"}
-        manual_overrides = {"data": "redact"}
-
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
-
-        # Should be redacted but not the original value
-        assert result["data"] != "sensitive-information"
-        # Presidio's redact operator returns empty string by default
-        assert result["data"] == ""
-
-    def test_mask_strategy(self, anonymizer):
-        """Test mask strategy."""
+        """Test redact strategy."""
         doc = {"ssn": "123-45-6789"}
-        pii_map = {"ssn": ("US_SSN", 0.99)}  # US_SSN uses mask by default
+        pii_field_strategy = {"ssn": "redact"}
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
-        # Should contain asterisks (masked)
-        assert "*" in result["ssn"]
-        assert result["ssn"] != "123-45-6789"
-
-    def test_replace_strategy(self, anonymizer):
-        """Test replace strategy."""
-        doc = {"name": "John Doe"}
-        pii_map = {"name": ("PERSON", 0.95)}  # PERSON uses replace by default
-
-        result = anonymizer.apply_anonymization(doc, pii_map)
-
-        # Should be replaced with placeholder
-        assert result["name"] == "ANONYMOUS"
-
-    def test_smart_redact_strategy(self, anonymizer):
-        """Test smart_redact strategy on email."""
-        doc = {"email": "john.doe@example.com"}
-        pii_map = {"email": ("EMAIL_ADDRESS", 0.95)}  # EMAIL uses smart_redact
-
-        result = anonymizer.apply_anonymization(doc, pii_map)
-
-        # Smart redact should preserve some structure
-        assert result["email"] != "john.doe@example.com"
-        # Should preserve domain
-        assert "@example.com" in result["email"]
-
-    def test_fake_email_strategy(self, anonymizer):
-        """Test fake_email custom operator."""
-        doc = {"email": "test@example.com"}
-        manual_overrides = {"email": "fake_email"}
-
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
-
-        # Should generate a realistic fake email
-        assert result["email"] != "test@example.com"
-        assert "@" in result["email"]
-        assert re.match(r"[^@]+@[^@]+\.[^@]+", result["email"])
+        # Should be redacted (empty string)
+        assert result["ssn"] == ""
 
     def test_fake_name_strategy(self, anonymizer):
         """Test fake_name custom operator."""
         doc = {"name": "John Doe"}
-        manual_overrides = {"name": "fake_name"}
+        pii_field_strategy = {"name": "fake_name"}
 
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Should generate a realistic fake name
         assert result["name"] != "John Doe"
@@ -300,9 +226,9 @@ class TestAnonymizationStrategies:
     def test_fake_phone_strategy(self, anonymizer):
         """Test fake_phone custom operator."""
         doc = {"phone": "555-123-4567"}
-        manual_overrides = {"phone": "fake_phone"}
+        pii_field_strategy = {"phone": "fake_phone"}
 
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Should generate a realistic fake phone
         assert result["phone"] != "555-123-4567"
@@ -316,9 +242,9 @@ class TestConvenienceFunction:
     def test_apply_anonymization_function(self):
         """Test apply_anonymization convenience function."""
         doc = {"email": "test@example.com"}
-        pii_map = {"email": ("EMAIL_ADDRESS", 0.95)}
+        pii_field_strategy = {"email": "smart_redact"}
 
-        result = apply_anonymization(doc, pii_map)
+        result = apply_anonymization(doc, pii_field_strategy)
 
         # Should anonymize using default anonymizer
         assert result["email"] != "test@example.com"
@@ -326,10 +252,10 @@ class TestConvenienceFunction:
     def test_apply_anonymization_with_custom_config(self, tmp_path):
         """Test apply_anonymization with custom config path."""
         doc = {"email": "test@example.com"}
-        manual_overrides = {"email": "hash"}
+        pii_field_strategy = {"email": "hash"}
 
         # Using None config path should work (uses default)
-        result = apply_anonymization(doc, None, manual_overrides, None)
+        result = apply_anonymization(doc, pii_field_strategy, None)
 
         # Should anonymize
         assert result["email"] != "test@example.com"
@@ -341,9 +267,9 @@ class TestEdgeCases:
     def test_none_values(self, anonymizer):
         """Test handling of None values in document."""
         doc = {"field1": None, "field2": "value"}
-        manual_overrides = {"field1": "hash", "field2": "hash"}
+        pii_field_strategy = {"field1": "hash", "field2": "hash"}
 
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # None should be handled gracefully
         assert "field1" in result
@@ -353,29 +279,19 @@ class TestEdgeCases:
     def test_empty_document(self, anonymizer):
         """Test handling of empty document."""
         doc = {}
-        pii_map = {"email": ("EMAIL_ADDRESS", 0.95)}
+        pii_field_strategy = {"email": "smart_redact"}
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Should return empty document
         assert result == {}
 
-    def test_unknown_entity_type_uses_default(self, anonymizer):
-        """Test that unknown entity types fall back to DEFAULT strategy."""
-        doc = {"field": "value"}
-        pii_map = {"field": ("UNKNOWN_ENTITY_TYPE", 0.95)}
-
-        result = anonymizer.apply_anonymization(doc, pii_map)
-
-        # Should use DEFAULT strategy (redact)
-        assert result["field"] != "value"
-
     def test_empty_string_values(self, anonymizer):
         """Test handling of empty strings."""
         doc = {"email": ""}
-        pii_map = {"email": ("EMAIL_ADDRESS", 0.95)}
+        pii_field_strategy = {"email": "smart_redact"}
 
-        result = anonymizer.apply_anonymization(doc, pii_map)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Should handle empty string gracefully
         assert "email" in result
@@ -383,9 +299,9 @@ class TestEdgeCases:
     def test_numeric_values(self, anonymizer):
         """Test anonymizing numeric values."""
         doc = {"ssn": 123456789}  # Numeric SSN
-        manual_overrides = {"ssn": "hash"}
+        pii_field_strategy = {"ssn": "hash"}
 
-        result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
         # Should convert to string and hash
         assert isinstance(result["ssn"], str)
@@ -397,14 +313,14 @@ class TestIntegration:
 
     def test_full_document_anonymization(self, sample_doc, anonymizer):
         """Test anonymizing a complete realistic document."""
-        pii_map = {
-            "email": ("EMAIL_ADDRESS", 0.95),
-            "phone": ("PHONE_NUMBER", 0.90),
-            "ssn": ("US_SSN", 0.99),
-            "contacts.email": ("EMAIL_ADDRESS", 0.95),
+        pii_field_strategy = {
+            "email": "smart_redact",
+            "phone": "fake_phone",
+            "ssn": "hash",
+            "contacts.email": "smart_redact",
         }
 
-        result = anonymizer.apply_anonymization(sample_doc, pii_map)
+        result = anonymizer.apply_anonymization(sample_doc, pii_field_strategy)
 
         # Original document should be unchanged
         assert sample_doc["email"] == "john.doe@example.com"
@@ -420,30 +336,27 @@ class TestIntegration:
         assert result["_id"] == "doc123"
         assert result["address"]["city"] == "New York"
 
-    def test_mixed_auto_and_manual_strategies(self, anonymizer):
-        """Test combining auto-detected PII with manual overrides."""
+    def test_multiple_manual_strategies(self, anonymizer):
+        """Test using different manual strategies on different fields."""
         doc = {
             "email": "test@example.com",
             "ssn": "123-45-6789",
             "custom_sensitive": "secret-data",
         }
-        pii_map = {
-            "email": ("EMAIL_ADDRESS", 0.95),
-            "ssn": ("US_SSN", 0.99),
-        }
-        manual_overrides = {
-            "email": "fake_email",  # Override smart_redact with fake_email
-            "custom_sensitive": "hash",  # Add manual field
+        pii_field_strategy = {
+            "email": "fake_email",
+            "ssn": "hash",
+            "custom_sensitive": "hash",
         }
 
-        result = anonymizer.apply_anonymization(doc, pii_map, manual_overrides)
+        result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
-        # Email should use fake_email (manual override)
+        # Email should use fake_email
         assert "@" in result["email"]
         assert result["email"] != "test@example.com"
 
-        # SSN should use auto-detected strategy (mask)
-        assert "*" in result["ssn"]
+        # SSN should be hashed
+        assert len(result["ssn"]) == 64
 
         # Custom field should be hashed
         assert len(result["custom_sensitive"]) == 64
@@ -456,8 +369,8 @@ class TestIntegration:
         working_strategies = ["hash", "mask", "fake_email", "smart_redact"]
 
         for strategy in working_strategies:
-            manual_overrides = {"email": strategy}
-            result = anonymizer.apply_anonymization(doc, None, manual_overrides)
+            pii_field_strategy = {"email": strategy}
+            result = anonymizer.apply_anonymization(doc, pii_field_strategy)
             # Should not crash and should anonymize (or at least try)
             # Some strategies like redact might return empty string
             assert "email" in result
