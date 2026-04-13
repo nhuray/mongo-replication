@@ -1,6 +1,21 @@
 # CHANGELOG
 
 
+## v0.1.3 (2026-04-13)
+
+### Bug Fixes
+
+* fix(scan-report): improve scan report organization and readability (#16)
+
+fix(scan-report): sort collections alphabetically and reorder relationship table columns
+
+- Sort collections alphabetically in PII Analysis section (instead of by PII field count)
+- Reorder Relationship Details table columns to match Mermaid graph order:
+  - Old: Parent Collection | Child Collection | Child Field | Parent Field
+  - New: Child Collection | Child Field | Parent Collection | Parent Field
+- Sort relationships alphabetically by child collection name ([`b39beee`](https://github.com/nhuray/mongo-replication/commit/b39beee60cd4a19add2354f4b359063073104d80))
+
+
 ## v0.1.2 (2026-04-13)
 
 ### Bug Fixes
@@ -10,6 +25,10 @@
 * chore: update uv.lock
 
 * fix: fix default strategies not applied during scan ([`a11da3a`](https://github.com/nhuray/mongo-replication/commit/a11da3a1c4644b9440d187fb10fe48dfe931e7fb))
+
+### Chores
+
+* chore(release): 0.1.2 [skip ci] ([`88c5dc9`](https://github.com/nhuray/mongo-replication/commit/88c5dc900fd4689662097c635878a137ddabd09d))
 
 
 ## v0.1.1 (2026-04-09)
