@@ -243,6 +243,7 @@ class ReplicationOrchestrator:
                 match_filter=config.match,
                 field_transformer=field_transformer,
                 field_excluder=field_excluder,
+                cursor_initial_value=config.cursor_initial_value,
             )
 
             return result

@@ -6,6 +6,7 @@ This module defines the configuration schema with two main sections:
 """
 
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator, RootModel
@@ -252,8 +253,10 @@ class ReplicationDefaultsConfig(BaseModel):
     cursor_fallback_field: str = "_id"
     """Field to use when cursor_field doesn't exist or no cursor_fields match."""
 
-    cursor_initial_value: str = "2020-01-01T00:00:00Z"
-    """Initial cursor value for first-time replication."""
+    cursor_initial_value: datetime = Field(
+        default_factory=lambda: datetime.fromisoformat("2020-01-01T00:00:00+00:00")
+    )
+    """Initial cursor value for first-time replication (datetime object)."""
 
     primary_key: str = "_id"
     """Default primary key field to use for upsert."""
@@ -263,6 +266,30 @@ class ReplicationDefaultsConfig(BaseModel):
 
     transform_error_mode: Literal["skip", "fail"] = "skip"
     """How to handle errors during field transformations."""
+
+    @field_validator("cursor_initial_value", mode="before")
+    @classmethod
+    def parse_cursor_initial_value(cls, v):
+        """Parse cursor_initial_value from string to datetime.
+
+        Accepts ISO 8601 datetime strings and converts them to datetime objects.
+        Fails fast with clear error if the string cannot be parsed.
+        """
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, str):
+            try:
+                # Try parsing as ISO 8601 format
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError as e:
+                raise ValueError(
+                    f"cursor_initial_value must be a valid ISO 8601 datetime string "
+                    f"(e.g., '2020-01-01T00:00:00Z' or '2020-01-01T00:00:00+00:00'). "
+                    f"Got: '{v}'. Error: {e}"
+                )
+        raise ValueError(
+            f"cursor_initial_value must be a datetime or ISO 8601 string, got {type(v).__name__}"
+        )
 
 
 class CollectionConfig(ReplicationDefaultsConfig):
@@ -278,7 +305,7 @@ class CollectionConfig(ReplicationDefaultsConfig):
     cursor_field: Optional[str] = None
     """Field to use for incremental loading (overrides defaults)."""
 
-    cursor_initial_value: Optional[str] = None
+    cursor_initial_value: Optional[datetime] = None
     """Initial cursor value for first-time replication (overrides defaults)."""
 
     match: Optional[Dict[str, Any]] = None
@@ -292,6 +319,32 @@ class CollectionConfig(ReplicationDefaultsConfig):
 
     pii_anonymized_fields: Dict[str, str] = Field(default_factory=dict)
     """Mapping of field paths to anonymization strategies."""
+
+    @field_validator("cursor_initial_value", mode="before")
+    @classmethod
+    def parse_cursor_initial_value_override(cls, v):
+        """Parse cursor_initial_value from string to datetime (collection override).
+
+        Accepts ISO 8601 datetime strings and converts them to datetime objects.
+        Fails fast with clear error if the string cannot be parsed.
+        """
+        if v is None:
+            return v
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, str):
+            try:
+                # Try parsing as ISO 8601 format
+                return datetime.fromisoformat(v.replace("Z", "+00:00"))
+            except ValueError as e:
+                raise ValueError(
+                    f"cursor_initial_value must be a valid ISO 8601 datetime string "
+                    f"(e.g., '2020-01-01T00:00:00Z' or '2020-01-01T00:00:00+00:00'). "
+                    f"Got: '{v}'. Error: {e}"
+                )
+        raise ValueError(
+            f"cursor_initial_value must be a datetime or ISO 8601 string, got {type(v).__name__}"
+        )
 
     @field_validator("write_disposition")
     @classmethod
