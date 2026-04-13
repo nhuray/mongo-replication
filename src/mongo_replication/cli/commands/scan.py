@@ -410,6 +410,7 @@ def scan_command(
                     else None,  # Pass entity types from config
                     allowlist_fields=allowlist,
                     presidio_config=presidio_config,
+                    default_strategies=strategies,  # Pass default strategies from config
                 )
 
                 for collection_name in progress_wrapper(
