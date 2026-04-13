@@ -299,7 +299,7 @@ def run_command(
 
         # Show transparency messages
         print_info(f"Max parallel collections: {final_parallel} (from {parallel_source})")
-        print_info(f"Batch size: {final_batch_size} (from {batch_size_source})")
+        print_info(f"Default batch size: {final_batch_size} (from {batch_size_source})")
 
         console.print()
 
@@ -308,7 +308,7 @@ def run_command(
             "RUN REPLICATION",
             Job=job,
             **{"Max Parallel": f"{final_parallel} collections"},
-            **{"Batch Size": str(final_batch_size)},
+            **{"Default Batch Size": str(final_batch_size)},
             Interactive="Yes" if interactive else "No",
             **{"Dry Run": "Yes" if dry_run else "No"},
         )
@@ -737,6 +737,15 @@ def run_command(
 
         # Get max parallel collections for progress display
         max_parallel = replication_config.performance.max_parallel_collections
+        default_batch_size = replication_config.performance.batch_size
+
+        # Build collection batch size map for display
+        collection_batch_sizes = {}  # name -> (batch_size, is_override)
+        for coll_name, coll_config in replication_config.collections.items():
+            if coll_config.batch_size is not None:
+                collection_batch_sizes[coll_name] = (coll_config.batch_size, True)
+            else:
+                collection_batch_sizes[coll_name] = (default_batch_size, False)
 
         # Run replication with progress bars
         console.print()
@@ -817,7 +826,15 @@ def run_command(
                     table.add_row("", "[bold yellow]⏳ Replicating[/bold yellow]", "")
                     for coll_name, start_time in sorted(replicating_collections.items()):
                         elapsed = time.time() - start_time
-                        table.add_row("", f"  {coll_name}", f"[dim]{elapsed:.0f}s[/dim]")
+
+                        # Show batch size if overridden
+                        details = f"{elapsed:.0f}s"
+                        if coll_name in collection_batch_sizes:
+                            batch_size, is_override = collection_batch_sizes[coll_name]
+                            if is_override:
+                                details = f"{elapsed:.0f}s, batch_size: {batch_size}"
+
+                        table.add_row("", f"  {coll_name}", f"[dim]{details}[/dim]")
                     table.add_row("", "", "")  # Spacer
 
                 # Completed section
