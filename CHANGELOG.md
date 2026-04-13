@@ -1,11 +1,26 @@
 # CHANGELOG
 
 
+## v0.1.2 (2026-04-13)
+
+### Bug Fixes
+
+* fix: respect default_strategies from config during scan (#15)
+
+* chore: update uv.lock
+
+* fix: fix default strategies not applied during scan ([`a11da3a`](https://github.com/nhuray/mongo-replication/commit/a11da3a1c4644b9440d187fb10fe48dfe931e7fb))
+
+
 ## v0.1.1 (2026-04-09)
 
 ### Bug Fixes
 
 * fix: update README.md ([`9b9a9da`](https://github.com/nhuray/mongo-replication/commit/9b9a9da8276bbc9cea0c2b6f53f3022b5757f64d))
+
+### Chores
+
+* chore(release): 0.1.1 [skip ci] ([`b67e403`](https://github.com/nhuray/mongo-replication/commit/b67e403a8c3d9abcd7ca481f22ebaace3cf74eb9))
 
 
 ## v0.1.0 (2026-04-09)
