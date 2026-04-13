@@ -1,6 +1,45 @@
 # CHANGELOG
 
 
+## v0.1.4 (2026-04-13)
+
+### Bug Fixes
+
+* fix: respect cursor_initial_value on first replication run (#17)
+
+* fix: respect cursor_initial_value on first replication run
+
+- Changed cursor_initial_value from string to datetime type with validation
+- Added field validators to parse ISO 8601 strings and fail fast on invalid formats
+- Updated CollectionReplicator to accept and use cursor_initial_value parameter
+- Modified _build_query() to use cursor_initial_value when no previous state exists
+- Updated orchestrator to pass cursor_initial_value to replicator
+
+This fixes the issue where first-time replication with merge strategy would
+replicate all documents instead of only documents after cursor_initial_value.
+
+* fix: deep merge collection config with defaults using exclude_unset
+
+The previous fix didn't fully work because _build_collection_config was
+returning explicit_config as-is without merging it with defaults.
+
+CollectionConfig fields like cursor_initial_value are defined as Optional
+with None default, which overrides the parent ReplicationDefaultsConfig
+default value. This means collections without explicit cursor_initial_value
+would get None instead of inheriting the default.
+
+This commit fixes _build_collection_config to use the same robust pattern
+as load_config in manager.py:
+- Import deep_merge utility from config.manager
+- Create base config dict from defaults using model_dump()
+- For explicit configs, get only explicitly set fields using model_dump(exclude_unset=True)
+- Use deep_merge to combine base and override (handles nested dicts properly)
+- Validate merged data with CollectionConfig.model_validate()
+
+This approach is more maintainable and less fragile than manually listing
+every field, and automatically works if new fields are added. ([`e98299f`](https://github.com/nhuray/mongo-replication/commit/e98299f2c22caeaab0adab5aeab1312e01d66316))
+
+
 ## v0.1.3 (2026-04-13)
 
 ### Bug Fixes
@@ -14,6 +53,10 @@ fix(scan-report): sort collections alphabetically and reorder relationship table
   - Old: Parent Collection | Child Collection | Child Field | Parent Field
   - New: Child Collection | Child Field | Parent Collection | Parent Field
 - Sort relationships alphabetically by child collection name ([`b39beee`](https://github.com/nhuray/mongo-replication/commit/b39beee60cd4a19add2354f4b359063073104d80))
+
+### Chores
+
+* chore(release): 0.1.3 [skip ci] ([`3da279e`](https://github.com/nhuray/mongo-replication/commit/3da279e03d4236b60a5888b4c9496350111b5903))
 
 
 ## v0.1.2 (2026-04-13)
