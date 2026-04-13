@@ -7,6 +7,7 @@ with support for three write strategies (merge, append, replace), PII redaction
 
 import logging
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -163,6 +164,7 @@ class CollectionReplicator:
         match_filter: Optional[Dict[str, Any]] = None,
         field_transformer: Optional[FieldTransformer] = None,
         field_excluder: Optional[FieldExcluder] = None,
+        cursor_initial_value: Optional[datetime] = None,
     ) -> ReplicationResult:
         """Replicate the collection from source to destination.
 
@@ -185,6 +187,7 @@ class CollectionReplicator:
             match_filter: MongoDB match filter to apply at query time (optional)
             field_transformer: FieldTransformer instance for field transformations (optional)
             field_excluder: FieldExcluder instance for field exclusions (optional)
+            cursor_initial_value: Initial cursor value for first-time replication (datetime object, optional)
 
         Returns:
             ReplicationResult with statistics and status
@@ -201,6 +204,7 @@ class CollectionReplicator:
         self._field_excluder = field_excluder
         self._pii_handler = pii_handler
         self._state_id = state_id
+        self._cursor_initial_value = cursor_initial_value
 
         logger.info(f"🔄 Starting replication for collection: {self.collection_name}")
         logger.info(f"   State ID: {state_id}")
@@ -332,6 +336,18 @@ class CollectionReplicator:
         # Add cursor filter for incremental loading
         if cursor_field:
             last_value = self.state_mgr.get_last_cursor_value(self.collection_name)
+
+            # If no previous state exists, use cursor_initial_value
+            if (
+                last_value is None
+                and hasattr(self, "_cursor_initial_value")
+                and self._cursor_initial_value is not None
+            ):
+                last_value = self._cursor_initial_value
+                logger.info(
+                    f"   Using cursor_initial_value for first-time replication: {last_value}"
+                )
+
             if last_value is not None:
                 filters.append({cursor_field: {"$gt": last_value}})
 

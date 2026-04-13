@@ -16,6 +16,7 @@ from typing import Callable, Dict, List, Optional
 from pydantic import BaseModel
 
 from mongo_replication.config import CollectionConfig, ReplicationConfig
+from mongo_replication.config.manager import deep_merge
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.discovery import CollectionDiscovery, DiscoveryResult
 from mongo_replication.engine.field_exclusion import FieldExcluder
@@ -160,19 +161,19 @@ class ReplicationOrchestrator:
         Returns:
             Complete CollectionConfig
         """
-        if explicit_config:
-            # Use explicit config with defaults as fallback
-            return explicit_config
+        # Create base config from defaults
+        base_data = self.config.defaults.model_dump()
+        base_data["name"] = collection_name
 
-        # Auto-discovered collection - create config from defaults
-        return CollectionConfig(
-            name=collection_name,
-            cursor_field=self.config.defaults.cursor_field,
-            write_disposition=self.config.defaults.write_disposition,
-            primary_key=self.config.defaults.primary_key,
-            pii_anonymized_fields={},  # No PII redaction for auto-discovered
-            transform_error_mode=self.config.defaults.transform_error_mode,
-        )
+        if explicit_config:
+            # Deep merge explicit config with defaults (explicit takes precedence)
+            override_data = explicit_config.model_dump(exclude_unset=True)
+            merged_data = deep_merge(base_data, override_data)
+            return CollectionConfig.model_validate(merged_data)
+
+        # Auto-discovered collection - use defaults with empty PII fields
+        base_data["pii_anonymized_fields"] = {}  # No PII redaction for auto-discovered
+        return CollectionConfig.model_validate(base_data)
 
     def _replicate_single_collection(
         self,
@@ -243,6 +244,7 @@ class ReplicationOrchestrator:
                 match_filter=config.match,
                 field_transformer=field_transformer,
                 field_excluder=field_excluder,
+                cursor_initial_value=config.cursor_initial_value,
             )
 
             return result
