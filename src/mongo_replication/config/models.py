@@ -308,6 +308,9 @@ class CollectionConfig(ReplicationDefaultsConfig):
     cursor_initial_value: Optional[datetime] = None
     """Initial cursor value for first-time replication (overrides defaults)."""
 
+    batch_size: Optional[int] = None
+    """Batch size for processing documents (overrides performance.batch_size)."""
+
     match: Optional[Dict[str, Any]] = None
     """MongoDB match filter to apply during replication."""
 
@@ -320,31 +323,13 @@ class CollectionConfig(ReplicationDefaultsConfig):
     pii_anonymized_fields: Dict[str, str] = Field(default_factory=dict)
     """Mapping of field paths to anonymization strategies."""
 
-    @field_validator("cursor_initial_value", mode="before")
+    @field_validator("batch_size")
     @classmethod
-    def parse_cursor_initial_value_override(cls, v):
-        """Parse cursor_initial_value from string to datetime (collection override).
-
-        Accepts ISO 8601 datetime strings and converts them to datetime objects.
-        Fails fast with clear error if the string cannot be parsed.
-        """
-        if v is None:
-            return v
-        if isinstance(v, datetime):
-            return v
-        if isinstance(v, str):
-            try:
-                # Try parsing as ISO 8601 format
-                return datetime.fromisoformat(v.replace("Z", "+00:00"))
-            except ValueError as e:
-                raise ValueError(
-                    f"cursor_initial_value must be a valid ISO 8601 datetime string "
-                    f"(e.g., '2020-01-01T00:00:00Z' or '2020-01-01T00:00:00+00:00'). "
-                    f"Got: '{v}'. Error: {e}"
-                )
-        raise ValueError(
-            f"cursor_initial_value must be a datetime or ISO 8601 string, got {type(v).__name__}"
-        )
+    def validate_batch_size_override(cls, v: Optional[int]) -> Optional[int]:
+        """Validate batch_size is at least 1 if specified."""
+        if v is not None and v < 1:
+            raise ValueError(f"batch_size must be >= 1, got {v}")
+        return v
 
     @field_validator("write_disposition")
     @classmethod

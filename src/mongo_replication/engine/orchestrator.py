@@ -316,16 +316,30 @@ class ReplicationOrchestrator:
                 config = self._build_collection_config(coll_name, explicit_config)
                 collection_configs[coll_name] = config
 
+                # Determine batch size for this collection
+                coll_batch_size = (
+                    config.batch_size
+                    if config.batch_size is not None
+                    else self.config.performance.batch_size
+                )
+
                 if coll_name in discovery_result.auto_discovered_collections:
-                    logger.info(f"   🔍 {coll_name}: Auto-discovered (using defaults)")
-                else:
                     logger.info(
-                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymized_fields)} fields)"
+                        f"   🔍 {coll_name}: Auto-discovered (batch_size: {coll_batch_size})"
+                    )
+                else:
+                    batch_info = (
+                        f"batch_size: {coll_batch_size}"
+                        if config.batch_size is not None
+                        else f"batch_size: {coll_batch_size} [default]"
+                    )
+                    logger.info(
+                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymized_fields)} fields, {batch_info})"
                     )
 
             # Step 3: Replicate collections in parallel
             max_workers = self.config.performance.max_parallel_collections
-            batch_size = self.config.performance.batch_size
+            default_batch_size = self.config.performance.batch_size
 
             logger.info(
                 f"\n🔄 Step 3: Replicating {len(collection_configs)} collections (max {max_workers} parallel)..."
@@ -342,7 +356,7 @@ class ReplicationOrchestrator:
                         run_id,
                         coll_name,
                         config,
-                        batch_size,
+                        config.batch_size if config.batch_size is not None else default_batch_size,
                     ): coll_name
                     for coll_name, config in collection_configs.items()
                 }
