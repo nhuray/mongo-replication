@@ -82,6 +82,7 @@ class PIIAnalysisEngine:
         allowlist_fields: Optional[List[str]] = None,
         entity_types: Optional[List[str]] = None,
         presidio_config: Optional[str] = None,
+        default_strategies: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize PII analysis engine.
@@ -93,6 +94,7 @@ class PIIAnalysisEngine:
             allowlist_fields: Field patterns to exclude from detection
             entity_types: Specific entity types to detect (None or [] = all types)
             presidio_config: Optional path to Presidio YAML configuration file
+            default_strategies: Default anonymization strategies per entity type
         """
         self.confidence_threshold = confidence_threshold
         self.language = language
@@ -100,6 +102,7 @@ class PIIAnalysisEngine:
         self.allowlist_fields = allowlist_fields or ["_id", "meta.*", "*.id"]
         self.entity_types = entity_types if entity_types else None  # Empty list -> None (all types)
         self.presidio_config = presidio_config
+        self.default_strategies = default_strategies or {}
 
         # Lazy load analyzer
         self._analyzer: Optional[PresidioAnalyzer] = None
@@ -270,6 +273,15 @@ class PIIAnalysisEngine:
         Returns:
             Strategy name (e.g., "redact", "hash")
         """
+        # Priority 1: Check if user configured a strategy for this specific entity type
+        if self.default_strategies and entity_type in self.default_strategies:
+            return self.default_strategies[entity_type]
+
+        # Priority 2: Check if user configured a DEFAULT strategy for all types
+        if self.default_strategies and "DEFAULT" in self.default_strategies:
+            return self.default_strategies["DEFAULT"]
+
+        # Priority 3: Fallback to hardcoded logic (for backwards compatibility)
         # Highly sensitive - always hash for referential integrity
         if entity_type in [
             "CREDIT_CARD",
