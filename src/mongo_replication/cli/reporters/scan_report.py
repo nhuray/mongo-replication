@@ -68,11 +68,10 @@ def generate_scan_report(
     collections_without_pii_data = []
 
     if pii_analyses:
-        # Sort collections by PII field count (descending)
+        # Sort collections alphabetically
         sorted_collections = sorted(
             [(name, analysis) for name, analysis in pii_analyses.items() if analysis.has_pii],
-            key=lambda x: x[1].pii_field_count,
-            reverse=True,
+            key=lambda x: x[0],  # Sort by collection name
         )
 
         for collection_name, analysis in sorted_collections:
@@ -129,7 +128,9 @@ def generate_scan_report(
     # Prepare relationship data
     relationships_data = []
     if schema_relationships:
-        for rel in schema_relationships:
+        # Sort relationships alphabetically by child collection
+        sorted_relationships = sorted(schema_relationships, key=lambda rel: rel.child)
+        for rel in sorted_relationships:
             relationships_data.append(
                 {
                     "parent": rel.parent,
