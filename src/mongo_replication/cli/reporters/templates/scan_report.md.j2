@@ -90,10 +90,10 @@ graph TD
 
 ### Relationship Details
 
-| Parent Collection | Child Collection | Child Field | Parent Field |
-|-------------------|------------------|-------------|--------------|
+| Child Collection | Child Field | Parent Collection | Parent Field |
+|------------------|-------------|-------------------|--------------|
 {% for rel in relationships %}
-| `{{ rel.parent }}` | `{{ rel.child }}` | `{{ rel.child_field }}` | `{{ rel.parent_field }}` |
+| `{{ rel.child }}` | `{{ rel.child_field }}` | `{{ rel.parent }}` | `{{ rel.parent_field }}` |
 {% endfor %}
 
 These relationships can be used for cascade replication using the `--ids` or `--query` options with the `run` command.
