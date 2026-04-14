@@ -1,5 +1,6 @@
+# =============================================================================
 # Presidio Analyzer Engine Configuration
-# ========================================
+# =============================================================================
 # This file configures the Presidio PII detection engine for MongoDB Replication Tool.
 #
 # Configuration sections:
@@ -12,22 +13,52 @@
 # Adding recognizers: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
 
 # =============================================================================
-# NLP Engine Configuration
+# USAGE NOTES
 # =============================================================================
-# Presidio uses NLP models to improve PII detection accuracy through:
-# - Named Entity Recognition (NER)
-# - Part-of-speech tagging
-# - Dependency parsing
-# - Lemmatization
 #
-# The spaCy en_core_web_lg model provides robust entity detection.
-# Make sure to install it: python -m spacy download en_core_web_lg
-
-nlp_configuration:
-  nlp_engine_name: spacy
-  models:
-    - lang_code: en
-      model_name: en_core_web_lg
+# 1. Customizing for Your Domain:
+#    - Copy this file to your job config directory: config/{job}_presidio.yaml
+#    - Uncomment and modify the example recognizers
+#    - Add your own custom patterns based on your data
+#
+# 2. Regex Pattern Tips:
+#    - Use \\b for word boundaries to avoid partial matches
+#    - Test your regex patterns thoroughly
+#    - Start with lower scores and adjust based on false positives
+#    - Use context words to improve accuracy
+#
+# 3. Context Words:
+#    - Context words increase confidence when found near detected PII
+#    - Add domain-specific terminology
+#    - Include common field names from your MongoDB collections
+#
+# 4. Score Thresholds:
+#    - Pattern score: How confident the pattern match is (0.0-1.0)
+#    - Global threshold: Minimum score to report detection
+#    - Context words can boost the score
+#
+# 5. Performance Considerations:
+#    - Complex regex patterns can slow down scanning
+#    - Use specific patterns rather than broad ones
+#    - Consider using deny-lists for exact matches
+#
+# 6. Testing Your Configuration:
+#    - Run a small scan first to validate your patterns
+#    - Check for false positives in the scan results
+#    - Adjust scores and patterns as needed
+#    - Use the allowlist feature to exclude known safe fields
+#
+# 7. Language Support:
+#    - This default config supports English only
+#    - To add languages, install appropriate spaCy models
+#    - Update supported_languages and add model to nlp_configuration
+#
+# 8. NLP Model Selection:
+#    - en_core_web_lg: Large model, best accuracy, slower
+#    - en_core_web_md: Medium model, good balance
+#    - en_core_web_sm: Small model, faster but less accurate
+#    - Install with: python -m spacy download <model_name>
+# =============================================================================
 
 # =============================================================================
 # Global Analyzer Settings
@@ -40,6 +71,26 @@ supported_languages:
 # Default minimum confidence score for PII detections (0.0-1.0)
 # This can be overridden by the confidence_threshold in ScanPIIConfig
 default_score_threshold: 0.35
+
+# =============================================================================
+# NLP Engine Configuration
+# =============================================================================
+# Presidio uses NLP models to improve PII detection accuracy through:
+# - Named Entity Recognition (NER)
+# - Part-of-speech tagging
+# - Dependency parsing
+# - Lemmatization
+#
+# The spaCy en_core_web_lg model provides robust entity detection.
+# Make sure to install it: python -m spacy download en_core_web_lg
+# =============================================================================
+
+nlp_configuration:
+  nlp_engine_name: spacy
+  models:
+    - lang_code: en
+      model_name: en_core_web_lg
+
 
 # =============================================================================
 # PII Recognizers Configuration
@@ -57,6 +108,7 @@ default_score_threshold: 0.35
 # - patterns: Regex patterns with scores and context words
 # - context: Context words that increase confidence when found nearby
 # - deny_list: Exact string matches to flag as PII
+# =============================================================================
 
 recognizer_registry:
   recognizers:
@@ -102,8 +154,8 @@ recognizer_registry:
         - "tel"
         - "fax"
 
-  # CREDIT CARD DETECTION
-  # Detects major credit card numbers (Visa, Mastercard, Amex, etc.)
+    # CREDIT CARD DETECTION
+    # Detects major credit card numbers (Visa, Mastercard, Amex, etc.)
     - name: CreditCardRecognizer
       supported_entity: CREDIT_CARD
       supported_languages:
@@ -121,8 +173,8 @@ recognizer_registry:
         - "cvv"
         - "expiry"
 
-  # US SOCIAL SECURITY NUMBER DETECTION
-  # Detects SSNs in format XXX-XX-XXXX or variations
+    # US SOCIAL SECURITY NUMBER DETECTION
+    # Detects SSNs in format XXX-XX-XXXX or variations
     - name: UsSsnRecognizer
       supported_entity: US_SSN
       supported_languages:
@@ -134,8 +186,8 @@ recognizer_registry:
         - "ss#"
         - "ss #"
 
-  # IP ADDRESS DETECTION
-  # Detects IPv4 and IPv6 addresses
+    # IP ADDRESS DETECTION
+    # Detects IPv4 and IPv6 addresses
     - name: IpRecognizer
       supported_entity: IP_ADDRESS
       supported_languages:
@@ -150,8 +202,8 @@ recognizer_registry:
         - "server"
         - "client"
 
-  # URL DETECTION
-  # Detects web URLs and URIs
+    # URL DETECTION
+    # Detects web URLs and URIs
     - name: UrlRecognizer
       supported_entity: URL
       supported_languages:
@@ -166,8 +218,8 @@ recognizer_registry:
         - "uri"
         - "href"
 
-  # IBAN (International Bank Account Number) DETECTION
-  # Detects European bank account numbers
+    # IBAN (International Bank Account Number) DETECTION
+    # Detects European bank account numbers
     - name: IbanRecognizer
       supported_entity: IBAN_CODE
       supported_languages:
@@ -180,15 +232,15 @@ recognizer_registry:
         - "swift"
         - "bic"
 
-  # ===========================================================================
-  # CUSTOM RECOGNIZERS (Domain-Specific Patterns)
-  # ===========================================================================
-  # These are examples of custom PII recognizers for your domain.
-  # Uncomment and customize them based on your needs.
-  # ===========================================================================
+    # ===========================================================================
+    # CUSTOM RECOGNIZERS (Domain-Specific Patterns)
+    # ===========================================================================
+    # These are examples of custom PII recognizers for your domain.
+    # Uncomment and customize them based on your needs.
+    # ===========================================================================
 
-  # US BANK ACCOUNT NUMBER DETECTION
-  # Detects US routing numbers (9 digits) and account numbers (8-17 digits)
+    # US BANK ACCOUNT NUMBER DETECTION
+    # Detects US routing numbers (9 digits) and account numbers (8-17 digits)
     - name: UsBankAccountRecognizer
       supported_entity: US_BANK_ACCOUNT
       supported_languages:
@@ -214,6 +266,36 @@ recognizer_registry:
         - "ach"
         - "wire"
         - "direct deposit"
+        - "number"
+
+    # CA BANK ACCOUNT NUMBER DETECTION
+    # Detects CA transit numbers (5 digits), institution numbers (3 digits)  and account numbers (7-12 digits)
+    - name: CaBankAccountRecognizer
+      supported_entity: CA_BANK_ACCOUNT
+      supported_languages:
+        - en
+      patterns:
+      # CA Transit Number: 5 digits
+    - name: transit_number_pattern
+      regex: "\\b[0-9]{5}\\b"
+      score: 0.5
+      # CA Institution Number: 3 digits
+    - name: institution_number_pattern
+      regex: "\\b[0-9]{3}\\b"
+      score: 0.5
+      # CA Account Number: 7-12 digits
+    - name: account_number_pattern
+      regex: "\\b[0-9]{7,12}\\b"
+      score: 0.5
+      context:
+        - "transit"
+        - "transit number"
+        - "institution"
+        - "institution number"
+        - "account"
+        - "account number"
+        - "bank account"
+        - "number"
 
   # ===========================================================================
   # COMMENTED EXAMPLES - Uncomment and customize for your needs
@@ -333,55 +415,9 @@ recognizer_registry:
   #     - "registration"
   #     - "car"
 
+
 # =============================================================================
-# USAGE NOTES
-# =============================================================================
-#
-# 1. Customizing for Your Domain:
-#    - Copy this file to your job config directory: config/{job}_presidio.yaml
-#    - Uncomment and modify the example recognizers
-#    - Add your own custom patterns based on your data
-#
-# 2. Regex Pattern Tips:
-#    - Use \\b for word boundaries to avoid partial matches
-#    - Test your regex patterns thoroughly
-#    - Start with lower scores and adjust based on false positives
-#    - Use context words to improve accuracy
-#
-# 3. Context Words:
-#    - Context words increase confidence when found near detected PII
-#    - Add domain-specific terminology
-#    - Include common field names from your MongoDB collections
-#
-# 4. Score Thresholds:
-#    - Pattern score: How confident the pattern match is (0.0-1.0)
-#    - Global threshold: Minimum score to report detection
-#    - Context words can boost the score
-#
-# 5. Performance Considerations:
-#    - Complex regex patterns can slow down scanning
-#    - Use specific patterns rather than broad ones
-#    - Consider using deny-lists for exact matches
-#
-# 6. Testing Your Configuration:
-#    - Run a small scan first to validate your patterns
-#    - Check for false positives in the scan results
-#    - Adjust scores and patterns as needed
-#    - Use the allowlist feature to exclude known safe fields
-#
-# 7. Language Support:
-#    - This default config supports English only
-#    - To add languages, install appropriate spaCy models
-#    - Update supported_languages and add model to nlp_configuration
-#
-# 8. NLP Model Selection:
-#    - en_core_web_lg: Large model, best accuracy, slower
-#    - en_core_web_md: Medium model, good balance
-#    - en_core_web_sm: Small model, faster but less accurate
-#    - Install with: python -m spacy download <model_name>
-#
-# =============================================================================
-# PII ANONYMIZATION OPERATORS CONFIGURATION
+# PII Anonymizer Configuration
 # =============================================================================
 # This section configures how detected PII entities should be anonymized.
 #
