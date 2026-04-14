@@ -487,7 +487,7 @@ anonymizer_registry:
       - input: "123456789"
         output: "*****6789"
 
-  mask_ip:
+  mask_ip_address:
     description: "Mask IP address showing first and last octet"
     class: MaskIPAddressOperator
     supported_entities: [IP_ADDRESS]
@@ -610,9 +610,9 @@ anonymizer_registry:
       - input: "DE89370400440532013000"
         output: "DE89370400440532013789"
 
-  fake_person:
+  fake_name:
     description: "Generate realistic fake person name"
-    class: FakePersonOperator
+    class: FakeNameOperator
     supported_entities: [PERSON]
     examples:
       - input: "John Smith"

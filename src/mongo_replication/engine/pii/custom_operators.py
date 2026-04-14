@@ -397,12 +397,12 @@ class StripeTestingCCOperator(Operator):
 
 
 class SmartMaskOperator(Operator):
-    """Entity-aware masking that delegates to entity-specific mask operators.
+    """Entity-aware masking operator that delegates to entity-specific mask operators.
 
     This operator provides intelligent masking by:
-    1. Detecting the entity type from the text format
+    1. Detecting the entity type from the text format (or accepting it as a parameter)
     2. Delegating to the appropriate mask_<entity> operator
-    3. Applying format-preserving masking specific to that entity
+    3. Applying entity-specific masking rules
 
     Supported entity types:
     - EMAIL_ADDRESS -> mask_email
@@ -419,6 +419,21 @@ class SmartMaskOperator(Operator):
     This operator is primarily used during scan-time to suggest
     appropriate masking strategies for detected PII.
     """
+
+    # Map entity types to mask operator names
+    ENTITY_TO_OPERATOR = {
+        "EMAIL_ADDRESS": "mask_email",
+        "PHONE_NUMBER": "mask_phone",
+        "CREDIT_CARD": "mask_credit_card",
+        "US_SSN": "mask_ssn",
+        "SSN": "mask_ssn",
+        "IP_ADDRESS": "mask_ip_address",
+        "IBAN_CODE": "mask_iban",
+        "PERSON": "mask_person",
+        "LOCATION": "mask_location",
+        "US_BANK_ACCOUNT": "mask_us_bank_account",
+        "CA_BANK_ACCOUNT": "mask_ca_bank_account",
+    }
 
     # Map entity types to operator instances (lazy-loaded)
     _operator_cache: Dict[str, Operator] = {}
@@ -507,22 +522,8 @@ class SmartMaskOperator(Operator):
         if not entity_type:
             entity_type = self._detect_entity_type(text)
 
-        # Map entity type to operator name
-        entity_operator_map = {
-            "EMAIL_ADDRESS": "mask_email",
-            "PHONE_NUMBER": "mask_phone",
-            "CREDIT_CARD": "mask_credit_card",
-            "US_SSN": "mask_ssn",
-            "SSN": "mask_ssn",
-            "IP_ADDRESS": "mask_ip_address",
-            "IBAN_CODE": "mask_iban",
-            "PERSON": "mask_person",
-            "LOCATION": "mask_location",
-            "US_BANK_ACCOUNT": "mask_us_bank_account",
-            "CA_BANK_ACCOUNT": "mask_ca_bank_account",
-        }
-
-        operator_name = entity_operator_map.get(entity_type)
+        # Map entity type to operator name using class-level mapping
+        operator_name = self.ENTITY_TO_OPERATOR.get(entity_type)
         if operator_name:
             operator = self._get_operator(operator_name)
             if operator:
@@ -570,6 +571,21 @@ class SmartFakeOperator(Operator):
     This operator is primarily used during scan-time to suggest
     appropriate fake data strategies for detected PII.
     """
+
+    # Map entity types to fake operator names
+    ENTITY_TO_OPERATOR = {
+        "EMAIL_ADDRESS": "fake_email",
+        "PHONE_NUMBER": "fake_phone",
+        "CREDIT_CARD": "fake_credit_card",
+        "US_SSN": "fake_ssn",
+        "SSN": "fake_ssn",
+        "IP_ADDRESS": "fake_ip_address",
+        "IBAN_CODE": "fake_iban",
+        "PERSON": "fake_name",
+        "LOCATION": "fake_address",
+        "US_BANK_ACCOUNT": "fake_us_bank_account",
+        "CA_BANK_ACCOUNT": "fake_ca_bank_account",
+    }
 
     # Map entity types to operator instances (lazy-loaded)
     _operator_cache: Dict[str, Operator] = {}
@@ -655,22 +671,8 @@ class SmartFakeOperator(Operator):
         if not entity_type and text:
             entity_type = self._detect_entity_type(text)
 
-        # Map entity type to operator name
-        entity_operator_map = {
-            "EMAIL_ADDRESS": "fake_email",
-            "PHONE_NUMBER": "fake_phone",
-            "CREDIT_CARD": "fake_credit_card",
-            "US_SSN": "fake_ssn",
-            "SSN": "fake_ssn",
-            "IP_ADDRESS": "fake_ip_address",
-            "IBAN_CODE": "fake_iban",
-            "PERSON": "fake_name",
-            "LOCATION": "fake_address",
-            "US_BANK_ACCOUNT": "fake_us_bank_account",
-            "CA_BANK_ACCOUNT": "fake_ca_bank_account",
-        }
-
-        operator_name = entity_operator_map.get(entity_type)
+        # Map entity type to operator name using class-level mapping
+        operator_name = self.ENTITY_TO_OPERATOR.get(entity_type)
         if operator_name:
             operator = self._get_operator(operator_name)
             if operator:
@@ -691,6 +693,61 @@ class SmartFakeOperator(Operator):
     def operator_type(self) -> OperatorType:
         """Return operator type."""
         return OperatorType.Anonymize
+
+
+def resolve_smart_operator(operator_name: str, entity_type: str) -> str:
+    """Resolve a smart operator to a concrete operator based on entity type.
+
+    This function is used during scan time to convert smart operators (smart_mask, smart_fake)
+    into concrete entity-specific operators that will be stored in the replication config.
+
+    Args:
+        operator_name: The smart operator name ("smart_mask" or "smart_fake")
+        entity_type: The detected PII entity type (e.g., "EMAIL_ADDRESS", "PHONE_NUMBER")
+
+    Returns:
+        The resolved concrete operator name (e.g., "mask_email", "fake_phone").
+        Falls back to "mask" if resolution fails.
+
+    Examples:
+        >>> resolve_smart_operator("smart_mask", "EMAIL_ADDRESS")
+        'mask_email'
+        >>> resolve_smart_operator("smart_fake", "PHONE_NUMBER")
+        'fake_phone'
+        >>> resolve_smart_operator("smart_mask", "UNKNOWN_TYPE")
+        'mask'
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Handle non-smart operators - return as-is
+    if operator_name not in ("smart_mask", "smart_fake"):
+        return operator_name
+
+    # Resolve based on operator type
+    if operator_name == "smart_mask":
+        resolved = SmartMaskOperator.ENTITY_TO_OPERATOR.get(entity_type)
+        if resolved:
+            return resolved
+        logger.warning(
+            f"Failed to resolve smart_mask for entity_type '{entity_type}'. "
+            f"Falling back to generic 'mask' operator."
+        )
+        return "mask"
+
+    elif operator_name == "smart_fake":
+        resolved = SmartFakeOperator.ENTITY_TO_OPERATOR.get(entity_type)
+        if resolved:
+            return resolved
+        logger.warning(
+            f"Failed to resolve smart_fake for entity_type '{entity_type}'. "
+            f"Falling back to generic 'mask' operator."
+        )
+        return "mask"
+
+    # Should never reach here, but provide fallback
+    return "mask"
 
 
 class SmartRedactOperator(Operator):

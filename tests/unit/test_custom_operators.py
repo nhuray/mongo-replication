@@ -18,6 +18,7 @@ from mongo_replication.engine.pii.custom_operators import (
     MaskUSBankAccountOperator,
     SmartFakeOperator,
     SmartMaskOperator,
+    resolve_smart_operator,
 )
 
 
@@ -697,3 +698,104 @@ class TestSmartFakeOperator:
         # Should have some variety
         unique_fakes = set(fakes)
         assert len(unique_fakes) > 1
+
+
+# =============================================================================
+# RESOLVE SMART OPERATOR TESTS
+# =============================================================================
+
+
+class TestResolveSmartOperator:
+    """Tests for resolve_smart_operator function."""
+
+    def test_resolve_smart_mask_email(self):
+        """Test resolving smart_mask for EMAIL_ADDRESS."""
+        resolved = resolve_smart_operator("smart_mask", "EMAIL_ADDRESS")
+        assert resolved == "mask_email"
+
+    def test_resolve_smart_mask_phone(self):
+        """Test resolving smart_mask for PHONE_NUMBER."""
+        resolved = resolve_smart_operator("smart_mask", "PHONE_NUMBER")
+        assert resolved == "mask_phone"
+
+    def test_resolve_smart_mask_ssn(self):
+        """Test resolving smart_mask for US_SSN."""
+        resolved = resolve_smart_operator("smart_mask", "US_SSN")
+        assert resolved == "mask_ssn"
+
+    def test_resolve_smart_mask_ip(self):
+        """Test resolving smart_mask for IP_ADDRESS."""
+        resolved = resolve_smart_operator("smart_mask", "IP_ADDRESS")
+        assert resolved == "mask_ip_address"
+
+    def test_resolve_smart_mask_person(self):
+        """Test resolving smart_mask for PERSON."""
+        resolved = resolve_smart_operator("smart_mask", "PERSON")
+        assert resolved == "mask_person"
+
+    def test_resolve_smart_mask_location(self):
+        """Test resolving smart_mask for LOCATION."""
+        resolved = resolve_smart_operator("smart_mask", "LOCATION")
+        assert resolved == "mask_location"
+
+    def test_resolve_smart_mask_unknown_entity(self):
+        """Test resolving smart_mask for unknown entity type falls back to mask."""
+        resolved = resolve_smart_operator("smart_mask", "UNKNOWN_TYPE")
+        assert resolved == "mask"
+
+    def test_resolve_smart_fake_email(self):
+        """Test resolving smart_fake for EMAIL_ADDRESS."""
+        resolved = resolve_smart_operator("smart_fake", "EMAIL_ADDRESS")
+        assert resolved == "fake_email"
+
+    def test_resolve_smart_fake_phone(self):
+        """Test resolving smart_fake for PHONE_NUMBER."""
+        resolved = resolve_smart_operator("smart_fake", "PHONE_NUMBER")
+        assert resolved == "fake_phone"
+
+    def test_resolve_smart_fake_person(self):
+        """Test resolving smart_fake for PERSON."""
+        resolved = resolve_smart_operator("smart_fake", "PERSON")
+        assert resolved == "fake_name"
+
+    def test_resolve_smart_fake_location(self):
+        """Test resolving smart_fake for LOCATION."""
+        resolved = resolve_smart_operator("smart_fake", "LOCATION")
+        assert resolved == "fake_address"
+
+    def test_resolve_smart_fake_unknown_entity(self):
+        """Test resolving smart_fake for unknown entity type falls back to mask."""
+        resolved = resolve_smart_operator("smart_fake", "UNKNOWN_TYPE")
+        assert resolved == "mask"
+
+    def test_resolve_non_smart_operator_returns_as_is(self):
+        """Test that non-smart operators are returned unchanged."""
+        resolved = resolve_smart_operator("mask_email", "EMAIL_ADDRESS")
+        assert resolved == "mask_email"
+
+        resolved = resolve_smart_operator("fake_phone", "PHONE_NUMBER")
+        assert resolved == "fake_phone"
+
+        resolved = resolve_smart_operator("hash", "EMAIL_ADDRESS")
+        assert resolved == "hash"
+
+        resolved = resolve_smart_operator("redact", "PERSON")
+        assert resolved == "redact"
+
+    def test_resolve_all_smart_mask_entities(self):
+        """Test that all entities in SmartMaskOperator.ENTITY_TO_OPERATOR resolve correctly."""
+        for entity_type, expected_operator in SmartMaskOperator.ENTITY_TO_OPERATOR.items():
+            resolved = resolve_smart_operator("smart_mask", entity_type)
+            assert resolved == expected_operator, (
+                f"Failed to resolve smart_mask for {entity_type}. "
+                f"Expected {expected_operator}, got {resolved}"
+            )
+
+    def test_resolve_all_smart_fake_entities(self):
+        """Test that all entities in SmartFakeOperator.ENTITY_TO_OPERATOR resolve correctly."""
+        for entity_type, expected_operator in SmartFakeOperator.ENTITY_TO_OPERATOR.items():
+            resolved = resolve_smart_operator("smart_fake", entity_type)
+            assert resolved == expected_operator, (
+                f"Failed to resolve smart_fake for {entity_type}. "
+                f"Expected {expected_operator}, got {resolved}"
+            )

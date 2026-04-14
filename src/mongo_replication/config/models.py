@@ -278,6 +278,9 @@ class ReplicationDefaultsConfig(BaseModel):
         Accepts ISO 8601 datetime strings and converts them to datetime objects.
         Fails fast with clear error if the string cannot be parsed.
         """
+        # Allow None for Optional fields (CollectionConfig overrides this as Optional)
+        if v is None:
+            return None
         if isinstance(v, datetime):
             return v
         if isinstance(v, str):
@@ -303,6 +306,9 @@ class PIIFieldAnonymization(BaseModel):
 
     operator: str
     """Anonymization operator name (e.g., 'mask_email', 'fake_phone', 'smart_mask')."""
+
+    entity_type: str
+    """PII entity type detected by the analyzer (e.g., 'EMAIL_ADDRESS', 'PHONE_NUMBER', 'PERSON')."""
 
 
 class CollectionConfig(ReplicationDefaultsConfig):
@@ -364,8 +370,9 @@ class CollectionConfig(ReplicationDefaultsConfig):
             )
 
             # Convert dict format to list format
+            # Set entity_type to "UNKNOWN" for migrated configs since we don't have that info
             self.pii_anonymization = [
-                PIIFieldAnonymization(field=field, operator=operator)
+                PIIFieldAnonymization(field=field, operator=operator, entity_type="UNKNOWN")
                 for field, operator in self.pii_anonymized_fields.items()
             ]
 

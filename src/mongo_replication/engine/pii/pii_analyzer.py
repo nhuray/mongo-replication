@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field
 
+from mongo_replication.engine.pii.custom_operators import resolve_smart_operator
 from mongo_replication.engine.pii.presidio_analyzer import PresidioAnalyzer
 from mongo_replication.engine.pii.sampler import SamplingResult
 
@@ -74,10 +75,14 @@ class CollectionPIIAnalysis(BaseModel):
         Get pii_anonymization config list for YAML generation (NEW FORMAT).
 
         Returns:
-            List of dicts with 'field' and 'operator' keys
+            List of dicts with 'field', 'operator', and 'entity_type' keys
         """
         return [
-            {"field": stat.field_path, "operator": stat.suggested_strategy}
+            {
+                "field": stat.field_path,
+                "operator": stat.suggested_strategy,
+                "entity_type": stat.entity_type,
+            }
             for stat in self.fields_with_pii
         ]
 
@@ -207,6 +212,9 @@ class PIIAnalysisEngine:
                     field_value = self._get_field_value(doc, field_path)
                     if field_value is not None:
                         field_sample_values[normalized_path][entity_type] = str(field_value)
+                        logger.debug(
+                            f"      Captured sample value for {normalized_path}.{entity_type}: {field_value}"
+                        )
 
         # Convert detections to statistics
         total_samples = len(sample_docs)
@@ -234,6 +242,12 @@ class PIIAnalysisEngine:
 
                 # Get sample value for this field+entity
                 sample_value = field_sample_values.get(field_path, {}).get(entity_type)
+                if sample_value:
+                    logger.debug(
+                        f"      Sample value for {field_path}.{entity_type}: {sample_value}"
+                    )
+                else:
+                    logger.debug(f"      No sample value captured for {field_path}.{entity_type}")
 
                 stats = FieldPIIStats(
                     field_path=field_path,
@@ -297,22 +311,30 @@ class PIIAnalysisEngine:
 
     def _recommend_strategy(self, entity_type: str, avg_confidence: float) -> str:
         """
-        Recommend redaction strategy based on entity type and confidence.
+        Recommend anonymization strategy based on entity type and confidence.
+
+        This method resolves smart operators (smart_mask, smart_fake) to concrete
+        operators based on the detected entity type. The resolved operator will be
+        stored in the replication config.
 
         Args:
             entity_type: Detected entity type (e.g., "EMAIL_ADDRESS")
             avg_confidence: Average confidence score
 
         Returns:
-            Strategy name (e.g., "redact", "hash")
+            Concrete operator name (e.g., "mask_email", "fake_phone", "mask")
         """
         # Priority 1: Check if user configured a strategy for this specific entity type
         if self.default_strategies and entity_type in self.default_strategies:
-            return self.default_strategies[entity_type]
+            strategy = self.default_strategies[entity_type]
+            # Resolve smart operators to concrete operators
+            return resolve_smart_operator(strategy, entity_type)
 
         # Priority 2: Check if user configured a DEFAULT strategy for all types
         if self.default_strategies and "DEFAULT" in self.default_strategies:
-            return self.default_strategies["DEFAULT"]
+            strategy = self.default_strategies["DEFAULT"]
+            # Resolve smart operators to concrete operators
+            return resolve_smart_operator(strategy, entity_type)
 
         # Priority 3: Fallback to hardcoded logic (for backwards compatibility)
         # Highly sensitive - always hash for referential integrity
@@ -329,7 +351,8 @@ class PIIAnalysisEngine:
         if entity_type == "US_SSN" and avg_confidence >= 0.9:
             return "hash"
 
-        # Default to smart format-preserving redaction
+        # Default to smart format-preserving redaction (legacy behavior)
+        # Note: "redact" is a legacy operator, new configs should use smart_mask/smart_fake
         return "redact"
 
     @staticmethod

@@ -1,5 +1,6 @@
 """PII analysis and anonymization components."""
 
+from .custom_operators import resolve_smart_operator
 from .pii_analyzer import PIIAnalysisEngine, CollectionPIIAnalysis
 from .pii_handler import PIIHandler, create_pii_handler_from_config
 from .presidio_analyzer import PresidioAnalyzer, analyze_document
@@ -22,4 +23,5 @@ __all__ = [
     "get_anonymizer",
     "CollectionSampler",
     "SamplingResult",
+    "resolve_smart_operator",
 ]

@@ -116,11 +116,20 @@ def generate_scan_report(
                             entity_type=field.entity_type,
                         )
                         field_data["example"] = f"{field.sample_value} → {anonymized}"
+                        logger.debug(
+                            f"Generated example for {collection_name}.{field.field_path}: "
+                            f"{field.sample_value} → {anonymized}"
+                        )
                     except Exception as e:
                         logger.warning(
                             f"Failed to generate example for {collection_name}.{field.field_path}: {e}"
                         )
                         field_data["example"] = None
+                else:
+                    logger.debug(
+                        f"No sample value for {collection_name}.{field.field_path} "
+                        f"({field.entity_type}), skipping example generation"
+                    )
 
                 fields_data.append(field_data)
 

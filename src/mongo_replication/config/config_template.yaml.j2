@@ -206,8 +206,18 @@ replication:
       write_disposition: {{ coll_config.write_disposition }}
       # Primary key field for merges and deduplication
       primary_key: {{ coll_config.primary_key }}
-{%- if coll_config.pii_anonymized_fields %}
+{%- if coll_config.pii_anonymization %}
       # PII fields and their anonymization strategies
+      # Each entry specifies: field path, operator (e.g., mask_email, fake_phone), and entity type
+      pii_anonymization:
+{%- for pii_field in coll_config.pii_anonymization %}
+        - field: {{ pii_field.field | tojson }}
+          operator: {{ pii_field.operator }}
+          entity_type: {{ pii_field.entity_type }}
+{%- endfor %}
+{%- elif coll_config.pii_anonymized_fields %}
+      # DEPRECATED: Using old pii_anonymized_fields format
+      # Please migrate to pii_anonymization list format
       pii_anonymized_fields:
 {%- for field, strategy in coll_config.pii_anonymized_fields.items() %}
         {{ field }}: {{ strategy }}

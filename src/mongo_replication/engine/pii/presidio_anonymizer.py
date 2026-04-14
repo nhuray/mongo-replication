@@ -94,6 +94,45 @@ class PresidioAnonymizer:
 
         return anonymized
 
+    def anonymize_text(
+        self,
+        text: str,
+        operator_name: str,
+        entity_type: Optional[str] = None,
+    ) -> str:
+        """
+        Anonymize a text value using a specific operator.
+
+        This is a convenience method for anonymizing individual text values,
+        primarily used for generating examples in scan reports.
+
+        Args:
+            text: The text to anonymize
+            operator_name: The operator to use (e.g., 'mask_email', 'smart_mask')
+            entity_type: Optional entity type (used by some operators)
+
+        Returns:
+            Anonymized text
+
+        Example:
+            >>> anonymizer = PresidioAnonymizer()
+            >>> anonymizer.anonymize_text("john@example.com", "mask_email")
+            'jo*@example.com'
+        """
+        if not text or not text.strip():
+            return text
+
+        # Convert strategy name to operator config
+        operator_config = self._strategy_to_operator_config(operator_name, entity_type)
+        if not operator_config:
+            logger.warning(
+                f"No operator config found for '{operator_name}', returning original text"
+            )
+            return text
+
+        # Use the internal method to anonymize
+        return self._anonymize_value(str(text), operator_config)
+
     def _build_field_operators(
         self,
         pii_field_strategy: Optional[Dict[str, str]],
@@ -120,7 +159,11 @@ class PresidioAnonymizer:
 
         return field_operators
 
-    def _strategy_to_operator_config(self, strategy_name: str) -> Optional[OperatorConfig]:
+    def _strategy_to_operator_config(
+        self,
+        strategy_name: str,
+        entity_type: Optional[str] = None,
+    ) -> Optional[OperatorConfig]:
         """
         Convert a strategy name to an OperatorConfig.
 
@@ -131,6 +174,7 @@ class PresidioAnonymizer:
 
         Args:
             strategy_name: The strategy name to convert
+            entity_type: Optional entity type for operators that need it
 
         Returns:
             OperatorConfig object, or None if strategy not found
@@ -143,8 +187,12 @@ class PresidioAnonymizer:
             return self.operator_configs[strategy_name]
 
         # Create OperatorConfig for the operator name
-        # For simple operators like "mask", "hash", "redact", use default params
-        return OperatorConfig(operator_name, {})
+        # For operators that need entity_type, pass it in params
+        params = {}
+        if entity_type:
+            params["entity_type"] = entity_type
+
+        return OperatorConfig(operator_name, params)
 
     def _anonymize_field(
         self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
