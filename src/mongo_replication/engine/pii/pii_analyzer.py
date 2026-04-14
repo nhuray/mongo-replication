@@ -28,6 +28,8 @@ class FieldPIIStats(BaseModel):
     avg_confidence: float
     min_confidence: float
     max_confidence: float
+    sample_value: Optional[str] = None
+    """Sample value from first detection (for anonymization example generation)."""
 
     def __str__(self) -> str:
         """Human-readable representation."""
@@ -58,12 +60,26 @@ class CollectionPIIAnalysis(BaseModel):
 
     def get_pii_config(self) -> Dict[str, str]:
         """
-        Get pii_fields config dict for YAML generation.
+        Get pii_fields config dict for YAML generation (DEPRECATED).
+
+        DEPRECATED: This method returns the old dict format. Use get_pii_anonymization_list() instead.
 
         Returns:
             Dict mapping field_path -> strategy
         """
         return {stat.field_path: stat.suggested_strategy for stat in self.fields_with_pii}
+
+    def get_pii_anonymization_list(self) -> List[Dict[str, str]]:
+        """
+        Get pii_anonymization config list for YAML generation (NEW FORMAT).
+
+        Returns:
+            List of dicts with 'field' and 'operator' keys
+        """
+        return [
+            {"field": stat.field_path, "operator": stat.suggested_strategy}
+            for stat in self.fields_with_pii
+        ]
 
 
 class PIIAnalysisEngine:
@@ -149,6 +165,10 @@ class PIIAnalysisEngine:
         # Structure: {field_path: {entity_type: [confidence_scores]}}
         field_detections: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
 
+        # Track sample values per field (capture first non-None value)
+        # Structure: {field_path: {entity_type: sample_value}}
+        field_sample_values: Dict[str, Dict[str, str]] = defaultdict(dict)
+
         # Track all field names seen
         all_fields: Set[str] = set()
 
@@ -179,6 +199,15 @@ class PIIAnalysisEngine:
                 normalized_path = self._normalize_array_path(field_path)
                 field_detections[normalized_path][entity_type].append(confidence)
 
+                # Capture sample value (first non-None value per field+entity)
+                if (
+                    normalized_path not in field_sample_values
+                    or entity_type not in field_sample_values[normalized_path]
+                ):
+                    field_value = self._get_field_value(doc, field_path)
+                    if field_value is not None:
+                        field_sample_values[normalized_path][entity_type] = str(field_value)
+
         # Convert detections to statistics
         total_samples = len(sample_docs)
         fields_with_pii: List[FieldPIIStats] = []
@@ -203,6 +232,9 @@ class PIIAnalysisEngine:
                 # Determine redaction strategy
                 strategy = self._recommend_strategy(entity_type, avg_confidence)
 
+                # Get sample value for this field+entity
+                sample_value = field_sample_values.get(field_path, {}).get(entity_type)
+
                 stats = FieldPIIStats(
                     field_path=field_path,
                     entity_type=entity_type,
@@ -213,6 +245,7 @@ class PIIAnalysisEngine:
                     avg_confidence=avg_confidence,
                     min_confidence=min_confidence,
                     max_confidence=max_confidence,
+                    sample_value=sample_value,
                 )
 
                 fields_with_pii.append(stats)
@@ -362,6 +395,46 @@ class PIIAnalysisEngine:
                     paths.update(nested_paths)
 
         return paths
+
+    @staticmethod
+    def _get_field_value(doc: Dict[str, Any], field_path: str) -> Optional[Any]:
+        """
+        Get the value of a field from a document using dot notation path.
+
+        Args:
+            doc: Document to extract value from
+            field_path: Field path in dot notation (e.g., "user.email" or "contacts[0].name")
+
+        Returns:
+            Field value if found, None otherwise
+        """
+        import re
+
+        # Split path into parts, handling array notation
+        parts = re.split(r"[\.\[]", field_path)
+        parts = [p.rstrip("]") for p in parts]  # Remove closing brackets
+
+        current = doc
+        for part in parts:
+            if not part:  # Skip empty parts
+                continue
+
+            # Handle array index
+            if part.isdigit():
+                idx = int(part)
+                if isinstance(current, list) and 0 <= idx < len(current):
+                    current = current[idx]
+                else:
+                    return None
+            # Handle dict key
+            elif isinstance(current, dict):
+                current = current.get(part)
+                if current is None:
+                    return None
+            else:
+                return None
+
+        return current
 
     def get_summary_statistics(
         self,

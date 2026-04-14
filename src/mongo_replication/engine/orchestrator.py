@@ -172,7 +172,7 @@ class ReplicationOrchestrator:
             return CollectionConfig.model_validate(merged_data)
 
         # Auto-discovered collection - use defaults with empty PII fields
-        base_data["pii_anonymized_fields"] = {}  # No PII redaction for auto-discovered
+        base_data["pii_anonymization"] = []  # No PII redaction for auto-discovered
         return CollectionConfig.model_validate(base_data)
 
     def _replicate_single_collection(
@@ -226,7 +226,11 @@ class ReplicationOrchestrator:
                 )
 
             # Create PII handler from collection config
-            pii_handler = create_pii_handler_from_config(config.pii_anonymized_fields)
+            # Convert pii_anonymization list to dict for PIIHandler (which expects dict format)
+            pii_fields_dict = {}
+            if config.pii_anonymization:
+                pii_fields_dict = {item.field: item.operator for item in config.pii_anonymization}
+            pii_handler = create_pii_handler_from_config(pii_fields_dict)
 
             # Debug: Log match filter being used
             logger.info(
@@ -334,7 +338,7 @@ class ReplicationOrchestrator:
                         else f"batch_size: {coll_batch_size} [default]"
                     )
                     logger.info(
-                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymized_fields)} fields, {batch_info})"
+                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymization)} fields, {batch_info})"
                     )
 
             # Step 3: Replicate collections in parallel

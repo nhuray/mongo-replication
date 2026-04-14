@@ -417,233 +417,353 @@ recognizer_registry:
 
 
 # =============================================================================
-# PII Anonymizer Configuration
+# Anonymizer Registry
 # =============================================================================
-# This section configures how detected PII entities should be anonymized.
+# This section documents all available anonymization operators.
+# Operators are used in the collection configuration to specify how PII should
+# be anonymized during replication.
 #
-# IMPORTANT: This is a CUSTOM mongo-replication feature, NOT built into Presidio.
-# The tool will parse this YAML and convert to Presidio's OperatorConfig objects.
+# Usage in collection config (new list format):
+#   pii_anonymization:
+#     - field: email
+#       operator: mask_email
+#     - field: ssn
+#       operator: mask_ssn
+#     - field: phone
+#       operator: smart_mask
 #
-# Available Presidio built-in operators:
-# - replace: Replace with a fixed value
-# - redact: Remove completely (empty string)
-# - mask: Replace characters with masking char
-# - hash: SHA-256 hash (uses random salt by default for security)
-# - encrypt: Encrypt (requires decryption key)
-# - keep: Keep original value (for allowlisting)
-#
-# Custom operators (implemented by mongo-replication):
-# - fake_email: Generate realistic fake email (Mimesis)
-# - fake_name: Generate realistic fake name (Mimesis)
-# - fake_phone: Generate realistic fake phone (Mimesis)
-# - fake_address: Generate realistic fake address (Mimesis)
-# - fake_ssn: Generate realistic fake SSN (Mimesis)
-# - fake_credit_card: Generate realistic fake credit card (Mimesis)
-# - fake_iban: Generate realistic fake IBAN (Mimesis)
-# - fake_us_bank_account: Generate realistic fake US bank account (Mimesis)
-# - stripe_testing_cc: Use Stripe test credit card numbers
-# - smart_redact: Smart redaction preserving format (emails, SSN, phone, IP)
-#
-# Documentation:
-# - Presidio Anonymizer: https://microsoft.github.io/presidio/anonymizer/
-# - Presidio Operators: https://microsoft.github.io/presidio/anonymizer/adding_operators/
+# Operator categories:
+# 1. Entity-specific mask operators: Preserve format while hiding sensitive data
+# 2. Entity-specific fake operators: Generate realistic replacement data
+# 3. Smart operators: Detect entity type and delegate to appropriate operator
+# 4. Built-in Presidio operators: General-purpose operators
 # =============================================================================
 
-anonymization_operators:
-  # Email addresses - use smart redaction to preserve domain and uniqueness
-  EMAIL_ADDRESS:
-    operator: smart_redact
-    params: {}
+anonymizer_registry:
+  # ===========================================================================
+  # ENTITY-SPECIFIC MASK OPERATORS
+  # ===========================================================================
+  # These operators preserve the format of the original data while masking
+  # sensitive portions. They provide a balance between data utility and privacy.
+  # ===========================================================================
 
-  # Person names - replace with generic placeholder
-  PERSON:
-    operator: replace
-    params:
-      new_value: "ANONYMOUS"
+  mask_email:
+    description: "Mask email local part while preserving domain"
+    class: MaskEmailOperator
+    supported_entities: [EMAIL_ADDRESS]
+    examples:
+      - input: "john.smith@example.com"
+        output: "jo******th@example.com"
+      - input: "alice@company.org"
+        output: "al***@company.org"
 
-  # Phone numbers - mask all but last 4 digits
-  PHONE_NUMBER:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 10
-      from_end: false
+  mask_phone:
+    description: "Mask phone number while showing last 4 digits"
+    class: MaskPhoneOperator
+    supported_entities: [PHONE_NUMBER]
+    examples:
+      - input: "+1 (555) 123-4567"
+        output: "+* (***) ***-4567"
+      - input: "555-123-4567"
+        output: "***-***-4567"
 
-  # Location - partial masking
-  LOCATION:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 5
-      from_end: false
+  mask_credit_card:
+    description: "Mask credit card showing only last 4 digits"
+    class: MaskCreditCardOperator
+    supported_entities: [CREDIT_CARD]
+    examples:
+      - input: "4242 4242 4242 4242"
+        output: "**** **** **** 4242"
+      - input: "5555-5555-5555-4444"
+        output: "****-****-****-4444"
 
-  # US SSN - mask all but last 4
-  US_SSN:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
+  mask_ssn:
+    description: "Mask SSN showing only last 4 digits"
+    class: MaskSSNOperator
+    supported_entities: [US_SSN]
+    examples:
+      - input: "123-45-6789"
+        output: "***-**-6789"
+      - input: "123456789"
+        output: "*****6789"
 
-  # Generic SSN - mask all but last 4
-  SSN:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
+  mask_ip:
+    description: "Mask IP address showing first and last octet"
+    class: MaskIPAddressOperator
+    supported_entities: [IP_ADDRESS]
+    examples:
+      - input: "192.168.1.1"
+        output: "192.***.*.1"
+      - input: "10.0.0.1"
+        output: "10.*.*.1"
 
-  # Credit card - hash completely (too sensitive for masking)
-  CREDIT_CARD:
-    operator: hash
-    params:
-      hash_type: sha256
+  mask_iban:
+    description: "Mask IBAN showing country code and last 4 digits"
+    class: MaskIBANOperator
+    supported_entities: [IBAN_CODE]
+    examples:
+      - input: "GB82WEST12345698765432"
+        output: "GB******************5432"
+      - input: "DE89370400440532013000"
+        output: "DE******************3000"
 
-  # IBAN - hash completely
-  IBAN_CODE:
-    operator: hash
-    params:
-      hash_type: sha256
+  mask_person:
+    description: "Mask person name showing first character of each word"
+    class: MaskPersonOperator
+    supported_entities: [PERSON]
+    examples:
+      - input: "John Smith"
+        output: "J*** S****"
+      - input: "Alice Johnson"
+        output: "A**** J******"
 
-  # Cryptocurrency - hash completely
-  CRYPTO:
-    operator: hash
-    params:
-      hash_type: sha256
+  mask_location:
+    description: "Mask location showing first 3 characters"
+    class: MaskLocationOperator
+    supported_entities: [LOCATION]
+    examples:
+      - input: "San Francisco"
+        output: "San *********"
+      - input: "New York"
+        output: "New ****"
 
-  # US Passport - hash completely
-  US_PASSPORT:
-    operator: hash
-    params:
-      hash_type: sha256
+  mask_us_bank:
+    description: "Mask US bank account showing last 4 of each number"
+    class: MaskUSBankAccountOperator
+    supported_entities: [US_BANK_ACCOUNT]
+    examples:
+      - input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: *****6789, Account: ******3210"
 
-  # US Bank Account - hash completely
-  US_BANK_ACCOUNT:
-    operator: hash
-    params:
-      hash_type: sha256
+  mask_ca_bank:
+    description: "Mask CA bank account showing last 4 of each number"
+    class: MaskCABankAccountOperator
+    supported_entities: [CA_BANK_ACCOUNT]
+    examples:
+      - input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: *2345, Institution: *89, Account: ******7890"
 
-  # Driver's license - mask
-  US_DRIVER_LICENSE:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 8
-      from_end: false
+  # ===========================================================================
+  # ENTITY-SPECIFIC FAKE OPERATORS
+  # ===========================================================================
+  # These operators generate realistic replacement data using the Mimesis library.
+  # Useful for creating anonymized datasets that maintain data characteristics.
+  # ===========================================================================
 
-  # UK NHS number - mask
-  UK_NHS:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
-
-  # Date/time - mask partially (preserve year, mask day/month)
-  DATE_TIME:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 5
-      from_end: false
-
-  # IP addresses - use smart redaction to preserve first and last octet
-  IP_ADDRESS:
-    operator: smart_redact
-    params: {}
-
-  # URLs - keep (usually not PII)
-  URL:
-    operator: keep
-    params: {}
-
-  # Default operator for any unspecified entity type
-  DEFAULT:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 10
-      from_end: false
-
-# =============================================================================
-# CUSTOM STRATEGY ALIASES
-# =============================================================================
-# For convenience and readability, you can use these strategy names in your
-# collection configuration instead of operator names.
-#
-# Example in collection config:
-#   pii_fields:
-#     email: "fake_email"      # Use Mimesis to generate fake email
-#     ssn: "hash"              # Use Presidio's hash operator
-#     name: "smart_redact"     # Use smart redaction
-#
-# These aliases map to the operators defined above.
-# =============================================================================
-
-custom_strategy_aliases:
-  # Mimesis-based fake data generation
   fake_email:
-    description: "Generate realistic fake email address using Mimesis"
-    operator: fake_email
-
-  fake_name:
-    description: "Generate realistic fake full name using Mimesis"
-    operator: fake_name
+    description: "Generate realistic fake email address"
+    class: FakeEmailOperator
+    supported_entities: [EMAIL_ADDRESS]
+    examples:
+      - input: "john.smith@example.com"
+        output: "sarah.miller@company.net"
+      - input: "alice@test.org"
+        output: "michael.jones@domain.com"
 
   fake_phone:
-    description: "Generate realistic fake phone number using Mimesis"
-    operator: fake_phone
-
-  fake_address:
-    description: "Generate realistic fake address using Mimesis"
-    operator: fake_address
-
-  fake_ssn:
-    description: "Generate realistic fake SSN using Mimesis"
-    operator: fake_ssn
+    description: "Generate realistic fake phone number"
+    class: FakePhoneOperator
+    supported_entities: [PHONE_NUMBER]
+    examples:
+      - input: "+1 (555) 123-4567"
+        output: "+1 (555) 789-0123"
+      - input: "555-123-4567"
+        output: "555-987-6543"
 
   fake_credit_card:
-    description: "Generate realistic fake credit card using Mimesis"
-    operator: fake_credit_card
+    description: "Generate realistic fake credit card number"
+    class: FakeCreditCardOperator
+    supported_entities: [CREDIT_CARD]
+    examples:
+      - input: "4242 4242 4242 4242"
+        output: "4532 1234 5678 9010"
+      - input: "5555-5555-5555-4444"
+        output: "5425-2334-3010-9282"
+
+  fake_ssn:
+    description: "Generate realistic fake SSN"
+    class: FakeSSNOperator
+    supported_entities: [US_SSN]
+    examples:
+      - input: "123-45-6789"
+        output: "987-65-4321"
+      - input: "123456789"
+        output: "456789012"
+
+  fake_ip:
+    description: "Generate realistic fake IP address"
+    class: FakeIPAddressOperator
+    supported_entities: [IP_ADDRESS]
+    examples:
+      - input: "192.168.1.1"
+        output: "203.45.67.89"
+      - input: "10.0.0.1"
+        output: "172.16.254.1"
 
   fake_iban:
-    description: "Generate realistic fake IBAN using Mimesis"
-    operator: fake_iban
+    description: "Generate realistic fake IBAN"
+    class: FakeIBANOperator
+    supported_entities: [IBAN_CODE]
+    examples:
+      - input: "GB82WEST12345698765432"
+        output: "GB29NWBK60161331926819"
+      - input: "DE89370400440532013000"
+        output: "DE89370400440532013789"
 
-  fake_us_bank_account:
-    description: "Generate realistic fake US bank account using Mimesis"
-    operator: fake_us_bank_account
+  fake_person:
+    description: "Generate realistic fake person name"
+    class: FakePersonOperator
+    supported_entities: [PERSON]
+    examples:
+      - input: "John Smith"
+        output: "Sarah Miller"
+      - input: "Alice Johnson"
+        output: "Michael Brown"
 
-  # Stripe testing credit cards
-  stripe_testing_cc:
-    description: "Use Stripe test credit card numbers"
-    operator: stripe_testing_cc
+  fake_location:
+    description: "Generate realistic fake location"
+    class: FakeLocationOperator
+    supported_entities: [LOCATION]
+    examples:
+      - input: "San Francisco"
+        output: "Chicago"
+      - input: "New York"
+        output: "Los Angeles"
 
-  # Smart redaction (format-preserving)
+  fake_us_bank:
+    description: "Generate realistic fake US bank account"
+    class: FakeUSBankAccountOperator
+    supported_entities: [US_BANK_ACCOUNT]
+    examples:
+      - input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: 987654321, Account: 1234567890"
+
+  fake_ca_bank:
+    description: "Generate realistic fake CA bank account"
+    class: FakeCABankAccountOperator
+    supported_entities: [CA_BANK_ACCOUNT]
+    examples:
+      - input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: 54321, Institution: 123, Account: 9876543210"
+
+  # ===========================================================================
+  # SMART OPERATORS
+  # ===========================================================================
+  # Smart operators detect the entity type from the data format or accept an
+  # explicit entity_type parameter, then delegate to the appropriate
+  # entity-specific operator.
+  # ===========================================================================
+
+  smart_mask:
+    description: "Intelligently detect entity type and apply appropriate mask"
+    class: SmartMaskOperator
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    examples:
+      - input: "john.smith@example.com"
+        output: "jo******th@example.com"
+      - input: "555-123-4567"
+        output: "***-***-4567"
+      - input: "123-45-6789"
+        output: "***-**-6789"
+    notes:
+      - "Auto-detects entity type from format"
+      - "Falls back to generic masking for unknown types"
+      - "Accepts explicit entity_type parameter"
+
+  smart_fake:
+    description: "Intelligently detect entity type and generate appropriate fake data"
+    class: SmartFakeOperator
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    examples:
+      - input: "john.smith@example.com"
+        output: "sarah.miller@company.net"
+      - input: "555-123-4567"
+        output: "555-987-6543"
+      - input: "123-45-6789"
+        output: "987-65-4321"
+    notes:
+      - "Auto-detects entity type from format"
+      - "Falls back to generic identifier for unknown types"
+      - "Accepts explicit entity_type parameter"
+
+  # ===========================================================================
+  # LEGACY OPERATORS (Deprecated)
+  # ===========================================================================
+
   smart_redact:
-    description: "Smart redaction that preserves format (emails, SSN, phone, IP)"
-    operator: smart_redact
+    description: "DEPRECATED: Use smart_mask instead. Legacy smart redaction operator."
+    class: SmartRedactOperator
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, US_SSN, IP_ADDRESS]
+    notes:
+      - "This operator is deprecated and will be removed in a future version"
+      - "Please migrate to smart_mask for new configurations"
 
-  # Built-in Presidio operators (convenience aliases)
+  stripe_testing_cc:
+    description: "Use Stripe test credit card numbers for testing environments"
+    class: StripeTestingCCOperator
+    supported_entities: [CREDIT_CARD]
+    examples:
+      - input: "4242 4242 4242 4242"
+        output: "4242424242424242"
+    notes:
+      - "Only for testing/development environments"
+      - "Uses Stripe's official test card numbers"
+
+  # ===========================================================================
+  # BUILT-IN PRESIDIO OPERATORS
+  # ===========================================================================
+  # General-purpose operators provided by Presidio for common anonymization needs.
+  # ===========================================================================
+
   redact:
-    description: "Remove PII completely (empty string)"
-    operator: redact
+    description: "Remove PII completely (replace with empty string)"
+    type: builtin
+    examples:
+      - input: "john.smith@example.com"
+        output: ""
+      - input: "sensitive data"
+        output: ""
 
   mask:
-    description: "Replace characters with asterisks"
-    operator: mask
+    description: "Replace characters with masking character (default: *)"
+    type: builtin
+    params:
+      - masking_char: "Character to use for masking (default: *)"
+      - chars_to_mask: "Number of characters to mask"
+      - from_end: "Mask from end instead of beginning (default: false)"
+    examples:
+      - input: "123456789"
+        output: "*****6789"
+        params: {chars_to_mask: 5, from_end: false}
 
   hash:
-    description: "SHA-256 hash (uses random salt for security)"
-    operator: hash
+    description: "SHA-256 hash with random salt for security"
+    type: builtin
+    params:
+      - hash_type: "Hash algorithm (default: sha256)"
+    examples:
+      - input: "sensitive data"
+        output: "a1b2c3d4e5f6..."
+    notes:
+      - "Uses random salt by default - same input produces different hashes"
+      - "Not reversible"
 
   replace:
-    description: "Replace with fixed value"
-    operator: replace
+    description: "Replace PII with a fixed value"
+    type: builtin
+    params:
+      - new_value: "Value to replace with"
+    examples:
+      - input: "John Smith"
+        output: "REDACTED"
+        params: {new_value: "REDACTED"}
 
   keep:
-    description: "Keep original value (for allowlisting)"
-    operator: keep
+    description: "Keep original value unchanged (for allowlisting)"
+    type: builtin
+    examples:
+      - input: "not_actually_pii@example.com"
+        output: "not_actually_pii@example.com"
 
 # =============================================================================
 # REFERENCES

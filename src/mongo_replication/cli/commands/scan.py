@@ -33,6 +33,7 @@ from mongo_replication.config.models import (
     ScanPIIAnalysisConfig,
     Config,
     CollectionConfig,
+    PIIFieldAnonymization,
     ReplicationConfig,
     SchemaRelationshipConfig,
 )
@@ -532,9 +533,9 @@ def scan_command(
 
         new_collection_configs = {}
         for collection_name in selected_collections:
-            pii_config = {}
+            pii_anonymization_list = []
             if collection_name in pii_analyses:
-                pii_config = pii_analyses[collection_name].get_pii_config()
+                pii_anonymization_list = pii_analyses[collection_name].get_pii_anonymization_list()
 
             # Detect cursor field from sampled documents
             detected_cursor_field = None
@@ -577,7 +578,9 @@ def scan_command(
                 cursor_field=detected_cursor_field,  # Use detected field or None
                 write_disposition="merge",
                 primary_key="_id",
-                pii_anonymized_fields=pii_config,
+                pii_anonymization=[
+                    PIIFieldAnonymization(**item) for item in pii_anonymization_list
+                ],
             )
 
         # Merge with existing collections if config exists
