@@ -70,14 +70,17 @@ class ScanPIIAnalysisConfig(BaseModel):
 
     default_strategies: Dict[str, str] = Field(
         default_factory=lambda: {
-            "EMAIL_ADDRESS": "fake",
-            "PHONE_NUMBER": "fake",
-            "PERSON": "hash",
-            "US_SSN": "redact",
-            "CREDIT_CARD": "redact",
-            "IBAN_CODE": "redact",
-            "IP_ADDRESS": "hash",
-            "URL": "hash",
+            "EMAIL_ADDRESS": "smart_mask",
+            "PHONE_NUMBER": "smart_mask",
+            "PERSON": "smart_mask",
+            "US_SSN": "smart_mask",
+            "CREDIT_CARD": "smart_mask",
+            "IBAN_CODE": "smart_mask",
+            "IP_ADDRESS": "smart_mask",
+            "URL": "keep",  # URLs are typically not PII
+            "LOCATION": "smart_mask",
+            "US_BANK_ACCOUNT": "smart_mask",
+            "CA_BANK_ACCOUNT": "smart_mask",
         }
     )
     """Default anonymization strategy per entity type."""
@@ -292,6 +295,16 @@ class ReplicationDefaultsConfig(BaseModel):
         )
 
 
+class PIIFieldAnonymization(BaseModel):
+    """Configuration for anonymizing a single field."""
+
+    field: str
+    """Field path to anonymize (supports dot notation for nested fields)."""
+
+    operator: str
+    """Anonymization operator name (e.g., 'mask_email', 'fake_phone', 'smart_mask')."""
+
+
 class CollectionConfig(ReplicationDefaultsConfig):
     """Configuration for a single collection.
 
@@ -320,8 +333,43 @@ class CollectionConfig(ReplicationDefaultsConfig):
     fields_exclude: List[str] = Field(default_factory=list)
     """Fields to exclude from replication."""
 
-    pii_anonymized_fields: Dict[str, str] = Field(default_factory=dict)
-    """Mapping of field paths to anonymization strategies."""
+    pii_anonymization: List[PIIFieldAnonymization] = Field(default_factory=list)
+    """List of field anonymization configurations (new format)."""
+
+    pii_anonymized_fields: Optional[Dict[str, str]] = Field(default=None)
+    """DEPRECATED: Mapping of field paths to anonymization strategies.
+
+    This field is deprecated in favor of pii_anonymization (list format).
+    If present, it will be automatically converted to pii_anonymization format
+    with a deprecation warning. Support for this field will be removed in a future version.
+    """
+
+    @model_validator(mode="after")
+    def migrate_pii_config(self) -> "CollectionConfig":
+        """Auto-migrate old pii_anonymized_fields format to new pii_anonymization format.
+
+        Issues a deprecation warning if old format is detected.
+        """
+        import warnings
+
+        # If old format is present and new format is empty, convert it
+        if self.pii_anonymized_fields and not self.pii_anonymization:
+            warnings.warn(
+                f"Collection '{self.name}': The 'pii_anonymized_fields' configuration format "
+                f"is deprecated and will be removed in a future version. "
+                f"Please use 'pii_anonymization' (list format) instead. "
+                f"See documentation for migration guide.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+            # Convert dict format to list format
+            self.pii_anonymization = [
+                PIIFieldAnonymization(field=field, operator=operator)
+                for field, operator in self.pii_anonymized_fields.items()
+            ]
+
+        return self
 
     @field_validator("batch_size")
     @classmethod

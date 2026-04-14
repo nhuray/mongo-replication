@@ -87,7 +87,7 @@ class TestScanPIIAnalysisConfig:
         assert config.confidence_threshold == 0.85
         assert "EMAIL_ADDRESS" in config.entity_types
         assert "PHONE_NUMBER" in config.entity_types
-        assert config.default_strategies["EMAIL_ADDRESS"] == "fake"
+        assert config.default_strategies["EMAIL_ADDRESS"] == "smart_mask"
         assert config.allowlist == []
 
     def test_custom_values(self):
