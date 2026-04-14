@@ -154,15 +154,18 @@ class PresidioConfig:
 
         return sorted(entity_types)
 
-    def get_operator_examples(self, operator_name: str) -> List[Dict[str, str]]:
+    def get_operator_examples(
+        self, operator_name: str, entity_type: Optional[str] = None
+    ) -> List[Dict[str, str]]:
         """Get example inputs/outputs for a specific operator.
 
         Args:
             operator_name: Name of the operator (e.g., "mask_email", "fake_phone")
+            entity_type: Optional entity type to filter examples (e.g., "EMAIL_ADDRESS")
 
         Returns:
-            List of example dicts with 'input' and 'output' keys.
-            Example: [{"input": "test@example.com", "output": "te**@example.com"}]
+            List of example dicts with 'input', 'output', and 'entity_type' keys.
+            Example: [{"entity_type": "EMAIL_ADDRESS", "input": "test@example.com", "output": "te**@example.com"}]
         """
         registry = self.config.get("anonymizer_registry", {})
         operator_config = registry.get(operator_name, {})
@@ -170,6 +173,9 @@ class PresidioConfig:
         if isinstance(operator_config, dict):
             examples = operator_config.get("examples", [])
             if isinstance(examples, list):
+                # Filter by entity_type if provided
+                if entity_type:
+                    return [ex for ex in examples if ex.get("entity_type") == entity_type]
                 return examples
 
         return []

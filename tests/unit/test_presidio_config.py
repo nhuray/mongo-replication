@@ -439,6 +439,7 @@ class TestPresidioConfigRegistry:
         assert len(examples) > 0
         assert "input" in examples[0]
         assert "output" in examples[0]
+        assert "entity_type" in examples[0]
 
         # Test fake_phone examples
         examples = config.get_operator_examples("fake_phone")
@@ -447,6 +448,37 @@ class TestPresidioConfigRegistry:
         # Test non-existent operator
         examples = config.get_operator_examples("nonexistent_operator")
         assert examples == []
+
+    def test_get_operator_examples_with_entity_filter(self):
+        """Test filtering examples by entity type."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        config = PresidioConfig()
+
+        # Test smart_mask which supports multiple entity types
+        all_examples = config.get_operator_examples("smart_mask")
+        assert len(all_examples) > 1  # Should have examples for multiple entity types
+
+        # Filter by EMAIL_ADDRESS
+        email_examples = config.get_operator_examples("smart_mask", entity_type="EMAIL_ADDRESS")
+        assert len(email_examples) > 0
+        assert all(ex.get("entity_type") == "EMAIL_ADDRESS" for ex in email_examples)
+
+        # Filter by PHONE_NUMBER
+        phone_examples = config.get_operator_examples("smart_mask", entity_type="PHONE_NUMBER")
+        assert len(phone_examples) > 0
+        assert all(ex.get("entity_type") == "PHONE_NUMBER" for ex in phone_examples)
+
+        # Filter by non-existent entity type
+        no_examples = config.get_operator_examples("smart_mask", entity_type="NONEXISTENT_TYPE")
+        assert no_examples == []
+
+        # Test single-entity operator with filter
+        mask_email_examples = config.get_operator_examples(
+            "mask_email", entity_type="EMAIL_ADDRESS"
+        )
+        assert len(mask_email_examples) > 0
+        assert all(ex.get("entity_type") == "EMAIL_ADDRESS" for ex in mask_email_examples)
 
     def test_get_operators_for_entity_type(self):
         """Test getting operators that support a specific entity type."""
