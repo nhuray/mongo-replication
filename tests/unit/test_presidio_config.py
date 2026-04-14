@@ -407,5 +407,101 @@ class TestConfigModelIntegration:
         assert config.presidio_config is None
 
 
+class TestPresidioConfigRegistry:
+    """Test PresidioConfig methods for querying the anonymizer registry."""
+
+    def test_get_supported_entity_types(self):
+        """Test getting all supported entity types from registry."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        # Load default config
+        config = PresidioConfig()
+        entity_types = config.get_supported_entity_types()
+
+        # Should include common entity types
+        assert "EMAIL_ADDRESS" in entity_types
+        assert "PHONE_NUMBER" in entity_types
+        assert "PERSON" in entity_types
+        assert "CREDIT_CARD" in entity_types
+        assert "US_SSN" in entity_types
+
+        # Should be sorted
+        assert entity_types == sorted(entity_types)
+
+    def test_get_operator_examples(self):
+        """Test getting examples for a specific operator."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        config = PresidioConfig()
+
+        # Test mask_email examples
+        examples = config.get_operator_examples("mask_email")
+        assert len(examples) > 0
+        assert "input" in examples[0]
+        assert "output" in examples[0]
+
+        # Test fake_phone examples
+        examples = config.get_operator_examples("fake_phone")
+        assert len(examples) > 0
+
+        # Test non-existent operator
+        examples = config.get_operator_examples("nonexistent_operator")
+        assert examples == []
+
+    def test_get_operators_for_entity_type(self):
+        """Test getting operators that support a specific entity type."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        config = PresidioConfig()
+
+        # Test EMAIL_ADDRESS
+        operators = config.get_operators_for_entity_type("EMAIL_ADDRESS")
+        assert "mask_email" in operators
+        assert "fake_email" in operators
+
+        # Test PHONE_NUMBER
+        operators = config.get_operators_for_entity_type("PHONE_NUMBER")
+        assert "mask_phone" in operators
+        assert "fake_phone" in operators
+
+        # Test non-existent entity type
+        operators = config.get_operators_for_entity_type("NONEXISTENT_TYPE")
+        assert operators == []
+
+    def test_entity_types_from_custom_config(self, tmp_path):
+        """Test getting entity types from custom config."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        # Create custom config with limited operators
+        config_file = tmp_path / "custom_presidio.yaml"
+        config_file.write_text(
+            dedent("""
+            anonymizer_registry:
+              custom_email_mask:
+                description: "Custom email masking"
+                class: MaskEmailOperator
+                supported_entities: [EMAIL_ADDRESS, CUSTOM_EMAIL]
+                examples:
+                  - input: "test@example.com"
+                    output: "t***@example.com"
+              custom_phone_mask:
+                description: "Custom phone masking"
+                class: MaskPhoneOperator
+                supported_entities: [PHONE_NUMBER]
+                examples:
+                  - input: "555-1234"
+                    output: "***-1234"
+        """)
+        )
+
+        config = PresidioConfig(str(config_file))
+        entity_types = config.get_supported_entity_types()
+
+        assert "EMAIL_ADDRESS" in entity_types
+        assert "CUSTOM_EMAIL" in entity_types
+        assert "PHONE_NUMBER" in entity_types
+        assert len(entity_types) == 3
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -452,87 +452,80 @@ anonymizer_registry:
     class: MaskEmailOperator
     supported_entities: [EMAIL_ADDRESS]
     examples:
-      - input: "john.smith@example.com"
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
         output: "jo******th@example.com"
-      - input: "alice@company.org"
-        output: "al***@company.org"
 
   mask_phone:
     description: "Mask phone number while showing last 4 digits"
     class: MaskPhoneOperator
     supported_entities: [PHONE_NUMBER]
     examples:
-      - input: "+1 (555) 123-4567"
+      - entity_type: PHONE_NUMBER
+        input: "+1 (555) 123-4567"
         output: "+* (***) ***-4567"
-      - input: "555-123-4567"
-        output: "***-***-4567"
 
   mask_credit_card:
     description: "Mask credit card showing only last 4 digits"
     class: MaskCreditCardOperator
     supported_entities: [CREDIT_CARD]
     examples:
-      - input: "4242 4242 4242 4242"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
         output: "**** **** **** 4242"
-      - input: "5555-5555-5555-4444"
-        output: "****-****-****-4444"
 
   mask_ssn:
     description: "Mask SSN showing only last 4 digits"
     class: MaskSSNOperator
     supported_entities: [US_SSN]
     examples:
-      - input: "123-45-6789"
+      - entity_type: US_SSN
+        input: "123-45-6789"
         output: "***-**-6789"
-      - input: "123456789"
-        output: "*****6789"
 
   mask_ip_address:
     description: "Mask IP address showing first and last octet"
     class: MaskIPAddressOperator
     supported_entities: [IP_ADDRESS]
     examples:
-      - input: "192.168.1.1"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
         output: "192.***.*.1"
-      - input: "10.0.0.1"
-        output: "10.*.*.1"
 
   mask_iban:
     description: "Mask IBAN showing country code and last 4 digits"
     class: MaskIBANOperator
     supported_entities: [IBAN_CODE]
     examples:
-      - input: "GB82WEST12345698765432"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
         output: "GB******************5432"
-      - input: "DE89370400440532013000"
-        output: "DE******************3000"
 
   mask_person:
     description: "Mask person name showing first character of each word"
     class: MaskPersonOperator
     supported_entities: [PERSON]
     examples:
-      - input: "John Smith"
+      - entity_type: PERSON
+        input: "John Smith"
         output: "J*** S****"
-      - input: "Alice Johnson"
-        output: "A**** J******"
 
   mask_location:
     description: "Mask location showing first 3 characters"
     class: MaskLocationOperator
     supported_entities: [LOCATION]
     examples:
-      - input: "San Francisco"
+      - entity_type: LOCATION
+        input: "San Francisco"
         output: "San *********"
-      - input: "New York"
-        output: "New ****"
 
   mask_us_bank:
     description: "Mask US bank account showing last 4 of each number"
     class: MaskUSBankAccountOperator
     supported_entities: [US_BANK_ACCOUNT]
     examples:
-      - input: "Routing: 123456789, Account: 9876543210"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
         output: "Routing: *****6789, Account: ******3210"
 
   mask_ca_bank:
@@ -540,7 +533,8 @@ anonymizer_registry:
     class: MaskCABankAccountOperator
     supported_entities: [CA_BANK_ACCOUNT]
     examples:
-      - input: "Transit: 12345, Institution: 789, Account: 1234567890"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
         output: "Transit: *2345, Institution: *89, Account: ******7890"
 
   # ===========================================================================
@@ -555,87 +549,80 @@ anonymizer_registry:
     class: FakeEmailOperator
     supported_entities: [EMAIL_ADDRESS]
     examples:
-      - input: "john.smith@example.com"
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
         output: "sarah.miller@company.net"
-      - input: "alice@test.org"
-        output: "michael.jones@domain.com"
 
   fake_phone:
     description: "Generate realistic fake phone number"
     class: FakePhoneOperator
     supported_entities: [PHONE_NUMBER]
     examples:
-      - input: "+1 (555) 123-4567"
+      - entity_type: PHONE_NUMBER
+        input: "+1 (555) 123-4567"
         output: "+1 (555) 789-0123"
-      - input: "555-123-4567"
-        output: "555-987-6543"
 
   fake_credit_card:
     description: "Generate realistic fake credit card number"
     class: FakeCreditCardOperator
     supported_entities: [CREDIT_CARD]
     examples:
-      - input: "4242 4242 4242 4242"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
         output: "4532 1234 5678 9010"
-      - input: "5555-5555-5555-4444"
-        output: "5425-2334-3010-9282"
 
   fake_ssn:
     description: "Generate realistic fake SSN"
     class: FakeSSNOperator
     supported_entities: [US_SSN]
     examples:
-      - input: "123-45-6789"
+      - entity_type: US_SSN
+        input: "123-45-6789"
         output: "987-65-4321"
-      - input: "123456789"
-        output: "456789012"
 
   fake_ip:
     description: "Generate realistic fake IP address"
     class: FakeIPAddressOperator
     supported_entities: [IP_ADDRESS]
     examples:
-      - input: "192.168.1.1"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
         output: "203.45.67.89"
-      - input: "10.0.0.1"
-        output: "172.16.254.1"
 
   fake_iban:
     description: "Generate realistic fake IBAN"
     class: FakeIBANOperator
     supported_entities: [IBAN_CODE]
     examples:
-      - input: "GB82WEST12345698765432"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
         output: "GB29NWBK60161331926819"
-      - input: "DE89370400440532013000"
-        output: "DE89370400440532013789"
 
   fake_name:
     description: "Generate realistic fake person name"
     class: FakeNameOperator
     supported_entities: [PERSON]
     examples:
-      - input: "John Smith"
+      - entity_type: PERSON
+        input: "John Smith"
         output: "Sarah Miller"
-      - input: "Alice Johnson"
-        output: "Michael Brown"
 
   fake_location:
     description: "Generate realistic fake location"
     class: FakeLocationOperator
     supported_entities: [LOCATION]
     examples:
-      - input: "San Francisco"
+      - entity_type: LOCATION
+        input: "San Francisco"
         output: "Chicago"
-      - input: "New York"
-        output: "Los Angeles"
 
   fake_us_bank:
     description: "Generate realistic fake US bank account"
     class: FakeUSBankAccountOperator
     supported_entities: [US_BANK_ACCOUNT]
     examples:
-      - input: "Routing: 123456789, Account: 9876543210"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
         output: "Routing: 987654321, Account: 1234567890"
 
   fake_ca_bank:
@@ -643,7 +630,8 @@ anonymizer_registry:
     class: FakeCABankAccountOperator
     supported_entities: [CA_BANK_ACCOUNT]
     examples:
-      - input: "Transit: 12345, Institution: 789, Account: 1234567890"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
         output: "Transit: 54321, Institution: 123, Account: 9876543210"
 
   # ===========================================================================
@@ -659,11 +647,14 @@ anonymizer_registry:
     class: SmartMaskOperator
     supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
     examples:
-      - input: "john.smith@example.com"
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
         output: "jo******th@example.com"
-      - input: "555-123-4567"
+      - entity_type: PHONE_NUMBER
+        input: "555-123-4567"
         output: "***-***-4567"
-      - input: "123-45-6789"
+      - entity_type: US_SSN
+        input: "123-45-6789"
         output: "***-**-6789"
     notes:
       - "Auto-detects entity type from format"
@@ -675,39 +666,19 @@ anonymizer_registry:
     class: SmartFakeOperator
     supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
     examples:
-      - input: "john.smith@example.com"
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
         output: "sarah.miller@company.net"
-      - input: "555-123-4567"
+      - entity_type: PHONE_NUMBER
+        input: "555-123-4567"
         output: "555-987-6543"
-      - input: "123-45-6789"
+      - entity_type: US_SSN
+        input: "123-45-6789"
         output: "987-65-4321"
     notes:
       - "Auto-detects entity type from format"
       - "Falls back to generic identifier for unknown types"
       - "Accepts explicit entity_type parameter"
-
-  # ===========================================================================
-  # LEGACY OPERATORS (Deprecated)
-  # ===========================================================================
-
-  smart_redact:
-    description: "DEPRECATED: Use smart_mask instead. Legacy smart redaction operator."
-    class: SmartRedactOperator
-    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, US_SSN, IP_ADDRESS]
-    notes:
-      - "This operator is deprecated and will be removed in a future version"
-      - "Please migrate to smart_mask for new configurations"
-
-  stripe_testing_cc:
-    description: "Use Stripe test credit card numbers for testing environments"
-    class: StripeTestingCCOperator
-    supported_entities: [CREDIT_CARD]
-    examples:
-      - input: "4242 4242 4242 4242"
-        output: "4242424242424242"
-    notes:
-      - "Only for testing/development environments"
-      - "Uses Stripe's official test card numbers"
 
   # ===========================================================================
   # BUILT-IN PRESIDIO OPERATORS

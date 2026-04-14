@@ -288,8 +288,8 @@ See [docs/presidio.md](../../docs/presidio.md) for comprehensive documentation.
 **Custom operators:**
 - `fake_email`, `fake_name`, `fake_phone`, `fake_address` - Realistic fake data via Mimesis
 - `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account` - Financial data
-- `stripe_testing_cc` - Stripe test credit card numbers
-- `smart_redact` - Format-preserving redaction (emails, SSN, phone, IP, URLs)
+- `smart_mask` - Format-preserving masking (auto-detects entity type)
+- `smart_fake` - Smart fake data generation (auto-detects entity type)
 
 **Schema Configuration (for cascade replication):**
 

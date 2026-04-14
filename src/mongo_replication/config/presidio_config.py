@@ -6,7 +6,7 @@ including both recognizers (for analysis) and operators (for anonymization).
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Set
 
 import yaml
 from presidio_anonymizer.entities import OperatorConfig
@@ -132,6 +132,68 @@ class PresidioConfig:
         """
         aliases = self.get_strategy_aliases()
         return aliases.get(strategy_name)
+
+    def get_supported_entity_types(self) -> List[str]:
+        """Get all supported entity types from anonymizer_registry.
+
+        Parses the anonymizer_registry section and extracts all unique entity types
+        that are supported by the registered operators.
+
+        Returns:
+            Sorted list of unique entity type names.
+            Example: ["EMAIL_ADDRESS", "PHONE_NUMBER", "PERSON", ...]
+        """
+        registry = self.config.get("anonymizer_registry", {})
+        entity_types: Set[str] = set()
+
+        for operator_name, operator_config in registry.items():
+            if isinstance(operator_config, dict):
+                supported = operator_config.get("supported_entities", [])
+                if isinstance(supported, list):
+                    entity_types.update(supported)
+
+        return sorted(entity_types)
+
+    def get_operator_examples(self, operator_name: str) -> List[Dict[str, str]]:
+        """Get example inputs/outputs for a specific operator.
+
+        Args:
+            operator_name: Name of the operator (e.g., "mask_email", "fake_phone")
+
+        Returns:
+            List of example dicts with 'input' and 'output' keys.
+            Example: [{"input": "test@example.com", "output": "te**@example.com"}]
+        """
+        registry = self.config.get("anonymizer_registry", {})
+        operator_config = registry.get(operator_name, {})
+
+        if isinstance(operator_config, dict):
+            examples = operator_config.get("examples", [])
+            if isinstance(examples, list):
+                return examples
+
+        return []
+
+    def get_operators_for_entity_type(self, entity_type: str) -> List[str]:
+        """Get all operators that support a specific entity type.
+
+        Args:
+            entity_type: Entity type name (e.g., "EMAIL_ADDRESS")
+
+        Returns:
+            List of operator names that support this entity type.
+            Example: ["mask_email", "fake_email"]
+        """
+        registry = self.config.get("anonymizer_registry", {})
+        operators = []
+
+        for operator_name, operator_config in registry.items():
+            if isinstance(operator_config, dict):
+                supported = operator_config.get("supported_entities", [])
+                if isinstance(supported, list) and entity_type in supported:
+                    operators.append(operator_name)
+
+        return operators
 
 
 def load_presidio_config(config_path: Optional[str] = None) -> PresidioConfig:

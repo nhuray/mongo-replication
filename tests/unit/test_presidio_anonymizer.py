@@ -10,7 +10,7 @@ from mongo_replication.engine.pii import (
 
 # Test entity strategies for unit tests (avoids loading default config)
 TEST_ENTITY_STRATEGIES = {
-    "EMAIL_ADDRESS": "smart_redact",
+    "EMAIL_ADDRESS": "smart_mask",
     "PERSON": "replace",
     "PHONE_NUMBER": "mask",
     "LOCATION": "mask",
@@ -77,7 +77,7 @@ class TestPresidioAnonymizerInitialization:
         assert "DEFAULT" in TEST_ENTITY_STRATEGIES
 
         # Check some specific strategy assignments
-        assert TEST_ENTITY_STRATEGIES["EMAIL_ADDRESS"] == "smart_redact"
+        assert TEST_ENTITY_STRATEGIES["EMAIL_ADDRESS"] == "smart_mask"
         assert TEST_ENTITY_STRATEGIES["PERSON"] == "replace"
         assert TEST_ENTITY_STRATEGIES["CREDIT_CARD"] == "hash"
 
@@ -101,7 +101,7 @@ class TestApplyAnonymization:
         """Test anonymizing a simple document with manual overrides."""
         doc = {"email": "test@example.com", "name": "John Doe"}
         pii_field_strategy = {
-            "email": "smart_redact",
+            "email": "smart_mask",
             "name": "fake_name",
         }
 
@@ -124,7 +124,7 @@ class TestApplyAnonymization:
             }
         }
         pii_field_strategy = {
-            "user.email": "smart_redact",
+            "user.email": "smart_mask",
             "user.profile.name": "fake_name",
         }
 
@@ -143,7 +143,7 @@ class TestApplyAnonymization:
             ]
         }
         pii_field_strategy = {
-            "contacts.email": "smart_redact",
+            "contacts.email": "smart_mask",
             "contacts.name": "fake_name",
         }
 
@@ -242,7 +242,7 @@ class TestConvenienceFunction:
     def test_apply_anonymization_function(self):
         """Test apply_anonymization convenience function."""
         doc = {"email": "test@example.com"}
-        pii_field_strategy = {"email": "smart_redact"}
+        pii_field_strategy = {"email": "smart_mask"}
 
         result = apply_anonymization(doc, pii_field_strategy)
 
@@ -279,7 +279,7 @@ class TestEdgeCases:
     def test_empty_document(self, anonymizer):
         """Test handling of empty document."""
         doc = {}
-        pii_field_strategy = {"email": "smart_redact"}
+        pii_field_strategy = {"email": "smart_mask"}
 
         result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
@@ -289,7 +289,7 @@ class TestEdgeCases:
     def test_empty_string_values(self, anonymizer):
         """Test handling of empty strings."""
         doc = {"email": ""}
-        pii_field_strategy = {"email": "smart_redact"}
+        pii_field_strategy = {"email": "smart_mask"}
 
         result = anonymizer.apply_anonymization(doc, pii_field_strategy)
 
@@ -314,10 +314,10 @@ class TestIntegration:
     def test_full_document_anonymization(self, sample_doc, anonymizer):
         """Test anonymizing a complete realistic document."""
         pii_field_strategy = {
-            "email": "smart_redact",
+            "email": "smart_mask",
             "phone": "fake_phone",
             "ssn": "hash",
-            "contacts.email": "smart_redact",
+            "contacts.email": "smart_mask",
         }
 
         result = anonymizer.apply_anonymization(sample_doc, pii_field_strategy)
@@ -366,7 +366,7 @@ class TestIntegration:
         doc = {"email": "test@example.com"}
 
         # Test various strategy names that should work
-        working_strategies = ["hash", "mask", "fake_email", "smart_redact"]
+        working_strategies = ["hash", "mask", "fake_email", "smart_mask"]
 
         for strategy in working_strategies:
             pii_field_strategy = {"email": strategy}

@@ -79,7 +79,7 @@ class PresidioAnonymizer:
         Example:
             >>> anonymizer = PresidioAnonymizer()
             >>> doc = {"email": "john@example.com", "ssn": "123-45-6789"}
-            >>> pii_field_strategy = {"email": "smart_redact", "ssn": "hash"}
+            >>> pii_field_strategy = {"email": "smart_mask", "ssn": "hash"}
             >>> anonymized = anonymizer.apply_anonymization(doc, pii_field_strategy)
         """
         # Deep copy to avoid modifying original
@@ -169,7 +169,7 @@ class PresidioAnonymizer:
 
         Strategy names can be:
         1. Operator names directly (e.g., "mask", "hash", "redact")
-        2. Strategy aliases from YAML (e.g., "fake_email", "smart_redact")
+        2. Strategy aliases from YAML (e.g., "fake_email", "smart_mask")
         3. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
 
         Args:

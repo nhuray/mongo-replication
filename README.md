@@ -188,13 +188,13 @@ scan:
     # Anonymization operators per entity type
     # See docs/presidio.md for all available operators:
     #   Built-in: replace, redact, mask, hash, encrypt, keep
-    #   Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.
+    #   Custom: fake_email, fake_name, fake_phone, smart_mask, smart_fake, etc.
     # Default mappings (configured in src/mongo_replication/config/presidio.yaml):
-    #   EMAIL_ADDRESS: smart_redact  (preserves domain)
-    #   PERSON: replace              (replaces with "ANONYMOUS")
-    #   PHONE_NUMBER: mask           (shows last 4 digits)
-    #   US_SSN: mask                 (shows last 4 digits)
-    #   CREDIT_CARD: hash            (SHA-256 hash)
+    #   EMAIL_ADDRESS: smart_mask  (preserves domain)
+    #   PERSON: replace            (replaces with "ANONYMOUS")
+    #   PHONE_NUMBER: mask         (shows last 4 digits)
+    #   US_SSN: mask               (shows last 4 digits)
+    #   CREDIT_CARD: hash          (SHA-256 hash)
     #   See docs/presidio.md for complete list
 
     # Allowlist: Fields to skip PII detection (false positives)

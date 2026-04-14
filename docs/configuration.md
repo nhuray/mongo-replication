@@ -142,11 +142,11 @@ scan:
 The tool provides multiple anonymization strategies configured via `presidio.yaml`:
 
 - **Built-in Presidio operators**: `replace`, `redact`, `mask`, `hash`, `encrypt`, `keep`
-- **Custom operators**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `stripe_testing_cc`, `smart_redact`
+- **Custom operators**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `smart_mask`, `smart_fake`
 
 **Default entity-to-operator mappings:**
 ```yaml
-EMAIL_ADDRESS: smart_redact      # Preserves domain: jo****@example.com
+EMAIL_ADDRESS: smart_mask        # Preserves domain: jo****@example.com
 PERSON: replace                  # Replaces with "ANONYMOUS"
 PHONE_NUMBER: mask               # Shows last 4: ***-***-4567
 US_SSN: mask                     # Shows last 4: ***-**-6789
@@ -530,21 +530,21 @@ replication:
 
 **Available operators:**
 - **Built-in**: `replace`, `redact`, `mask`, `hash`, `encrypt`, `keep`
-- **Custom**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `stripe_testing_cc`, `smart_redact`
+- **Custom**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `smart_mask`, `smart_fake`
 - **Aliases**: `fake`, `partial_redact`, `sha256`, `obscure`, `null`, `remove` (see [Strategy Aliases](presidio.md#strategy-aliases))
 
 **Example:**
 ```yaml
 pii_anonymized_fields:
-  email: fake_email              # Generate realistic fake email
-  phone: fake_phone              # Generate realistic fake phone
-  ssn: mask                      # Mask all but last 4 digits
-  "contact.email": smart_redact  # Nested field: preserves domain
+  email: fake_email            # Generate realistic fake email
+  phone: fake_phone            # Generate realistic fake phone
+  ssn: mask                    # Mask all but last 4 digits
+  "contact.email": smart_mask  # Nested field: preserves domain
   "address.street": fake_address # Nested field: fake address
-  password_hash: redact          # Complete redaction
+  password_hash: redact        # Complete redaction
 ```
 
-> **💡 Tip:** You can use strategy aliases for convenience: `fake` → `fake_email`, `partial_redact` → `smart_redact`
+> **💡 Tip:** You can use strategy aliases for convenience: `fake` → `fake_email`, `partial_redact` → `smart_mask`
 
 > **📖 For detailed operator descriptions and examples, see [Presidio Documentation](presidio.md#anonymization-operators).**
 
