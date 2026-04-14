@@ -608,7 +608,7 @@ def _run_init_wizard(job: str, output: Optional[Path]) -> None:
                 operator_choices = []
                 for op in all_operators:
                     # Try to get an example
-                    examples = presidio_cfg.get_operator_examples(op)
+                    examples = presidio_cfg.get_operator_examples(op, entity_type=entity_type)
                     if examples:
                         example = examples[0]
                         desc = f"{op:20} (e.g., {example['input'][:30]} → {example['output'][:30]})"
@@ -619,7 +619,9 @@ def _run_init_wizard(job: str, output: Optional[Path]) -> None:
 
                 # Show examples for default operator if available
                 if default_strategy in [choice.value for choice in operator_choices]:
-                    examples = presidio_cfg.get_operator_examples(default_strategy)
+                    examples = presidio_cfg.get_operator_examples(
+                        default_strategy, entity_type=entity_type
+                    )
                     if examples:
                         console.print(f"[dim]Default operator: {default_strategy}[/dim]")
                         for ex in examples[:2]:  # Show up to 2 examples
