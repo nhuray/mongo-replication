@@ -653,9 +653,30 @@ anonymizer_registry:
       - entity_type: PHONE_NUMBER
         input: "555-123-4567"
         output: "***-***-4567"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "**** **** **** 4242"
       - entity_type: US_SSN
         input: "123-45-6789"
         output: "***-**-6789"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "192.***.*.1"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB******************5432"
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "J*** S****"
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "San *********"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: *****6789, Account: ******3210"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: *2345, Institution: *89, Account: ******7890"
     notes:
       - "Auto-detects entity type from format"
       - "Falls back to generic masking for unknown types"
@@ -672,9 +693,30 @@ anonymizer_registry:
       - entity_type: PHONE_NUMBER
         input: "555-123-4567"
         output: "555-987-6543"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "4532 1234 5678 9010"
       - entity_type: US_SSN
         input: "123-45-6789"
         output: "987-65-4321"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "203.45.67.89"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB29NWBK60161331926819"
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "Sarah Miller"
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "Chicago"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: 987654321, Account: 1234567890"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: 54321, Institution: 123, Account: 9876543210"
     notes:
       - "Auto-detects entity type from format"
       - "Falls back to generic identifier for unknown types"

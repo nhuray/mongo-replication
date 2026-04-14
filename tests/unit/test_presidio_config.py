@@ -480,6 +480,44 @@ class TestPresidioConfigRegistry:
         assert len(mask_email_examples) > 0
         assert all(ex.get("entity_type") == "EMAIL_ADDRESS" for ex in mask_email_examples)
 
+    def test_smart_operators_have_complete_examples(self):
+        """Test that smart_mask and smart_fake have examples for all supported entity types."""
+        from mongo_replication.config.presidio_config import PresidioConfig
+
+        config = PresidioConfig()
+
+        # Get the list of supported entity types for smart operators
+        smart_operators = ["smart_mask", "smart_fake"]
+        expected_entities = [
+            "EMAIL_ADDRESS",
+            "PHONE_NUMBER",
+            "CREDIT_CARD",
+            "US_SSN",
+            "IP_ADDRESS",
+            "IBAN_CODE",
+            "PERSON",
+            "LOCATION",
+            "US_BANK_ACCOUNT",
+            "CA_BANK_ACCOUNT",
+        ]
+
+        for operator in smart_operators:
+            all_examples = config.get_operator_examples(operator)
+
+            # Extract entity types from examples
+            example_entity_types = {ex.get("entity_type") for ex in all_examples}
+
+            # Verify all expected entity types have examples
+            for entity_type in expected_entities:
+                assert entity_type in example_entity_types, (
+                    f"{operator} missing example for {entity_type}"
+                )
+
+                # Verify we can filter by this entity type
+                filtered = config.get_operator_examples(operator, entity_type=entity_type)
+                assert len(filtered) > 0, f"{operator} has no examples for {entity_type}"
+                assert all(ex.get("entity_type") == entity_type for ex in filtered)
+
     def test_get_operators_for_entity_type(self):
         """Test getting operators that support a specific entity type."""
         from mongo_replication.config.presidio_config import PresidioConfig
