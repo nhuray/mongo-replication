@@ -374,3 +374,141 @@ class TestIntegration:
             # Should not crash and should anonymize (or at least try)
             # Some strategies like redact might return empty string
             assert "email" in result
+
+
+class TestMultiEntityAnonymization:
+    """Test multi-entity anonymization support."""
+
+    def test_multi_entity_single_field(self, anonymizer):
+        """Test applying multiple operators to a single field."""
+        doc = {"contact_info": "John Smith john@example.com"}
+
+        # Simulate field with both PERSON and EMAIL_ADDRESS entities
+        field_operators = {
+            "contact_info": [
+                {"operator": "mask_person", "entity_type": "PERSON"},
+                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Original should not be modified
+        assert doc["contact_info"] == "John Smith john@example.com"
+
+        # Result should be anonymized (both operators applied)
+        assert result["contact_info"] != "John Smith john@example.com"
+        # The exact output depends on operator implementation
+        # but it should be different from original
+
+    def test_multi_entity_confidence_order(self, anonymizer):
+        """Test that operators are applied in order (highest confidence first)."""
+        doc = {"data": "sensitive information"}
+
+        # Operators should be applied in list order
+        field_operators = {
+            "data": [
+                {"operator": "hash", "entity_type": "SENSITIVE_1"},  # Applied first
+                {"operator": "mask", "entity_type": "SENSITIVE_2"},  # Applied second
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # First operator (hash) will hash the text
+        # Second operator (mask) won't have much effect on hashed data
+        # Main test: no errors and something changed
+        assert result["data"] != "sensitive information"
+
+    def test_multi_entity_nested_field(self, anonymizer):
+        """Test multi-entity anonymization on nested fields."""
+        doc = {"user": {"full_contact": "Jane Doe jane.doe@company.com"}}
+
+        field_operators = {
+            "user.full_contact": [
+                {"operator": "mask_person", "entity_type": "PERSON"},
+                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Nested field should be anonymized
+        assert result["user"]["full_contact"] != "Jane Doe jane.doe@company.com"
+
+    def test_multi_entity_array_field(self, anonymizer):
+        """Test multi-entity anonymization on array fields."""
+        doc = {
+            "contacts": [
+                {"info": "Alice Smith alice@example.com"},
+                {"info": "Bob Jones bob@example.com"},
+            ]
+        }
+
+        field_operators = {
+            "contacts.info": [
+                {"operator": "fake_name", "entity_type": "PERSON"},
+                {"operator": "fake_email", "entity_type": "EMAIL_ADDRESS"},
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # All array elements should be anonymized
+        assert result["contacts"][0]["info"] != "Alice Smith alice@example.com"
+        assert result["contacts"][1]["info"] != "Bob Jones bob@example.com"
+
+    def test_multi_entity_with_smart_operators(self, anonymizer):
+        """Test multi-entity with smart operators that use entity_type."""
+        doc = {"field": "some text"}
+
+        field_operators = {
+            "field": [
+                {"operator": "smart_mask", "entity_type": "PERSON"},
+                {"operator": "smart_mask", "entity_type": "EMAIL_ADDRESS"},
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Smart operators should receive entity_type and delegate appropriately
+        assert result["field"] != "some text"
+
+    def test_multi_entity_mixed_with_single_entity(self, anonymizer):
+        """Test document with both multi-entity and single-entity fields."""
+        doc = {"multi": "John Doe john@example.com", "single": "jane@example.com"}
+
+        field_operators = {
+            "multi": [
+                {"operator": "mask_person", "entity_type": "PERSON"},
+                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+            ],
+            "single": [{"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}],
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Both fields should be anonymized
+        assert result["multi"] != "John Doe john@example.com"
+        assert result["single"] != "jane@example.com"
+
+    def test_empty_field_operators(self, anonymizer):
+        """Test with empty field operators dict."""
+        doc = {"email": "test@example.com"}
+        field_operators = {}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Document should be unchanged
+        assert result == doc
+
+    def test_field_operators_with_none_entity_type(self, anonymizer):
+        """Test field operators where entity_type might be None (legacy)."""
+        doc = {"data": "sensitive"}
+
+        field_operators = {"data": [{"operator": "hash", "entity_type": None}]}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should still work with None entity_type
+        assert result["data"] != "sensitive"

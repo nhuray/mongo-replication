@@ -5,7 +5,8 @@ Use the scan command to generate PII field configurations.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -13,31 +14,68 @@ logger = logging.getLogger(__name__)
 class PIIHandler:
     """
     PII handler for manual field-based anonymization using Presidio.
+
+    Supports multi-entity anonymization where a single field can have multiple
+    entity types (e.g., a field containing both PERSON and EMAIL_ADDRESS).
     """
 
     def __init__(
         self,
-        pii_fields: Optional[Dict[str, str]] = None,
+        pii_anonymization: Optional[Union[List, Dict[str, str]]] = None,
     ):
         """
         Initialize PII handler.
 
         Args:
-            pii_fields: Manual field->strategy mappings for anonymization
+            pii_anonymization: Either:
+                - List[PIIFieldAnonymization]: New format supporting multi-entity (preferred)
+                - Dict[str, str]: Legacy format (field->operator mapping)
         """
-        self.pii_fields = pii_fields or {}
+        # Normalize to internal format: Dict[field_path, List[Dict[operator, entity_type]]]
+        self.field_operators: Dict[str, List[Dict[str, str]]] = defaultdict(list)
+
+        if pii_anonymization:
+            if isinstance(pii_anonymization, dict):
+                # Legacy dict format: field -> operator
+                for field, operator in pii_anonymization.items():
+                    self.field_operators[field].append(
+                        {
+                            "operator": operator,
+                            "entity_type": None,  # No entity type in legacy format
+                        }
+                    )
+            elif isinstance(pii_anonymization, list):
+                # New list format: List[PIIFieldAnonymization]
+                # Sort by confidence (highest first) - assuming list is pre-sorted from scan
+                for item in pii_anonymization:
+                    # Handle both PIIFieldAnonymization objects and dicts
+                    if hasattr(item, "field"):
+                        field = item.field
+                        operator = item.operator
+                        entity_type = item.entity_type
+                    else:
+                        field = item["field"]
+                        operator = item["operator"]
+                        entity_type = item.get("entity_type")
+
+                    self.field_operators[field].append(
+                        {"operator": operator, "entity_type": entity_type}
+                    )
+
+    @property
+    def pii_field_count(self) -> int:
+        """Return the number of unique fields being anonymized."""
+        return len(self.field_operators)
 
     def process_documents(
         self,
         documents: List[Dict[str, Any]],
-        pii_fields: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Process documents with PII anonymization.
 
         Args:
             documents: List of documents to process
-            pii_fields: Manual field->strategy mappings (overrides instance manual_pii_fields if provided)
 
         Returns:
             List of documents with PII anonymized
@@ -45,44 +83,36 @@ class PIIHandler:
         if not documents:
             return documents
 
-        # Use provided manual fields, or fall back to instance manual fields
-        pii_fields = pii_fields if pii_fields is not None else self.pii_fields
-
-        return self._apply_manual_redaction(documents, pii_fields)
-
-    def _apply_manual_redaction(
-        self,
-        documents: List[Dict[str, Any]],
-        manual_pii_fields: Dict[str, str],
-    ) -> List[Dict[str, Any]]:
-        """Apply manual PII redaction using Presidio anonymizer."""
-        if not manual_pii_fields:
+        if not self.field_operators:
             return documents
 
-        from mongo_replication.engine.pii.presidio_anonymizer import apply_anonymization
+        from mongo_replication.engine.pii.presidio_anonymizer import get_anonymizer
+
+        # Get anonymizer instance
+        anonymizer = get_anonymizer()
 
         redacted = []
         for doc in documents:
-            # Use apply_anonymization with PII field strategy
-            redacted_doc = apply_anonymization(
+            # Apply multi-entity anonymization
+            redacted_doc = anonymizer.apply_multi_entity_anonymization(
                 document=doc,
-                pii_field_strategy=manual_pii_fields,
+                field_operators=self.field_operators,
             )
             redacted.append(redacted_doc)
 
         return redacted
 
 
-def create_pii_handler_from_config(pii_fields: Dict[str, str]) -> PIIHandler:
+def create_pii_handler_from_config(pii_anonymization: Union[List, Dict[str, str]]) -> PIIHandler:
     """
     Create a PII handler from collection configuration.
 
     Args:
-        pii_fields: PII Fields
+        pii_anonymization: Either:
+            - List[PIIFieldAnonymization]: New format supporting multi-entity
+            - Dict[str, str]: Legacy format (field->operator mapping)
 
     Returns:
         Configured PIIHandler instance
     """
-    return PIIHandler(
-        pii_fields=pii_fields,
-    )
+    return PIIHandler(pii_anonymization=pii_anonymization)

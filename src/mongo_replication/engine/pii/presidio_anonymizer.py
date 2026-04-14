@@ -5,13 +5,14 @@ AnonymizerEngine with custom operators for:
 - Built-in Presidio operators (mask, hash, redact, replace, etc.)
 - Custom Mimesis-based operators for realistic synthetic data generation
 - Smart redaction that preserves format
+- Multi-entity anonymization (applying multiple operators to same field)
 
 The anonymization operators are configured via YAML (presidio.yaml).
 """
 
 import copy
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
@@ -91,6 +92,57 @@ class PresidioAnonymizer:
         # Apply anonymization to each field
         for field_path, operator_config in field_operators.items():
             self._anonymize_field(anonymized, field_path, operator_config)
+
+        return anonymized
+
+    def apply_multi_entity_anonymization(
+        self,
+        document: Dict[str, Any],
+        field_operators: Dict[str, List[Dict[str, str]]],
+    ) -> Dict[str, Any]:
+        """
+        Apply multi-entity anonymization to a document.
+
+        Supports fields with multiple entity types by applying operators sequentially
+        in order of detection confidence (operators should be pre-sorted).
+
+        Args:
+            document: The MongoDB document to anonymize
+            field_operators: Dict mapping field paths to list of operator configs.
+                Format: {
+                    "field_path": [
+                        {"operator": "mask_person", "entity_type": "PERSON"},
+                        {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}
+                    ]
+                }
+
+        Returns:
+            Anonymized document with PII fields redacted
+
+        Example:
+            >>> anonymizer = PresidioAnonymizer()
+            >>> doc = {"contact": "John Smith john@example.com"}
+            >>> field_operators = {
+            ...     "contact": [
+            ...         {"operator": "mask_person", "entity_type": "PERSON"},
+            ...         {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}
+            ...     ]
+            ... }
+            >>> anonymized = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+        """
+        # Deep copy to avoid modifying original
+        anonymized = copy.deepcopy(document)
+
+        # Apply operators to each field (in order for multi-entity fields)
+        for field_path, operators_list in field_operators.items():
+            for operator_info in operators_list:
+                operator_name = operator_info["operator"]
+                entity_type = operator_info.get("entity_type")
+
+                # Convert to OperatorConfig
+                operator_config = self._strategy_to_operator_config(operator_name, entity_type)
+                if operator_config:
+                    self._anonymize_field(anonymized, field_path, operator_config)
 
         return anonymized
 

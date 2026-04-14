@@ -74,16 +74,26 @@ class CollectionPIIAnalysis(BaseModel):
         """
         Get pii_anonymization config list for YAML generation (NEW FORMAT).
 
+        For fields with multiple entity types, entries are sorted by confidence
+        (highest first) to ensure operators are applied in order of detection strength.
+
         Returns:
-            List of dicts with 'field', 'operator', and 'entity_type' keys
+            List of dicts with 'field', 'operator', and 'entity_type' keys,
+            sorted by (field_path, -avg_confidence) for multi-entity support
         """
+        # Sort by field path first, then by confidence (descending) within each field
+        # This ensures multi-entity fields have operators in confidence order
+        sorted_stats = sorted(
+            self.fields_with_pii, key=lambda stat: (stat.field_path, -stat.avg_confidence)
+        )
+
         return [
             {
                 "field": stat.field_path,
                 "operator": stat.suggested_strategy,
                 "entity_type": stat.entity_type,
             }
-            for stat in self.fields_with_pii
+            for stat in sorted_stats
         ]
 
 

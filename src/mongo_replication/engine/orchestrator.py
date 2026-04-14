@@ -226,11 +226,8 @@ class ReplicationOrchestrator:
                 )
 
             # Create PII handler from collection config
-            # Convert pii_anonymization list to dict for PIIHandler (which expects dict format)
-            pii_fields_dict = {}
-            if config.pii_anonymization:
-                pii_fields_dict = {item.field: item.operator for item in config.pii_anonymization}
-            pii_handler = create_pii_handler_from_config(pii_fields_dict)
+            # Pass full pii_anonymization list (supports multi-entity fields)
+            pii_handler = create_pii_handler_from_config(config.pii_anonymization)
 
             # Debug: Log match filter being used
             logger.info(

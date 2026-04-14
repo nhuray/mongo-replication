@@ -401,17 +401,32 @@ The tool will:
 
 ### PII Anonymization
 
-Built-in PII anonymization:
+Built-in PII anonymization with support for multi-entity fields:
 
 ```yaml
 replication:
    collections:
      users:
-        pii_anonymized_fields:
-          email: fake_email              # Generate realistic fake email
-          phone: fake_phone              # Generate realistic fake phone
-          ssn: mask                      # Mask all but last 4 digits
+        # New format: supports multiple entity types per field
+        pii_anonymization:
+          - field: email
+            operator: mask_email
+            entity_type: EMAIL_ADDRESS
+          - field: phone
+            operator: mask_phone
+            entity_type: PHONE_NUMBER
+          - field: contact_info           # Field with multiple PII types
+            operator: mask_person
+            entity_type: PERSON
+          - field: contact_info           # Same field, second entity type
+            operator: mask_email
+            entity_type: EMAIL_ADDRESS
+          - field: ssn
+            operator: hash
+            entity_type: US_SSN
 ```
+
+The scan command automatically detects multi-entity fields and configures operators in confidence order.
 
 ### Field Transformations
 
