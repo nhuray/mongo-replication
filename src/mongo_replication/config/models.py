@@ -310,6 +310,9 @@ class PIIFieldAnonymization(BaseModel):
     entity_type: str
     """PII entity type detected by the analyzer (e.g., 'EMAIL_ADDRESS', 'PHONE_NUMBER', 'PERSON')."""
 
+    params: Optional[Dict[str, Any]] = None
+    """Optional parameters to pass to the operator. The entity_type is automatically included."""
+
 
 class CollectionConfig(ReplicationDefaultsConfig):
     """Configuration for a single collection.

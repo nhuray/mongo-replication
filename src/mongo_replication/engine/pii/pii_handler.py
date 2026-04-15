@@ -31,8 +31,8 @@ class PIIHandler:
                 - List[PIIFieldAnonymization]: New format supporting multi-entity (preferred)
                 - Dict[str, str]: Legacy format (field->operator mapping)
         """
-        # Normalize to internal format: Dict[field_path, List[Dict[operator, entity_type]]]
-        self.field_operators: Dict[str, List[Dict[str, str]]] = defaultdict(list)
+        # Normalize to internal format: Dict[field_path, List[Dict[operator, entity_type, params]]]
+        self.field_operators: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
         if pii_anonymization:
             if isinstance(pii_anonymization, dict):
@@ -42,6 +42,7 @@ class PIIHandler:
                         {
                             "operator": operator,
                             "entity_type": None,  # No entity type in legacy format
+                            "params": None,  # No params in legacy format
                         }
                     )
             elif isinstance(pii_anonymization, list):
@@ -53,13 +54,15 @@ class PIIHandler:
                         field = item.field
                         operator = item.operator
                         entity_type = item.entity_type
+                        params = getattr(item, "params", None)
                     else:
                         field = item["field"]
                         operator = item["operator"]
                         entity_type = item.get("entity_type")
+                        params = item.get("params")
 
                     self.field_operators[field].append(
-                        {"operator": operator, "entity_type": entity_type}
+                        {"operator": operator, "entity_type": entity_type, "params": params}
                     )
 
     @property

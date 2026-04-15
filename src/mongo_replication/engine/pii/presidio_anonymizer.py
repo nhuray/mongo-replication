@@ -97,7 +97,7 @@ class PresidioAnonymizer:
     def apply_multi_entity_anonymization(
         self,
         document: Dict[str, Any],
-        field_operators: Dict[str, List[Dict[str, str]]],
+        field_operators: Dict[str, List[Dict[str, Any]]],
     ) -> Dict[str, Any]:
         """
         Apply multi-entity anonymization to a document.
@@ -110,8 +110,8 @@ class PresidioAnonymizer:
             field_operators: Dict mapping field paths to list of operator configs.
                 Format: {
                     "field_path": [
-                        {"operator": "mask_person", "entity_type": "PERSON"},
-                        {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}
+                        {"operator": "mask_person", "entity_type": "PERSON", "params": {...}},
+                        {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS", "params": {...}}
                     ]
                 }
 
@@ -123,8 +123,8 @@ class PresidioAnonymizer:
             >>> doc = {"contact": "John Smith john@example.com"}
             >>> field_operators = {
             ...     "contact": [
-            ...         {"operator": "mask_person", "entity_type": "PERSON"},
-            ...         {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}
+            ...         {"operator": "mask_person", "entity_type": "PERSON", "params": None},
+            ...         {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS", "params": None}
             ...     ]
             ... }
             >>> anonymized = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
@@ -137,9 +137,10 @@ class PresidioAnonymizer:
             for operator_info in operators_list:
                 operator_name = operator_info["operator"]
                 entity_type = operator_info.get("entity_type")
+                params = operator_info.get("params")
 
                 # Convert to OperatorConfig
-                operator_config = self._build_operator_config(operator_name, entity_type)
+                operator_config = self._build_operator_config(operator_name, entity_type, params)
                 if operator_config:
                     self._anonymize_field(anonymized, field_path, operator_config)
 
@@ -214,6 +215,7 @@ class PresidioAnonymizer:
         self,
         operator_name: str,
         entity_type: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> Optional[OperatorConfig]:
         """
         Convert a strategy name to an OperatorConfig.
@@ -225,6 +227,7 @@ class PresidioAnonymizer:
         Args:
             operator_name: The strategy name to convert
             entity_type: Optional entity type for operators that need it
+            params: Optional parameters dict to pass to the operator
 
         Returns:
             OperatorConfig object, or None if strategy not found
@@ -233,13 +236,12 @@ class PresidioAnonymizer:
         if operator_name in self.operator_configs:
             return self.operator_configs[operator_name]
 
-        # Create OperatorConfig for the operator name
-        # For operators that need entity_type, pass it in params
-        params = {}
+        # Build params dict, combining provided params with entity_type
+        final_params = params.copy() if params else {}
         if entity_type:
-            params["entity_type"] = entity_type
+            final_params["entity_type"] = entity_type
 
-        return OperatorConfig(operator_name, params)
+        return OperatorConfig(operator_name, final_params)
 
     def _anonymize_field(
         self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
