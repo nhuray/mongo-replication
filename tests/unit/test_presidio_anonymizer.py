@@ -306,6 +306,81 @@ class TestEdgeCases:
         assert isinstance(result["ssn"], str)
         assert len(result["ssn"]) == 64
 
+    def test_array_of_strings(self, anonymizer):
+        """Test anonymizing an array of string values."""
+        doc = {"phoneNumbers": ["1-407-314-9685", "1-407-914-1726", "1-813-996-3381"]}
+
+        field_operators = {"phoneNumbers": [{"operator": "mask_phone", "params": None}]}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should preserve array type (not convert to string)
+        assert isinstance(result["phoneNumbers"], list)
+        assert len(result["phoneNumbers"]) == 3
+
+        # Each element should be anonymized
+        assert result["phoneNumbers"][0] != "1-407-314-9685"
+        assert result["phoneNumbers"][1] != "1-407-914-1726"
+        assert result["phoneNumbers"][2] != "1-813-996-3381"
+
+        # Should preserve phone format (ends with last 4 digits)
+        assert result["phoneNumbers"][0].endswith("9685")
+        assert result["phoneNumbers"][1].endswith("1726")
+        assert result["phoneNumbers"][2].endswith("3381")
+
+    def test_array_of_emails(self, anonymizer):
+        """Test anonymizing an array of email addresses."""
+        doc = {"emails": ["john@example.com", "jane@test.org", "bob@demo.net"]}
+
+        field_operators = {"emails": [{"operator": "mask_email", "params": None}]}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should preserve array type
+        assert isinstance(result["emails"], list)
+        assert len(result["emails"]) == 3
+
+        # Each email should be anonymized but preserve domain
+        assert "@example.com" in result["emails"][0]
+        assert "@test.org" in result["emails"][1]
+        assert "@demo.net" in result["emails"][2]
+
+        # Local parts should be masked
+        assert "john" not in result["emails"][0]
+        assert "jane" not in result["emails"][1]
+        assert "bob" not in result["emails"][2]
+
+    def test_empty_array(self, anonymizer):
+        """Test handling empty arrays."""
+        doc = {"phoneNumbers": []}
+
+        field_operators = {"phoneNumbers": [{"operator": "mask_phone", "params": None}]}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should preserve empty array
+        assert isinstance(result["phoneNumbers"], list)
+        assert len(result["phoneNumbers"]) == 0
+
+    def test_array_with_none_values(self, anonymizer):
+        """Test handling arrays containing None values."""
+        doc = {"phoneNumbers": ["1-407-314-9685", None, "1-813-996-3381"]}
+
+        field_operators = {"phoneNumbers": [{"operator": "mask_phone", "params": None}]}
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should preserve array type
+        assert isinstance(result["phoneNumbers"], list)
+        assert len(result["phoneNumbers"]) == 3
+
+        # None should remain None
+        assert result["phoneNumbers"][1] is None
+
+        # Other values should be anonymized
+        assert result["phoneNumbers"][0] != "1-407-314-9685"
+        assert result["phoneNumbers"][2] != "1-813-996-3381"
+
 
 class TestIntegration:
     """Integration tests for complete workflows."""

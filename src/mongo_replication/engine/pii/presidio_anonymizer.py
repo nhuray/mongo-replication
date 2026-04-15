@@ -334,15 +334,21 @@ class PresidioAnonymizer:
         This method treats the value as text and creates a synthetic RecognizerResult
         that spans the entire value, then uses Presidio to anonymize it.
 
+        Handles arrays by anonymizing each element individually and preserving array type.
+
         Args:
-            value: The value to anonymize
+            value: The value to anonymize (can be string, number, list, etc.)
             operator_config: The OperatorConfig to apply
 
         Returns:
-            Anonymized value
+            Anonymized value (preserving original type when possible)
         """
         if value is None:
             return None
+
+        # Handle arrays: anonymize each element individually
+        if isinstance(value, list):
+            return [self._anonymize_value(item, operator_config) for item in value]
 
         # Convert value to string for anonymization
         text = str(value)
