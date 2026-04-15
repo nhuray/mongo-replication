@@ -1,9 +1,77 @@
 # CHANGELOG
 
 
-## Unreleased
+## v1.0.0 (2026-04-15)
 
-### Features
+### Breaking
+
+* feat!: Change configuration and enhance Presidio anonymizers (#20)
+
+* chore: minor change in presidio.yaml
+
+* feat: create custom operators
+
+* feat: update config models.py to support new pii_anonymization
+
+* feat: update scan.py, pii_analyzer.py, orchestrator.py
+
+* feat: update scan_report.py and template
+
+* feat: fix some bugs running manual tests
+
+* feat: add entity_type to all operator examples and remove deprecated operators
+
+- Add entity_type field to all anonymizer examples in presidio.yaml (~86 additions)
+  - Required by init command wizard (step 6) to show anonymization strategies
+  - Ensures consistent example format across all mask and fake operators
+
+- Remove smart_redact operator (deprecated, replaced by smart_mask)
+  - Delete SmartRedactOperator class from custom_operators.py (~160 lines)
+  - Remove from CUSTOM_OPERATORS registry
+  - Update all references in docstrings and tests to use smart_mask
+
+- Remove stripe_testing_cc operator (test-only utility)
+  - Delete StripeTestingCCOperator class from custom_operators.py (~55 lines)
+  - Remove from CUSTOM_OPERATORS registry
+
+- Update documentation to reflect current operators
+  - Replace smart_redact → smart_mask in all docs and examples
+  - Remove stripe_testing_cc references from README, docs/presidio.md, docs/configuration.md
+  - Keep historical references in CHANGELOG.md and old scan reports
+
+- Add comprehensive test coverage for presidio_config.py
+  - Add 8 new tests for get_supported_entity_types, get_operator_examples, get_operators_for_entity_type
+  - Ensure config registry functions work correctly with entity_type field
+
+All 73 PII-related tests pass
+
+* feat: add entity_type filter to get_operator_examples function
+
+- Add optional entity_type parameter to get_operator_examples() in presidio_config.py
+- Allows filtering examples by specific entity type (e.g., EMAIL_ADDRESS, PHONE_NUMBER)
+- Useful for smart operators that support multiple entity types (smart_mask, smart_fake)
+- Add comprehensive test coverage for entity_type filtering
+- All 74 PII-related tests pass
+
+* feat: add complete examples for smart_mask and smart_fake operators
+
+- Add missing 7 examples for smart_mask operator (now has all 10 entity types)
+  - Added: CREDIT_CARD, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT
+  - Previously had: EMAIL_ADDRESS, PHONE_NUMBER, US_SSN
+
+- Add missing 7 examples for smart_fake operator (now has all 10 entity types)
+  - Added: CREDIT_CARD, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT
+  - Previously had: EMAIL_ADDRESS, PHONE_NUMBER, US_SSN
+
+- Add comprehensive test to verify smart operators have complete examples
+  - test_smart_operators_have_complete_examples() verifies all 10 entity types
+  - Tests both operators have examples for each supported entity type
+  - Tests entity_type filtering works for all entity types
+
+- Examples match the outputs from corresponding entity-specific operators
+- All 75 PII-related tests pass (1 new test added)
+
+* fix: minor fix
 
 * feat: add multi-entity PII support for fields with multiple entity types
 
@@ -17,18 +85,111 @@
 - Added 23 comprehensive tests for multi-entity anonymization scenarios
 - Updated documentation with multi-entity examples
 
-This allows proper anonymization of fields containing multiple PII types:
-```yaml
-pii_anonymization:
-  - field: contact_info
-    operator: mask_person
-    entity_type: PERSON
-  - field: contact_info
-    operator: mask_email
-    entity_type: EMAIL_ADDRESS
-```
+Changes:
+- Modified PIIHandler.__init__ to accept both list and dict formats
+- Added field_operators dict to group operators by field
+- Updated process_documents to use new multi-entity anonymization method
+- Enhanced PresidioAnonymizer with apply_multi_entity_anonymization()
+- Updated orchestrator to pass full pii_anonymization list
+- Modified CollectionPIIAnalysis.get_pii_anonymization_list() to sort by confidence
+- Added test_pii_handler.py with 15 tests
+- Added 8 multi-entity tests to test_presidio_anonymizer.py
+
+* chore: remove deprecated custom_strategy_aliases
+
+* chore: pass params to build OperatorConfig
+
+* chore: remove entity_type from PIIFieldAnonymization to only use params
+
+* feat: add configurable keep_first and keep_last params to SmartMaskOperator
+
+- Add keep_first parameter to control chars kept at the beginning (default: 3)
+- Add keep_last parameter to control chars kept at the end (default: 3)
+- Parameters only affect fallback masking for GENERIC entity types
+- Entity-specific operators (email, phone, etc.) use their own masking logic
+- Add comprehensive tests for new parameters including edge cases
+- All 402 tests passing
+
+* fix: preserve array type during PII anonymization
+
+Previously, array fields were being converted to string representations
+(e.g., ['item1', 'item2'] -> "['item1', 'item2']") instead of
+preserving the array structure.
+
+This fix adds special handling in _anonymize_value() to recursively
+anonymize each array element while maintaining the array type.
+
+- Handle arrays by anonymizing each element individually
+- Preserve empty arrays
+- Handle None values within arrays
+- Add 4 comprehensive tests for array anonymization
+
+* feat: add configurable params to mask_email operator
+
+Add three new parameters to MaskEmailOperator for flexible email masking:
+- keep_domain (bool, default: True): Whether to preserve the domain
+- min_local_part (int, default: 4): Minimum length for local part
+- min_domain_part (int, default: 4): Minimum length for domain
+
+If the local part or domain length is below the minimum thresholds,
+they are fully masked. Otherwise, partial masking applies (showing
+first 2 and last 2 chars for local parts > 4 chars).
+
+Examples:
+- john.smith@example.com -> jo******th@example.com (default)
+- joe@example.com -> ***@example.com (local < 4, fully masked)
+- john@ex.c -> j***@ex.c (local = 4, domain = 4, partial masking)
+
+Added 13 comprehensive tests covering all parameter combinations.
+
+* refactor: update mask_email thresholds and add edge case tests
+
+- Change default min_local_part and min_domain_part from 4 to 5
+- Change threshold logic from < to <= (values at threshold are now fully masked)
+- Remove special case for 4-char local parts (simplified logic)
+- Update documentation to reflect new defaults and behavior
+- Add 4 missing edge case tests:
+  - test_mask_email_at_min_local_part (boundary: local == 5)
+  - test_mask_email_above_min_local_part (boundary: local > 5)
+  - test_mask_email_domain_at_threshold (boundary: domain == 5)
+  - test_mask_email_domain_above_threshold (boundary: domain > 5)
+
+All 419 tests passing.
+
+* feat: add mask_sin and mask_tin operators for Canadian IDs ([`f13b666`](https://github.com/nhuray/mongo-replication/commit/f13b66620718fd51e43ab18641c728799e607586))
+
+### Refactoring
+
+* refactor: remove unused PII code and improve API clarity (#19)
+
+This commit removes dead code from the PII handling system and improves API clarity:
+
+**Removed:**
+- PIIRedactor class (200 lines) - completely unused, replaced by Presidio
+- pii_map parameter from anonymization API - never used in production (always None)
+
+**Renamed:**
+- manual_overrides → pii_field_strategy (clearer parameter name)
+
+**Why this is safe:**
+1. PIIRedactor had zero usage - not imported anywhere in production code
+2. pii_map was designed for auto-detected PII but workflow is:
+   - Scan phase: detect PII → convert to manual config → save to YAML
+   - Run phase: load manual config → anonymize (pii_map always None)
+3. All 264 unit tests pass after changes
+
+**Benefits:**
+- Removes ~300 lines of dead code
+- Simpler, cleaner API
+- Less confusion about workflow
+- Better parameter naming (pii_field_strategy vs manual_overrides) ([`9c58d2f`](https://github.com/nhuray/mongo-replication/commit/9c58d2f69b85356d48a1e2144596f4fd0a71e5ff))
+
 
 ## v0.2.0 (2026-04-13)
+
+### Chores
+
+* chore(release): 0.2.0 [skip ci] ([`f46d2e7`](https://github.com/nhuray/mongo-replication/commit/f46d2e78b883418b6df2581bf0c9b0b584b3b396))
 
 ### Features
 
