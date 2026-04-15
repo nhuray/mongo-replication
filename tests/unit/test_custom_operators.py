@@ -39,30 +39,41 @@ class TestMaskEmailOperator:
         assert self.operator.operator_name() == "mask_email"
 
     def test_mask_standard_email(self):
-        """Test masking standard email address."""
+        """Test masking standard email address with default behavior.
+
+        With default min_local_part=4 and min_domain_part=4:
+        - 'john.smith' (10 chars) >= 4, so partially masked (show first 2 and last 2)
+        - 'example.com' (11 chars) >= 4, so preserved
+        """
         email = "john.smith@example.com"
         masked = self.operator.operate(email)
 
         # Should preserve domain
         assert "@example.com" in masked
-        # Should mask local part
+        # Should mask local part showing first 2 and last 2
         assert "john.smith" not in masked
-        # Should show first 2 and last 2 chars of local part
         assert masked.startswith("jo")
         assert masked.endswith("th@example.com")
 
     def test_mask_short_email(self):
-        """Test masking short email address."""
+        """Test masking short email address.
+
+        'ab' (2 chars) < 4, so fully masked
+        'test.com' (8 chars) >= 4, so preserved
+        """
         email = "ab@test.com"
         masked = self.operator.operate(email)
 
         # Should preserve domain
         assert "@test.com" in masked
-        # Should mask most of local part
-        assert "ab" not in masked or masked.startswith("a")
+        # Should fully mask local part since it's below threshold
+        assert masked == "**@test.com"
 
     def test_mask_long_email(self):
-        """Test masking long email address."""
+        """Test masking long email address.
+
+        Both parts meet thresholds, so partial masking applies.
+        """
         email = "verylongemailaddress@company.org"
         masked = self.operator.operate(email)
 
@@ -83,6 +94,127 @@ class TestMaskEmailOperator:
         """Test masking invalid email format."""
         result = self.operator.operate("notanemail")
         assert result == "***@***.com"
+
+    def test_mask_email_with_keep_domain_false(self):
+        """Test masking email with keep_domain=False."""
+        email = "john.smith@example.com"
+        masked = self.operator.operate(email, params={"keep_domain": False})
+
+        # Should mask both local and domain
+        assert "@" in masked
+        assert "example.com" not in masked
+        assert "*" in masked.split("@")[1]  # Domain should be masked
+
+    def test_mask_email_below_min_local_part(self):
+        """Test masking email where local part is below min_local_part threshold."""
+        email = "joe@example.com"  # local part is 3 chars, below default of 4
+        masked = self.operator.operate(email)
+
+        # Should fully mask local part
+        assert masked.startswith("***@")
+        # Should preserve domain
+        assert masked.endswith("@example.com")
+
+    def test_mask_email_at_min_local_part(self):
+        """Test masking email where local part equals min_local_part threshold."""
+        email = "john@example.com"  # local part is 4 chars, equals default threshold
+        masked = self.operator.operate(email)
+
+        # Should partially mask local part (not fully masked since it meets threshold)
+        assert not masked.startswith("****@")
+        # Should show first char for 4-char local part
+        assert masked.startswith("j")
+        # Should preserve domain
+        assert "@example.com" in masked
+
+    def test_mask_email_custom_min_local_part(self):
+        """Test masking email with custom min_local_part."""
+        email = "john@example.com"  # local part is 4 chars
+        # Set min to 5, so 4 < 5, should fully mask
+        masked = self.operator.operate(email, params={"min_local_part": 5})
+
+        # Should fully mask local part since 4 < 5
+        assert masked.startswith("****@")
+        assert masked.endswith("@example.com")
+
+    def test_mask_email_below_min_domain_part(self):
+        """Test masking email where domain is below min_domain_part threshold."""
+        email = "john@ex.c"  # domain is 4 chars, equals default of 4
+        masked = self.operator.operate(email)
+
+        # Should preserve domain since it equals threshold
+        assert "@ex.c" in masked
+
+    def test_mask_email_domain_below_threshold(self):
+        """Test masking email where domain is below min_domain_part threshold."""
+        email = "john@e.co"  # domain is 4 chars, equals default
+        masked = self.operator.operate(email)
+
+        # Should preserve domain
+        assert "@e.co" in masked
+
+    def test_mask_email_custom_min_domain_part(self):
+        """Test masking email with custom min_domain_part."""
+        email = "john@ex.co"  # domain is 5 chars
+        # Set min to 6, so 5 < 6, should fully mask domain
+        masked = self.operator.operate(email, params={"min_domain_part": 6})
+
+        # Should fully mask domain since 5 < 6
+        assert "@ex.co" not in masked
+        assert "@*****" in masked
+
+    def test_mask_email_all_params_combined(self):
+        """Test masking email with all parameters combined."""
+        email = "johnsmith@company.org"
+        masked = self.operator.operate(
+            email,
+            params={
+                "keep_domain": False,
+                "min_local_part": 10,
+                "min_domain_part": 10,
+            },
+        )
+
+        # keep_domain=False should always mask domain regardless of length
+        assert "company.org" not in masked
+        # local part is 9 chars, below 10, so fully masked
+        assert masked.startswith("*********@")
+
+    def test_mask_email_short_both_parts(self):
+        """Test masking email with both parts at/below threshold."""
+        email = "joe@ex.c"  # local=3 (< 4), domain=4 (= 4)
+        masked = self.operator.operate(email)
+
+        # Local part is 3, below threshold, should be fully masked
+        assert masked.startswith("***@")
+        # Domain is 4, equals threshold, should be preserved
+        assert "@ex.c" in masked
+
+    def test_validate_params_valid(self):
+        """Test parameter validation with valid params."""
+        # Should not raise
+        self.operator.validate({"keep_domain": True, "min_local_part": 5, "min_domain_part": 3})
+
+    def test_validate_params_invalid_keep_domain(self):
+        """Test parameter validation with invalid keep_domain type."""
+        import pytest
+
+        with pytest.raises(ValueError, match="keep_domain must be a boolean"):
+            self.operator.validate({"keep_domain": "yes"})
+
+    def test_validate_params_invalid_min_local_part(self):
+        """Test parameter validation with invalid min_local_part type."""
+        import pytest
+
+        with pytest.raises(ValueError, match="min_local_part must be an integer"):
+            self.operator.validate({"min_local_part": "5"})
+
+    def test_validate_params_invalid_min_domain_part(self):
+        """Test parameter validation with invalid min_domain_part type."""
+        import pytest
+
+        with pytest.raises(ValueError, match="min_domain_part must be an integer"):
+            self.operator.validate({"min_domain_part": 3.5})
 
 
 class TestMaskPhoneOperator:

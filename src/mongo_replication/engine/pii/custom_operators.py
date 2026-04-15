@@ -710,12 +710,22 @@ def resolve_smart_operator(operator_name: str, entity_type: str) -> str:
 
 
 class MaskEmailOperator(Operator):
-    """Mask email addresses while preserving domain.
+    """Mask email addresses with configurable domain and length-based masking.
 
-    Masks the local part (before @) while keeping the domain visible.
-    Preserves first 2 and last 2 characters of local part for uniqueness.
+    Masks the local part (before @) and optionally the domain based on length thresholds.
+    If parts are shorter than the minimum thresholds, they are fully masked.
+    Otherwise, preserves first 2 and last 2 characters of local part for uniqueness.
 
-    Example: john.smith@example.com -> jo******th@example.com
+    Parameters:
+        keep_domain (bool): Whether to preserve the domain. Default: True
+        min_local_part (int): Minimum length for local part. If below, entire local part is masked. Default: 4
+        min_domain_part (int): Minimum length for domain. If below, entire domain is masked. Default: 4
+
+    Examples:
+        john.smith@example.com -> jo******th@example.com (default, both above min thresholds)
+        joe@example.com -> ***@example.com (local part < 4, fully masked)
+        john.smith@ex.c -> jo******th@**** (domain < 4, fully masked)
+        john.smith@example.com -> jo******th@*********** (keep_domain=False, domain masked)
     """
 
     def operate(self, text: str = None, params: Dict = None) -> str:
@@ -723,7 +733,10 @@ class MaskEmailOperator(Operator):
 
         Args:
             text: Email address to mask
-            params: Optional parameters (not used)
+            params: Optional parameters:
+                - keep_domain (bool): Preserve domain (default: True)
+                - min_local_part (int): Min length threshold for local part (default: 4)
+                - min_domain_part (int): Min length threshold for domain (default: 4)
 
         Returns:
             Masked email address
@@ -731,23 +744,51 @@ class MaskEmailOperator(Operator):
         if not text or "@" not in text:
             return "***@***.com"
 
+        # Extract parameters with defaults
+        params = params or {}
+        keep_domain = params.get("keep_domain", True)
+        min_local_part = params.get("min_local_part", 4)
+        min_domain_part = params.get("min_domain_part", 4)
+
         try:
             local, domain = text.rsplit("@", 1)
 
-            if len(local) <= 4:
+            # Mask local part based on length threshold
+            if len(local) < min_local_part:
+                # Below threshold: fully mask local part
+                masked_local = "*" * len(local)
+            elif len(local) <= 4:
                 # Short local part: show first char only
                 masked_local = local[0] + "*" * (len(local) - 1) if local else "***"
             else:
                 # Longer local part: show first 2 and last 2 chars
                 masked_local = local[:2] + "*" * (len(local) - 4) + local[-2:]
 
-            return f"{masked_local}@{domain}"
+            # Handle domain based on keep_domain and length threshold
+            if keep_domain:
+                if len(domain) < min_domain_part:
+                    # Below threshold: fully mask domain
+                    masked_domain = "*" * len(domain)
+                else:
+                    # Preserve domain as-is
+                    masked_domain = domain
+            else:
+                # Always mask domain when keep_domain is False
+                masked_domain = "*" * len(domain)
+
+            return f"{masked_local}@{masked_domain}"
         except Exception:
             return "***@***.com"
 
     def validate(self, params: Dict = None) -> None:
-        """Validate parameters (no params needed)."""
-        pass
+        """Validate parameters."""
+        if params:
+            if "keep_domain" in params and not isinstance(params["keep_domain"], bool):
+                raise ValueError("keep_domain must be a boolean")
+            if "min_local_part" in params and not isinstance(params["min_local_part"], int):
+                raise ValueError("min_local_part must be an integer")
+            if "min_domain_part" in params and not isinstance(params["min_domain_part"], int):
+                raise ValueError("min_domain_part must be an integer")
 
     def operator_name(self) -> str:
         """Return operator name."""
