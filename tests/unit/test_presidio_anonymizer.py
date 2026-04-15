@@ -61,7 +61,6 @@ class TestPresidioAnonymizerInitialization:
         anon = PresidioAnonymizer()
         assert anon.anonymizer_engine is not None
         assert anon.operator_configs is not None
-        assert anon.strategy_aliases is not None
         assert anon.presidio_config is not None
 
     def test_test_entity_strategies(self):
@@ -360,20 +359,6 @@ class TestIntegration:
 
         # Custom field should be hashed
         assert len(result["custom_sensitive"]) == 64
-
-    def test_strategy_aliases(self, anonymizer):
-        """Test that strategy aliases work correctly."""
-        doc = {"email": "test@example.com"}
-
-        # Test various strategy names that should work
-        working_strategies = ["hash", "mask", "fake_email", "smart_mask"]
-
-        for strategy in working_strategies:
-            pii_field_strategy = {"email": strategy}
-            result = anonymizer.apply_anonymization(doc, pii_field_strategy)
-            # Should not crash and should anonymize (or at least try)
-            # Some strategies like redact might return empty string
-            assert "email" in result
 
 
 class TestMultiEntityAnonymization:

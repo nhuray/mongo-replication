@@ -94,45 +94,6 @@ class PresidioConfig:
 
         return operator_configs
 
-    def get_strategy_aliases(self) -> Dict[str, str]:
-        """Get custom strategy name aliases.
-
-        This method reads the 'custom_strategy_aliases' section from YAML config
-        and returns a mapping of strategy names to operator names.
-
-        Returns:
-            Dictionary mapping strategy alias names to operator names.
-            Example: {"fake_email": "fake_email", "redact": "redact", ...}
-
-        Example YAML:
-            custom_strategy_aliases:
-              fake_email:
-                description: "Generate fake email"
-                operator: fake_email
-        """
-        aliases_yaml = self.config.get("custom_strategy_aliases", {})
-        aliases = {}
-
-        for alias_name, config in aliases_yaml.items():
-            operator = config.get("operator")
-            if operator:
-                aliases[alias_name] = operator
-                logger.debug(f"Loaded strategy alias: {alias_name} -> {operator}")
-
-        return aliases
-
-    def get_operator_for_strategy(self, strategy_name: str) -> Optional[str]:
-        """Get the operator name for a given strategy alias.
-
-        Args:
-            strategy_name: The strategy name (e.g., "fake_email", "hash", "redact")
-
-        Returns:
-            The operator name, or None if not found
-        """
-        aliases = self.get_strategy_aliases()
-        return aliases.get(strategy_name)
-
     def get_supported_entity_types(self) -> List[str]:
         """Get all supported entity types from anonymizer_registry.
 

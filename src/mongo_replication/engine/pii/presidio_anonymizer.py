@@ -56,7 +56,6 @@ class PresidioAnonymizer:
         # Load operator configurations from YAML
         self.presidio_config = PresidioConfig(presidio_config_path)
         self.operator_configs = operator_overrides or self.presidio_config.get_operator_configs()
-        self.strategy_aliases = self.presidio_config.get_strategy_aliases()
 
         logger.info(
             f"PresidioAnonymizer initialized with {len(self.operator_configs)} operator configs"
@@ -140,7 +139,7 @@ class PresidioAnonymizer:
                 entity_type = operator_info.get("entity_type")
 
                 # Convert to OperatorConfig
-                operator_config = self._strategy_to_operator_config(operator_name, entity_type)
+                operator_config = self._build_operator_config(operator_name, entity_type)
                 if operator_config:
                     self._anonymize_field(anonymized, field_path, operator_config)
 
@@ -175,7 +174,7 @@ class PresidioAnonymizer:
             return text
 
         # Convert strategy name to operator config
-        operator_config = self._strategy_to_operator_config(operator_name, entity_type)
+        operator_config = self._build_operator_config(operator_name, entity_type)
         if not operator_config:
             logger.warning(
                 f"No operator config found for '{operator_name}', returning original text"
@@ -205,15 +204,15 @@ class PresidioAnonymizer:
             for field_path, strategy_name in pii_field_strategy.items():
                 if strategy_name is not None:
                     # Convert strategy name to operator config
-                    operator_config = self._strategy_to_operator_config(strategy_name)
+                    operator_config = self._build_operator_config(strategy_name)
                     if operator_config:
                         field_operators[field_path] = operator_config
 
         return field_operators
 
-    def _strategy_to_operator_config(
+    def _build_operator_config(
         self,
-        strategy_name: str,
+        operator_name: str,
         entity_type: Optional[str] = None,
     ) -> Optional[OperatorConfig]:
         """
@@ -221,22 +220,18 @@ class PresidioAnonymizer:
 
         Strategy names can be:
         1. Operator names directly (e.g., "mask", "hash", "redact")
-        2. Strategy aliases from YAML (e.g., "fake_email", "smart_mask")
-        3. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
+        2. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
 
         Args:
-            strategy_name: The strategy name to convert
+            operator_name: The strategy name to convert
             entity_type: Optional entity type for operators that need it
 
         Returns:
             OperatorConfig object, or None if strategy not found
         """
-        # First check if it's a strategy alias
-        operator_name = self.strategy_aliases.get(strategy_name, strategy_name)
-
         # Check if it's an entity type with configured operator
-        if strategy_name in self.operator_configs:
-            return self.operator_configs[strategy_name]
+        if operator_name in self.operator_configs:
+            return self.operator_configs[operator_name]
 
         # Create OperatorConfig for the operator name
         # For operators that need entity_type, pass it in params
