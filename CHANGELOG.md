@@ -1,6 +1,13 @@
 # CHANGELOG
 
 
+## v1.0.1 (2026-04-15)
+
+### Bug Fixes
+
+* fix: update FakeEmailOperator to generate unique email addresses ([`767ba25`](https://github.com/nhuray/mongo-replication/commit/767ba25bca5f383f0e8392bd629775715fbc987e))
+
+
 ## v1.0.0 (2026-04-15)
 
 ### Breaking
@@ -157,6 +164,10 @@ Added 13 comprehensive tests covering all parameter combinations.
 All 419 tests passing.
 
 * feat: add mask_sin and mask_tin operators for Canadian IDs ([`f13b666`](https://github.com/nhuray/mongo-replication/commit/f13b66620718fd51e43ab18641c728799e607586))
+
+### Chores
+
+* chore(release): 1.0.0 [skip ci] ([`9d91cb7`](https://github.com/nhuray/mongo-replication/commit/9d91cb7c6154bb59675bc9bd61671fb58bfbe2ed))
 
 ### Refactoring
 
