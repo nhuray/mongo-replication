@@ -31,7 +31,7 @@ class FakeEmailOperator(Operator):
             Fake email address
         """
         person = Person()
-        return person.email()
+        return person.email(unique=True)
 
     def validate(self, params: Dict = None) -> None:
         """Validate parameters (no params needed)."""
