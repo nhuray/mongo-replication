@@ -371,8 +371,8 @@ class TestMultiEntityAnonymization:
         # Simulate field with both PERSON and EMAIL_ADDRESS entities
         field_operators = {
             "contact_info": [
-                {"operator": "mask_person", "entity_type": "PERSON"},
-                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+                {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+                {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}},
             ]
         }
 
@@ -393,8 +393,8 @@ class TestMultiEntityAnonymization:
         # Operators should be applied in list order
         field_operators = {
             "data": [
-                {"operator": "hash", "entity_type": "SENSITIVE_1"},  # Applied first
-                {"operator": "mask", "entity_type": "SENSITIVE_2"},  # Applied second
+                {"operator": "hash", "params": {"entity_type": "SENSITIVE_1"}},  # Applied first
+                {"operator": "mask", "params": {"entity_type": "SENSITIVE_2"}},  # Applied second
             ]
         }
 
@@ -411,8 +411,8 @@ class TestMultiEntityAnonymization:
 
         field_operators = {
             "user.full_contact": [
-                {"operator": "mask_person", "entity_type": "PERSON"},
-                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+                {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+                {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}},
             ]
         }
 
@@ -432,8 +432,8 @@ class TestMultiEntityAnonymization:
 
         field_operators = {
             "contacts.info": [
-                {"operator": "fake_name", "entity_type": "PERSON"},
-                {"operator": "fake_email", "entity_type": "EMAIL_ADDRESS"},
+                {"operator": "fake_name", "params": {"entity_type": "PERSON"}},
+                {"operator": "fake_email", "params": {"entity_type": "EMAIL_ADDRESS"}},
             ]
         }
 
@@ -449,8 +449,8 @@ class TestMultiEntityAnonymization:
 
         field_operators = {
             "field": [
-                {"operator": "smart_mask", "entity_type": "PERSON"},
-                {"operator": "smart_mask", "entity_type": "EMAIL_ADDRESS"},
+                {"operator": "smart_mask", "params": {"entity_type": "PERSON"}},
+                {"operator": "smart_mask", "params": {"entity_type": "EMAIL_ADDRESS"}},
             ]
         }
 
@@ -465,10 +465,10 @@ class TestMultiEntityAnonymization:
 
         field_operators = {
             "multi": [
-                {"operator": "mask_person", "entity_type": "PERSON"},
-                {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
+                {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+                {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}},
             ],
-            "single": [{"operator": "mask_email", "entity_type": "EMAIL_ADDRESS"}],
+            "single": [{"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}}],
         }
 
         result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
@@ -487,13 +487,79 @@ class TestMultiEntityAnonymization:
         # Document should be unchanged
         assert result == doc
 
-    def test_field_operators_with_none_entity_type(self, anonymizer):
-        """Test field operators where entity_type might be None (legacy)."""
+    def test_field_operators_with_none_params(self, anonymizer):
+        """Test field operators where params might be None (legacy)."""
         doc = {"data": "sensitive"}
 
-        field_operators = {"data": [{"operator": "hash", "entity_type": None}]}
+        field_operators = {"data": [{"operator": "hash", "params": None}]}
 
         result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
 
-        # Should still work with None entity_type
+        # Should still work with None params
         assert result["data"] != "sensitive"
+
+    def test_field_operators_with_custom_params(self, anonymizer):
+        """Test that custom params are correctly passed to operators."""
+        doc = {"email": "test@example.com"}
+
+        # Pass custom params along with entity_type
+        field_operators = {
+            "email": [
+                {
+                    "operator": "mask_email",
+                    "params": {
+                        "entity_type": "EMAIL_ADDRESS",
+                        "custom_param": "custom_value",
+                    },
+                }
+            ]
+        }
+
+        result = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+
+        # Should anonymize (we can't easily test if custom params were used,
+        # but at least verify it doesn't crash and anonymizes)
+        assert result["email"] != "test@example.com"
+
+    def test_build_operator_config_with_params(self, anonymizer):
+        """Test _build_operator_config correctly uses params dict."""
+        # Test with params including entity_type and custom params
+        operator_config = anonymizer._build_operator_config(
+            operator_name="mask_email",
+            params={
+                "entity_type": "EMAIL_ADDRESS",
+                "masking_char": "#",
+                "chars_to_mask": 5,
+            },
+        )
+
+        assert operator_config.operator_name == "mask_email"
+        assert operator_config.params["entity_type"] == "EMAIL_ADDRESS"
+        assert operator_config.params["masking_char"] == "#"
+        assert operator_config.params["chars_to_mask"] == 5
+
+    def test_build_operator_config_params_only(self, anonymizer):
+        """Test _build_operator_config with params but no entity_type."""
+        operator_config = anonymizer._build_operator_config(
+            operator_name="hash", params={"custom_param": "value"}
+        )
+
+        assert operator_config.operator_name == "hash"
+        assert operator_config.params["custom_param"] == "value"
+        assert "entity_type" not in operator_config.params
+
+    def test_build_operator_config_with_entity_type(self, anonymizer):
+        """Test _build_operator_config with entity_type in params."""
+        operator_config = anonymizer._build_operator_config(
+            operator_name="smart_mask", params={"entity_type": "EMAIL_ADDRESS"}
+        )
+
+        assert operator_config.operator_name == "smart_mask"
+        assert operator_config.params["entity_type"] == "EMAIL_ADDRESS"
+
+    def test_build_operator_config_no_params(self, anonymizer):
+        """Test _build_operator_config with no params."""
+        operator_config = anonymizer._build_operator_config(operator_name="hash")
+
+        assert operator_config.operator_name == "hash"
+        assert operator_config.params == {}

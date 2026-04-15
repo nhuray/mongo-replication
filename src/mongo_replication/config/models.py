@@ -307,11 +307,8 @@ class PIIFieldAnonymization(BaseModel):
     operator: str
     """Anonymization operator name (e.g., 'mask_email', 'fake_phone', 'smart_mask')."""
 
-    entity_type: str
-    """PII entity type detected by the analyzer (e.g., 'EMAIL_ADDRESS', 'PHONE_NUMBER', 'PERSON')."""
-
     params: Optional[Dict[str, Any]] = None
-    """Optional parameters to pass to the operator. The entity_type is automatically included."""
+    """Optional parameters to pass to the operator (including 'entity_type' if needed)."""
 
 
 class CollectionConfig(ReplicationDefaultsConfig):

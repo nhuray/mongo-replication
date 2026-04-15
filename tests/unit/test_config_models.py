@@ -328,63 +328,67 @@ class TestPIIFieldAnonymization:
     def test_create_with_all_fields(self):
         """Test creating PIIFieldAnonymization with all required fields."""
         pii_config = PIIFieldAnonymization(
-            field="email", operator="mask_email", entity_type="EMAIL_ADDRESS"
+            field="email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
         )
 
         assert pii_config.field == "email"
         assert pii_config.operator == "mask_email"
-        assert pii_config.entity_type == "EMAIL_ADDRESS"
+        assert pii_config.params == {"entity_type": "EMAIL_ADDRESS"}
 
-    def test_entity_type_is_required(self):
-        """Test that entity_type is a required field."""
-        with pytest.raises(ValidationError, match="Field required"):
-            PIIFieldAnonymization(
-                field="email",
-                operator="mask_email",
-                # entity_type is missing
-            )
+    def test_params_is_optional(self):
+        """Test that params field is optional."""
+        pii_config = PIIFieldAnonymization(
+            field="email",
+            operator="mask_email",
+            # params is optional
+        )
+        assert pii_config.params is None
 
     def test_nested_field_path(self):
         """Test PIIFieldAnonymization with nested field path."""
         pii_config = PIIFieldAnonymization(
-            field="user.profile.email", operator="mask_email", entity_type="EMAIL_ADDRESS"
+            field="user.profile.email",
+            operator="mask_email",
+            params={"entity_type": "EMAIL_ADDRESS"},
         )
 
         assert pii_config.field == "user.profile.email"
         assert pii_config.operator == "mask_email"
-        assert pii_config.entity_type == "EMAIL_ADDRESS"
+        assert pii_config.params == {"entity_type": "EMAIL_ADDRESS"}
 
     def test_various_operators(self):
         """Test PIIFieldAnonymization with various operator types."""
         # Mask operator
         pii1 = PIIFieldAnonymization(
-            field="phone", operator="mask_phone", entity_type="PHONE_NUMBER"
+            field="phone", operator="mask_phone", params={"entity_type": "PHONE_NUMBER"}
         )
         assert pii1.operator == "mask_phone"
 
         # Fake operator
-        pii2 = PIIFieldAnonymization(field="ssn", operator="fake_ssn", entity_type="US_SSN")
+        pii2 = PIIFieldAnonymization(
+            field="ssn", operator="fake_ssn", params={"entity_type": "US_SSN"}
+        )
         assert pii2.operator == "fake_ssn"
 
         # Smart operator (should not be used in configs, but valid)
         pii3 = PIIFieldAnonymization(
-            field="email", operator="smart_mask", entity_type="EMAIL_ADDRESS"
+            field="email", operator="smart_mask", params={"entity_type": "EMAIL_ADDRESS"}
         )
         assert pii3.operator == "smart_mask"
 
         # Hash operator
         pii4 = PIIFieldAnonymization(
-            field="credit_card", operator="hash", entity_type="CREDIT_CARD"
+            field="credit_card", operator="hash", params={"entity_type": "CREDIT_CARD"}
         )
         assert pii4.operator == "hash"
 
     def test_unknown_entity_type(self):
-        """Test PIIFieldAnonymization with UNKNOWN entity type."""
+        """Test PIIFieldAnonymization with UNKNOWN entity type in params."""
         pii_config = PIIFieldAnonymization(
-            field="some_field", operator="mask", entity_type="UNKNOWN"
+            field="some_field", operator="mask", params={"entity_type": "UNKNOWN"}
         )
 
-        assert pii_config.entity_type == "UNKNOWN"
+        assert pii_config.params == {"entity_type": "UNKNOWN"}
 
 
 class TestCollectionConfigPIIAnonymization:
@@ -396,10 +400,10 @@ class TestCollectionConfigPIIAnonymization:
             name="users",
             pii_anonymization=[
                 PIIFieldAnonymization(
-                    field="email", operator="mask_email", entity_type="EMAIL_ADDRESS"
+                    field="email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
                 ),
                 PIIFieldAnonymization(
-                    field="phone", operator="mask_phone", entity_type="PHONE_NUMBER"
+                    field="phone", operator="mask_phone", params={"entity_type": "PHONE_NUMBER"}
                 ),
             ],
         )
@@ -407,10 +411,10 @@ class TestCollectionConfigPIIAnonymization:
         assert len(config.pii_anonymization) == 2
         assert config.pii_anonymization[0].field == "email"
         assert config.pii_anonymization[0].operator == "mask_email"
-        assert config.pii_anonymization[0].entity_type == "EMAIL_ADDRESS"
+        assert config.pii_anonymization[0].params == {"entity_type": "EMAIL_ADDRESS"}
         assert config.pii_anonymization[1].field == "phone"
         assert config.pii_anonymization[1].operator == "mask_phone"
-        assert config.pii_anonymization[1].entity_type == "PHONE_NUMBER"
+        assert config.pii_anonymization[1].params == {"entity_type": "PHONE_NUMBER"}
 
     def test_backward_compatibility_migration(self):
         """Test backward compatibility with old pii_anonymized_fields format."""
@@ -437,11 +441,11 @@ class TestCollectionConfigPIIAnonymization:
 
         assert email_config is not None
         assert email_config.operator == "mask_email"
-        assert email_config.entity_type == "UNKNOWN"  # Should set to UNKNOWN for migrated configs
+        assert email_config.params is None  # Legacy format has no params
 
         assert phone_config is not None
         assert phone_config.operator == "mask_phone"
-        assert phone_config.entity_type == "UNKNOWN"
+        assert phone_config.params is None  # Legacy format has no params
 
     def test_empty_pii_anonymization_list(self):
         """Test collection with empty pii_anonymization list."""
@@ -471,8 +475,16 @@ class TestConfigTemplateSerialization:
                 "write_disposition": "merge",
                 "primary_key": "_id",
                 "pii_anonymization": [
-                    {"field": "email", "operator": "mask_email", "entity_type": "EMAIL_ADDRESS"},
-                    {"field": "phone", "operator": "mask_phone", "entity_type": "PHONE_NUMBER"},
+                    {
+                        "field": "email",
+                        "operator": "mask_email",
+                        "params": {"entity_type": "EMAIL_ADDRESS"},
+                    },
+                    {
+                        "field": "phone",
+                        "operator": "mask_phone",
+                        "params": {"entity_type": "PHONE_NUMBER"},
+                    },
                 ],
             }
         }
@@ -487,10 +499,11 @@ class TestConfigTemplateSerialization:
         try:
             save_config(config, temp_path)
 
-            # Verify YAML content includes entity_type
+            # Verify YAML content includes params with entity_type
             with open(temp_path, "r") as f:
                 yaml_content = f.read()
                 assert "pii_anonymization:" in yaml_content
+                assert "params:" in yaml_content
                 assert "entity_type: EMAIL_ADDRESS" in yaml_content
                 assert "entity_type: PHONE_NUMBER" in yaml_content
 
@@ -504,13 +517,13 @@ class TestConfigTemplateSerialization:
             email_pii = users_config.pii_anonymization[0]
             assert email_pii.field == "email"
             assert email_pii.operator == "mask_email"
-            assert email_pii.entity_type == "EMAIL_ADDRESS"
+            assert email_pii.params == {"entity_type": "EMAIL_ADDRESS"}
 
             # Check second PII field
             phone_pii = users_config.pii_anonymization[1]
             assert phone_pii.field == "phone"
             assert phone_pii.operator == "mask_phone"
-            assert phone_pii.entity_type == "PHONE_NUMBER"
+            assert phone_pii.params == {"entity_type": "PHONE_NUMBER"}
         finally:
             temp_path.unlink()
 
@@ -546,8 +559,9 @@ class TestConfigTemplateSerialization:
             # Should still save successfully (even though it auto-migrates)
             with open(temp_path, "r") as f:
                 yaml_content = f.read()
-                # After migration, should have new format with entity_type="UNKNOWN"
+                # After migration, should have new format
                 assert "pii_anonymization:" in yaml_content
-                assert "entity_type: UNKNOWN" in yaml_content
+                # Legacy format doesn't have params, so no params section should appear
+                assert "params:" not in yaml_content
         finally:
             temp_path.unlink()

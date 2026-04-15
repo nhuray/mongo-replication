@@ -70,7 +70,7 @@ class CollectionPIIAnalysis(BaseModel):
         """
         return {stat.field_path: stat.suggested_strategy for stat in self.fields_with_pii}
 
-    def get_pii_anonymization_list(self) -> List[Dict[str, str]]:
+    def get_pii_anonymization_list(self) -> List[Dict[str, Any]]:
         """
         Get pii_anonymization config list for YAML generation (NEW FORMAT).
 
@@ -78,8 +78,9 @@ class CollectionPIIAnalysis(BaseModel):
         (highest first) to ensure operators are applied in order of detection strength.
 
         Returns:
-            List of dicts with 'field', 'operator', and 'entity_type' keys,
-            sorted by (field_path, -avg_confidence) for multi-entity support
+            List of dicts with 'field', 'operator', and 'params' keys,
+            where params contains 'entity_type' and any other operator parameters.
+            Sorted by (field_path, -avg_confidence) for multi-entity support
         """
         # Sort by field path first, then by confidence (descending) within each field
         # This ensures multi-entity fields have operators in confidence order
@@ -91,7 +92,7 @@ class CollectionPIIAnalysis(BaseModel):
             {
                 "field": stat.field_path,
                 "operator": stat.suggested_strategy,
-                "entity_type": stat.entity_type,
+                "params": {"entity_type": stat.entity_type},
             }
             for stat in sorted_stats
         ]

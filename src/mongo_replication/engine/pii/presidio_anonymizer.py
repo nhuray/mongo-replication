@@ -110,8 +110,8 @@ class PresidioAnonymizer:
             field_operators: Dict mapping field paths to list of operator configs.
                 Format: {
                     "field_path": [
-                        {"operator": "mask_person", "entity_type": "PERSON", "params": {...}},
-                        {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS", "params": {...}}
+                        {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+                        {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}}
                     ]
                 }
 
@@ -123,8 +123,8 @@ class PresidioAnonymizer:
             >>> doc = {"contact": "John Smith john@example.com"}
             >>> field_operators = {
             ...     "contact": [
-            ...         {"operator": "mask_person", "entity_type": "PERSON", "params": None},
-            ...         {"operator": "mask_email", "entity_type": "EMAIL_ADDRESS", "params": None}
+            ...         {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+            ...         {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}}
             ...     ]
             ... }
             >>> anonymized = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
@@ -136,11 +136,10 @@ class PresidioAnonymizer:
         for field_path, operators_list in field_operators.items():
             for operator_info in operators_list:
                 operator_name = operator_info["operator"]
-                entity_type = operator_info.get("entity_type")
                 params = operator_info.get("params")
 
                 # Convert to OperatorConfig
-                operator_config = self._build_operator_config(operator_name, entity_type, params)
+                operator_config = self._build_operator_config(operator_name, params)
                 if operator_config:
                     self._anonymize_field(anonymized, field_path, operator_config)
 
@@ -174,8 +173,11 @@ class PresidioAnonymizer:
         if not text or not text.strip():
             return text
 
+        # Build params with entity_type if provided
+        params = {"entity_type": entity_type} if entity_type else None
+
         # Convert strategy name to operator config
-        operator_config = self._build_operator_config(operator_name, entity_type)
+        operator_config = self._build_operator_config(operator_name, params)
         if not operator_config:
             logger.warning(
                 f"No operator config found for '{operator_name}', returning original text"
@@ -183,6 +185,7 @@ class PresidioAnonymizer:
             return text
 
         # Use the internal method to anonymize
+        return self._anonymize_value(str(text), operator_config)
         return self._anonymize_value(str(text), operator_config)
 
     def _build_field_operators(
@@ -214,7 +217,6 @@ class PresidioAnonymizer:
     def _build_operator_config(
         self,
         operator_name: str,
-        entity_type: Optional[str] = None,
         params: Optional[Dict[str, Any]] = None,
     ) -> Optional[OperatorConfig]:
         """
@@ -226,8 +228,7 @@ class PresidioAnonymizer:
 
         Args:
             operator_name: The strategy name to convert
-            entity_type: Optional entity type for operators that need it
-            params: Optional parameters dict to pass to the operator
+            params: Optional parameters dict to pass to the operator (may include 'entity_type')
 
         Returns:
             OperatorConfig object, or None if strategy not found
@@ -236,10 +237,8 @@ class PresidioAnonymizer:
         if operator_name in self.operator_configs:
             return self.operator_configs[operator_name]
 
-        # Build params dict, combining provided params with entity_type
+        # Use provided params or empty dict
         final_params = params.copy() if params else {}
-        if entity_type:
-            final_params["entity_type"] = entity_type
 
         return OperatorConfig(operator_name, final_params)
 
