@@ -41,9 +41,9 @@ class TestMaskEmailOperator:
     def test_mask_standard_email(self):
         """Test masking standard email address with default behavior.
 
-        With default min_local_part=4 and min_domain_part=4:
-        - 'john.smith' (10 chars) >= 4, so partially masked (show first 2 and last 2)
-        - 'example.com' (11 chars) >= 4, so preserved
+        With default min_local_part=5 and min_domain_part=5:
+        - 'john.smith' (10 chars) > 5, so partially masked (show first 2 and last 2)
+        - 'example.com' (11 chars) > 5, so preserved
         """
         email = "john.smith@example.com"
         masked = self.operator.operate(email)
@@ -58,15 +58,15 @@ class TestMaskEmailOperator:
     def test_mask_short_email(self):
         """Test masking short email address.
 
-        'ab' (2 chars) < 4, so fully masked
-        'test.com' (8 chars) >= 4, so preserved
+        'ab' (2 chars) <= 5, so fully masked
+        'test.com' (8 chars) > 5, so preserved
         """
         email = "ab@test.com"
         masked = self.operator.operate(email)
 
         # Should preserve domain
         assert "@test.com" in masked
-        # Should fully mask local part since it's below threshold
+        # Should fully mask local part since it's at or below threshold
         assert masked == "**@test.com"
 
     def test_mask_long_email(self):
@@ -107,7 +107,7 @@ class TestMaskEmailOperator:
 
     def test_mask_email_below_min_local_part(self):
         """Test masking email where local part is below min_local_part threshold."""
-        email = "joe@example.com"  # local part is 3 chars, below default of 4
+        email = "joe@example.com"  # local part is 3 chars, below default of 5
         masked = self.operator.operate(email)
 
         # Should fully mask local part
@@ -117,15 +117,21 @@ class TestMaskEmailOperator:
 
     def test_mask_email_at_min_local_part(self):
         """Test masking email where local part equals min_local_part threshold."""
-        email = "john@example.com"  # local part is 4 chars, equals default threshold
+        email = "alice@example.com"  # local part is 5 chars, equals default of 5
         masked = self.operator.operate(email)
 
-        # Should partially mask local part (not fully masked since it meets threshold)
-        assert not masked.startswith("****@")
-        # Should show first char for 4-char local part
-        assert masked.startswith("j")
-        # Should preserve domain
-        assert "@example.com" in masked
+        # Should fully mask local part since it equals threshold (<=)
+        assert masked == "*****@example.com"
+
+    def test_mask_email_above_min_local_part(self):
+        """Test masking email where local part is just above min_local_part threshold."""
+        email = "robert@example.com"  # local part is 6 chars, above default of 5
+        masked = self.operator.operate(email)
+
+        # Should partially mask local part (show first 2 and last 2)
+        assert masked.startswith("ro")
+        assert masked.endswith("rt@example.com")
+        assert "robert" not in masked
 
     def test_mask_email_custom_min_local_part(self):
         """Test masking email with custom min_local_part."""
@@ -137,31 +143,32 @@ class TestMaskEmailOperator:
         assert masked.startswith("****@")
         assert masked.endswith("@example.com")
 
-    def test_mask_email_below_min_domain_part(self):
-        """Test masking email where domain is below min_domain_part threshold."""
-        email = "john@ex.c"  # domain is 4 chars, equals default of 4
-        masked = self.operator.operate(email)
-
-        # Should preserve domain since it equals threshold
-        assert "@ex.c" in masked
-
-    def test_mask_email_domain_below_threshold(self):
-        """Test masking email where domain is below min_domain_part threshold."""
-        email = "john@e.co"  # domain is 4 chars, equals default
-        masked = self.operator.operate(email)
-
-        # Should preserve domain
-        assert "@e.co" in masked
-
     def test_mask_email_custom_min_domain_part(self):
         """Test masking email with custom min_domain_part."""
         email = "john@ex.co"  # domain is 5 chars
-        # Set min to 6, so 5 < 6, should fully mask domain
+        # Set min to 6, so 5 <= 6, should fully mask domain
         masked = self.operator.operate(email, params={"min_domain_part": 6})
 
         # Should fully mask domain since 5 < 6
         assert "@ex.co" not in masked
         assert "@*****" in masked
+
+    def test_mask_email_domain_at_threshold(self):
+        """Test masking email where domain equals min_domain_part threshold."""
+        email = "john@ex.co"  # domain is 5 chars, equals default of 5
+        masked = self.operator.operate(email)
+
+        # Should fully mask domain since it equals threshold (<=)
+        assert "@ex.co" not in masked
+        assert "@*****" in masked
+
+    def test_mask_email_domain_above_threshold(self):
+        """Test masking email where domain is just above min_domain_part threshold."""
+        email = "john@test.io"  # domain is 7 chars, above default of 5
+        masked = self.operator.operate(email)
+
+        # Should preserve domain since it's above threshold
+        assert "@test.io" in masked
 
     def test_mask_email_all_params_combined(self):
         """Test masking email with all parameters combined."""
@@ -179,16 +186,6 @@ class TestMaskEmailOperator:
         assert "company.org" not in masked
         # local part is 9 chars, below 10, so fully masked
         assert masked.startswith("*********@")
-
-    def test_mask_email_short_both_parts(self):
-        """Test masking email with both parts at/below threshold."""
-        email = "joe@ex.c"  # local=3 (< 4), domain=4 (= 4)
-        masked = self.operator.operate(email)
-
-        # Local part is 3, below threshold, should be fully masked
-        assert masked.startswith("***@")
-        # Domain is 4, equals threshold, should be preserved
-        assert "@ex.c" in masked
 
     def test_validate_params_valid(self):
         """Test parameter validation with valid params."""

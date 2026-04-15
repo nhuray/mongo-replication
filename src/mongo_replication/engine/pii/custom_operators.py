@@ -713,18 +713,18 @@ class MaskEmailOperator(Operator):
     """Mask email addresses with configurable domain and length-based masking.
 
     Masks the local part (before @) and optionally the domain based on length thresholds.
-    If parts are shorter than the minimum thresholds, they are fully masked.
+    If parts are at or below the minimum thresholds, they are fully masked.
     Otherwise, preserves first 2 and last 2 characters of local part for uniqueness.
 
     Parameters:
         keep_domain (bool): Whether to preserve the domain. Default: True
-        min_local_part (int): Minimum length for local part. If below, entire local part is masked. Default: 4
-        min_domain_part (int): Minimum length for domain. If below, entire domain is masked. Default: 4
+        min_local_part (int): Minimum length for local part. If at or below, entire local part is masked. Default: 5
+        min_domain_part (int): Minimum length for domain. If at or below, entire domain is masked. Default: 5
 
     Examples:
         john.smith@example.com -> jo******th@example.com (default, both above min thresholds)
-        joe@example.com -> ***@example.com (local part < 4, fully masked)
-        john.smith@ex.c -> jo******th@**** (domain < 4, fully masked)
+        joe@example.com -> ***@example.com (local part <= 5, fully masked)
+        john.smith@ex.co -> jo******th@***** (domain <= 5, fully masked)
         john.smith@example.com -> jo******th@*********** (keep_domain=False, domain masked)
     """
 
@@ -735,8 +735,8 @@ class MaskEmailOperator(Operator):
             text: Email address to mask
             params: Optional parameters:
                 - keep_domain (bool): Preserve domain (default: True)
-                - min_local_part (int): Min length threshold for local part (default: 4)
-                - min_domain_part (int): Min length threshold for domain (default: 4)
+                - min_local_part (int): Min length threshold for local part (default: 5)
+                - min_domain_part (int): Min length threshold for domain (default: 5)
 
         Returns:
             Masked email address
@@ -747,26 +747,23 @@ class MaskEmailOperator(Operator):
         # Extract parameters with defaults
         params = params or {}
         keep_domain = params.get("keep_domain", True)
-        min_local_part = params.get("min_local_part", 4)
-        min_domain_part = params.get("min_domain_part", 4)
+        min_local_part = params.get("min_local_part", 5)
+        min_domain_part = params.get("min_domain_part", 5)
 
         try:
             local, domain = text.rsplit("@", 1)
 
             # Mask local part based on length threshold
-            if len(local) < min_local_part:
+            if len(local) <= min_local_part:
                 # Below threshold: fully mask local part
                 masked_local = "*" * len(local)
-            elif len(local) <= 4:
-                # Short local part: show first char only
-                masked_local = local[0] + "*" * (len(local) - 1) if local else "***"
             else:
                 # Longer local part: show first 2 and last 2 chars
                 masked_local = local[:2] + "*" * (len(local) - 4) + local[-2:]
 
             # Handle domain based on keep_domain and length threshold
             if keep_domain:
-                if len(domain) < min_domain_part:
+                if len(domain) <= min_domain_part:
                     # Below threshold: fully mask domain
                     masked_domain = "*" * len(domain)
                 else:
