@@ -450,6 +450,8 @@ class SmartMaskOperator(Operator):
             text: Text to mask
             params: Optional parameters including:
                    - entity_type: Override automatic detection
+                   - keep_first: Number of characters to keep at the beginning (for fallback, default: 3)
+                   - keep_last: Number of characters to keep at the end (for fallback, default: 3)
 
         Returns:
             Masked text using appropriate entity-specific operator
@@ -459,8 +461,13 @@ class SmartMaskOperator(Operator):
 
         # Check if entity_type is provided in params
         entity_type = None
+        keep_first = 3  # Default
+        keep_last = 3  # Default
+
         if params and isinstance(params, dict):
             entity_type = params.get("entity_type")
+            keep_first = params.get("keep_first", 3)
+            keep_last = params.get("keep_last", 3)
 
         # If no entity type provided, try to detect it
         if not entity_type:
@@ -473,11 +480,19 @@ class SmartMaskOperator(Operator):
             if operator:
                 return operator.operate(text, params)
 
-        # Fallback: generic masking (show first 3 and last 3 chars)
+        # Fallback: generic masking with configurable keep_first and keep_last
         text_str = str(text)
-        if len(text_str) <= 6:
+        total_keep = keep_first + keep_last
+
+        if len(text_str) <= total_keep:
             return "*" * len(text_str)
-        return text_str[:3] + "*" * (len(text_str) - 6) + text_str[-3:]
+
+        masked_length = len(text_str) - total_keep
+        return (
+            text_str[:keep_first] + "*" * masked_length + text_str[-keep_last:]
+            if keep_last > 0
+            else text_str[:keep_first] + "*" * masked_length
+        )
 
     def validate(self, params: Dict = None) -> None:
         """Validate parameters."""

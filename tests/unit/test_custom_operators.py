@@ -617,6 +617,66 @@ class TestSmartMaskOperator:
         assert self.operator.operate(None) == "***"
         assert self.operator.operate("") == "***"
 
+    def test_fallback_with_custom_keep_first(self):
+        """Test fallback masking with custom keep_first parameter."""
+        text = "some_random_data_12345"  # Won't be detected as any specific entity
+        masked = self.operator.operate(text, params={"keep_first": 5, "keep_last": 3})
+
+        # Should keep first 5 chars and last 3 chars
+        assert masked.startswith("some_")
+        assert masked.endswith("345")
+        assert "*" in masked
+        assert len(masked) == len(text)
+
+    def test_fallback_with_custom_keep_last(self):
+        """Test fallback masking with custom keep_last parameter."""
+        text = "random_string_value"
+        masked = self.operator.operate(text, params={"keep_first": 2, "keep_last": 5})
+
+        # Should keep first 2 chars and last 5 chars
+        assert masked.startswith("ra")
+        assert masked.endswith("value")
+        assert "*" in masked
+        assert len(masked) == len(text)
+
+    def test_fallback_with_keep_first_only(self):
+        """Test fallback masking with keep_first=0."""
+        text = "random_value_string"
+        masked = self.operator.operate(text, params={"keep_first": 0, "keep_last": 4})
+
+        # Should keep no chars at beginning and last 4 chars
+        assert masked.endswith("ring")
+        assert masked.startswith("*")
+        assert len(masked) == len(text)
+
+    def test_fallback_with_keep_last_zero(self):
+        """Test fallback masking with keep_last=0."""
+        text = "another_random_value"
+        masked = self.operator.operate(text, params={"keep_first": 4, "keep_last": 0})
+
+        # Should keep first 4 chars and no chars at end
+        assert masked.startswith("anot")
+        assert masked.endswith("*")
+        assert len(masked) == len(text)
+
+    def test_fallback_with_short_text(self):
+        """Test fallback masking when text is shorter than keep_first + keep_last."""
+        text = "Short"
+        masked = self.operator.operate(text, params={"keep_first": 3, "keep_last": 3})
+
+        # Should mask entire string when length <= keep_first + keep_last
+        assert masked == "*" * len(text)
+
+    def test_fallback_params_dont_affect_entity_specific_masking(self):
+        """Test that keep_first/keep_last don't affect entity-specific operators."""
+        email = "john.smith@example.com"
+        # Even with custom keep_first/keep_last, email masking should use its own logic
+        masked = self.operator.operate(email, params={"keep_first": 10, "keep_last": 10})
+
+        # Should still use email-specific masking
+        assert "@example.com" in masked
+        assert "john.smith" not in masked
+
 
 class TestSmartFakeOperator:
     """Tests for SmartFakeOperator."""
