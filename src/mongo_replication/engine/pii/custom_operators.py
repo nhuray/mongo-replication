@@ -353,6 +353,8 @@ class SmartMaskOperator(Operator):
     - PHONE_NUMBER -> mask_phone
     - CREDIT_CARD -> mask_credit_card
     - US_SSN, SSN -> mask_ssn
+    - CA_SIN -> mask_sin
+    - CA_TIN -> mask_tin
     - IP_ADDRESS -> mask_ip_address
     - IBAN_CODE -> mask_iban
     - PERSON -> mask_person
@@ -371,6 +373,8 @@ class SmartMaskOperator(Operator):
         "CREDIT_CARD": "mask_credit_card",
         "US_SSN": "mask_ssn",
         "SSN": "mask_ssn",
+        "CA_SIN": "mask_sin",
+        "CA_TIN": "mask_tin",
         "IP_ADDRESS": "mask_ip_address",
         "IBAN_CODE": "mask_iban",
         "PERSON": "mask_person",
@@ -390,6 +394,8 @@ class SmartMaskOperator(Operator):
                 "mask_phone": MaskPhoneOperator,
                 "mask_credit_card": MaskCreditCardOperator,
                 "mask_ssn": MaskSSNOperator,
+                "mask_sin": MaskSINOperator,
+                "mask_tin": MaskTINOperator,
                 "mask_ip_address": MaskIPAddressOperator,
                 "mask_iban": MaskIBANOperator,
                 "mask_person": MaskPersonOperator,
@@ -1253,6 +1259,127 @@ class MaskCABankAccountOperator(Operator):
         return OperatorType.Anonymize
 
 
+class MaskSINOperator(Operator):
+    """Mask Canadian Social Insurance Number (SIN) showing only last 3 digits.
+
+    Canadian SIN format: XXX-XXX-XXX (9 digits total).
+    Preserves format (with or without dashes) and shows last 3 digits.
+
+    Examples:
+        123-456-789 -> ***-***-789
+        123456789 -> ******789
+    """
+
+    def operate(self, text: str = None, params: Dict = None) -> str:
+        """Mask Canadian SIN.
+
+        Args:
+            text: SIN to mask
+            params: Optional parameters (not used)
+
+        Returns:
+            Masked SIN
+        """
+        if not text:
+            return "***-***-***"
+
+        # Extract digits
+        digits = [c for c in text if c.isdigit()]
+        if len(digits) < 3:
+            return "*" * len(text)
+
+        # Build masked version preserving format
+        result = []
+        digit_index = 0
+        total_digits = len(digits)
+
+        for char in text:
+            if char.isdigit():
+                # Show only last 3 digits
+                if digit_index < total_digits - 3:
+                    result.append("*")
+                else:
+                    result.append(char)
+                digit_index += 1
+            else:
+                result.append(char)
+
+        return "".join(result)
+
+    def validate(self, params: Dict = None) -> None:
+        """Validate parameters (no params needed)."""
+        pass
+
+    def operator_name(self) -> str:
+        """Return operator name."""
+        return "mask_sin"
+
+    def operator_type(self) -> OperatorType:
+        """Return operator type."""
+        return OperatorType.Anonymize
+
+
+class MaskTINOperator(Operator):
+    """Mask Canadian Tax Identification Number (TIN) showing only last 4 digits.
+
+    Canadian TIN (Business Number) format: XXXXXXXXX (9 digits) + optional program identifier.
+    Preserves format and shows last 4 digits.
+
+    Examples:
+        123456789 -> *****6789
+        123456789RC0001 -> *****6789RC0001 (preserves program identifier)
+        12345-6789 -> *****-6789 (preserves dashes)
+    """
+
+    def operate(self, text: str = None, params: Dict = None) -> str:
+        """Mask Canadian TIN.
+
+        Args:
+            text: TIN to mask
+            params: Optional parameters (not used)
+
+        Returns:
+            Masked TIN
+        """
+        if not text:
+            return "*********"
+
+        # Extract digits
+        digits = [c for c in text if c.isdigit()]
+        if len(digits) < 4:
+            return "*" * len(text)
+
+        # Build masked version preserving format
+        result = []
+        digit_index = 0
+        total_digits = len(digits)
+
+        for char in text:
+            if char.isdigit():
+                # Show only last 4 digits
+                if digit_index < total_digits - 4:
+                    result.append("*")
+                else:
+                    result.append(char)
+                digit_index += 1
+            else:
+                result.append(char)
+
+        return "".join(result)
+
+    def validate(self, params: Dict = None) -> None:
+        """Validate parameters (no params needed)."""
+        pass
+
+    def operator_name(self) -> str:
+        """Return operator name."""
+        return "mask_tin"
+
+    def operator_type(self) -> OperatorType:
+        """Return operator type."""
+        return OperatorType.Anonymize
+
+
 # Registry of all custom operators (classes, not instances)
 CUSTOM_OPERATORS = [
     # Fake data operators (synthetic data generation)
@@ -1271,6 +1398,8 @@ CUSTOM_OPERATORS = [
     MaskPhoneOperator,
     MaskCreditCardOperator,
     MaskSSNOperator,
+    MaskSINOperator,
+    MaskTINOperator,
     MaskIPAddressOperator,
     MaskIBANOperator,
     MaskPersonOperator,

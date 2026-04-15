@@ -14,7 +14,9 @@ from mongo_replication.engine.pii.custom_operators import (
     MaskLocationOperator,
     MaskPersonOperator,
     MaskPhoneOperator,
+    MaskSINOperator,
     MaskSSNOperator,
+    MaskTINOperator,
     MaskUSBankAccountOperator,
     SmartFakeOperator,
     SmartMaskOperator,
@@ -358,6 +360,135 @@ class TestMaskSSNOperator:
     def test_mask_empty_ssn(self):
         """Test masking empty SSN."""
         assert self.operator.operate(None) == "***-**-****"
+
+
+class TestMaskSINOperator:
+    """Tests for MaskSINOperator (Canadian Social Insurance Number)."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.operator = MaskSINOperator()
+
+    def test_operator_name(self):
+        """Test operator name is correct."""
+        assert self.operator.operator_name() == "mask_sin"
+
+    def test_mask_sin_with_dashes(self):
+        """Test masking Canadian SIN with dashes."""
+        sin = "123-456-789"
+        masked = self.operator.operate(sin)
+
+        # Should preserve dashes
+        assert masked.count("-") == 2
+        # Should show last 3
+        assert masked.endswith("789")
+        # Should mask first 6 digits
+        assert masked.startswith("***-***-")
+        assert masked == "***-***-789"
+
+    def test_mask_sin_without_dashes(self):
+        """Test masking Canadian SIN without dashes."""
+        sin = "123456789"
+        masked = self.operator.operate(sin)
+
+        # Should show last 3
+        assert masked.endswith("789")
+        # Should mask first 6
+        assert masked.startswith("******")
+        assert masked == "******789"
+
+    def test_mask_sin_partial_format(self):
+        """Test masking SIN with spaces."""
+        sin = "123 456 789"
+        masked = self.operator.operate(sin)
+
+        # Should preserve spaces
+        assert masked.count(" ") == 2
+        # Should show last 3
+        assert masked.endswith("789")
+        # Should mask first 6 digits
+        assert masked == "*** *** 789"
+
+    def test_mask_empty_sin(self):
+        """Test masking empty SIN."""
+        assert self.operator.operate(None) == "***-***-***"
+        assert self.operator.operate("") == "***-***-***"
+
+    def test_mask_short_sin(self):
+        """Test masking SIN with fewer than 3 digits."""
+        sin = "12"
+        masked = self.operator.operate(sin)
+        assert masked == "**"
+
+
+class TestMaskTINOperator:
+    """Tests for MaskTINOperator (Canadian Tax Identification Number)."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.operator = MaskTINOperator()
+
+    def test_operator_name(self):
+        """Test operator name is correct."""
+        assert self.operator.operator_name() == "mask_tin"
+
+    def test_mask_tin_basic(self):
+        """Test masking basic Canadian TIN (9 digits)."""
+        tin = "123456789"
+        masked = self.operator.operate(tin)
+
+        # Should show last 4
+        assert masked.endswith("6789")
+        # Should mask first 5
+        assert masked.startswith("*****")
+        assert masked == "*****6789"
+
+    def test_mask_tin_with_program_identifier(self):
+        """Test masking TIN with program identifier (RC, RM, RP, RT)."""
+        tin = "123456789RC0001"
+        masked = self.operator.operate(tin)
+
+        # Should show last 4 digits of all digits (which includes program identifier digits)
+        # 9 digits + 4 program identifier digits = 13 total digits
+        # Last 4 of 13 digits = "0001"
+        assert masked == "*********RC0001"
+        assert "RC0001" in masked
+        assert masked.endswith("RC0001")
+
+    def test_mask_tin_with_dashes(self):
+        """Test masking TIN with dashes."""
+        tin = "12345-6789"
+        masked = self.operator.operate(tin)
+
+        # Should preserve dash
+        assert "-" in masked
+        # Should show last 4 digits
+        assert masked.endswith("6789")
+        # Should mask first 5
+        assert masked.startswith("*****-")
+        assert masked == "*****-6789"
+
+    def test_mask_tin_rm_program(self):
+        """Test masking TIN with RM program identifier."""
+        tin = "987654321RM0002"
+        masked = self.operator.operate(tin)
+
+        # Should preserve RM program identifier
+        # Last 4 of 13 total digits = "0002"
+        assert "RM0002" in masked
+        assert masked.endswith("RM0002")
+        assert masked == "*********RM0002"
+
+    def test_mask_empty_tin(self):
+        """Test masking empty TIN."""
+        assert self.operator.operate(None) == "*********"
+        assert self.operator.operate("") == "*********"
+
+    def test_mask_short_tin(self):
+        """Test masking TIN with fewer than 4 digits."""
+        tin = "123"
+        masked = self.operator.operate(tin)
+        assert masked == "***"
 
 
 class TestMaskIPAddressOperator:

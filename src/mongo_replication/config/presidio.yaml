@@ -268,8 +268,61 @@ recognizer_registry:
         - "direct deposit"
         - "number"
 
-    # TODO create recognizer for CA_SIN (Social Insurance Number)
-    # TODO create recognizer for CA_TIN (Taxpayer Identification Number)
+    # CANADIAN SOCIAL INSURANCE NUMBER (SIN) DETECTION
+    # Detects Canadian SIN in format XXX-XXX-XXX or XXXXXXXXX
+    - name: CaSinRecognizer
+      supported_entity: CA_SIN
+      supported_languages:
+        - en
+      patterns:
+        # SIN with dashes: XXX-XXX-XXX
+        - name: sin_with_dashes
+          regex: "\\b[0-9]{3}-[0-9]{3}-[0-9]{3}\\b"
+          score: 0.8
+        # SIN without dashes: XXXXXXXXX (9 digits)
+        - name: sin_without_dashes
+          regex: "\\b[0-9]{9}\\b"
+          score: 0.6
+      context:
+        - "sin"
+        - "sin number"
+        - "social insurance"
+        - "social insurance number"
+        - "assurance sociale"
+        - "nas"
+        - "numero d'assurance sociale"
+
+    # CANADIAN TAX IDENTIFICATION NUMBER (TIN/BN) DETECTION
+    # Detects Canadian Business Number (BN) format: XXXXXXXXX or XXXXXXXXX + program identifier
+    - name: CaTinRecognizer
+      supported_entity: CA_TIN
+      supported_languages:
+        - en
+      patterns:
+        # Business Number with program identifier: XXXXXXXXXRCXXXX
+        - name: tin_with_program
+          regex: "\\b[0-9]{9}(RC|RM|RP|RT)[0-9]{4}\\b"
+          score: 0.9
+        # Business Number: XXXXXXXXX (9 digits)
+        - name: tin_basic
+          regex: "\\b[0-9]{9}\\b"
+          score: 0.5
+        # Business Number with dashes: XXXXX-XXXX
+        - name: tin_with_dash
+          regex: "\\b[0-9]{5}-[0-9]{4}\\b"
+          score: 0.6
+      context:
+        - "tin"
+        - "tax identification"
+        - "tax id"
+        - "business number"
+        - "bn"
+        - "numéro d'entreprise"
+        - "gst"
+        - "hst"
+        - "qst"
+        - "payroll"
+
 
     # CA BANK ACCOUNT NUMBER DETECTION
     # Detects CA transit numbers (5 digits), institution numbers (3 digits)  and account numbers (7-12 digits)
@@ -486,6 +539,30 @@ anonymizer_registry:
         input: "123-45-6789"
         output: "***-**-6789"
 
+  mask_sin:
+    description: "Mask Canadian SIN showing only last 3 digits"
+    class: MaskSINOperator
+    supported_entities: [CA_SIN]
+    examples:
+      - entity_type: CA_SIN
+        input: "123-456-789"
+        output: "***-***-789"
+      - entity_type: CA_SIN
+        input: "123456789"
+        output: "******789"
+
+  mask_tin:
+    description: "Mask Canadian TIN showing only last 4 digits"
+    class: MaskTINOperator
+    supported_entities: [CA_TIN]
+    examples:
+      - entity_type: CA_TIN
+        input: "123456789"
+        output: "*****6789"
+      - entity_type: CA_TIN
+        input: "123456789RC0001"
+        output: "*****6789RC0001"
+
   mask_ip_address:
     description: "Mask IP address showing first and last octet"
     class: MaskIPAddressOperator
@@ -648,7 +725,7 @@ anonymizer_registry:
   smart_mask:
     description: "Intelligently detect entity type and apply appropriate mask"
     class: SmartMaskOperator
-    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, CA_SIN, CA_TIN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
     examples:
       - entity_type: EMAIL_ADDRESS
         input: "john.smith@example.com"
@@ -662,6 +739,12 @@ anonymizer_registry:
       - entity_type: US_SSN
         input: "123-45-6789"
         output: "***-**-6789"
+      - entity_type: CA_SIN
+        input: "123-456-789"
+        output: "***-***-789"
+      - entity_type: CA_TIN
+        input: "123456789RC0001"
+        output: "*****6789RC0001"
       - entity_type: IP_ADDRESS
         input: "192.168.1.1"
         output: "192.***.*.1"
@@ -688,7 +771,7 @@ anonymizer_registry:
   smart_fake:
     description: "Intelligently detect entity type and generate appropriate fake data"
     class: SmartFakeOperator
-    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, CA_SIN, CA_TIN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
     examples:
       - entity_type: EMAIL_ADDRESS
         input: "john.smith@example.com"
