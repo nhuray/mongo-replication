@@ -188,13 +188,13 @@ scan:
     # Anonymization operators per entity type
     # See docs/presidio.md for all available operators:
     #   Built-in: replace, redact, mask, hash, encrypt, keep
-    #   Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.
+    #   Custom: fake_email, fake_name, fake_phone, smart_mask, smart_fake, etc.
     # Default mappings (configured in src/mongo_replication/config/presidio.yaml):
-    #   EMAIL_ADDRESS: smart_redact  (preserves domain)
-    #   PERSON: replace              (replaces with "ANONYMOUS")
-    #   PHONE_NUMBER: mask           (shows last 4 digits)
-    #   US_SSN: mask                 (shows last 4 digits)
-    #   CREDIT_CARD: hash            (SHA-256 hash)
+    #   EMAIL_ADDRESS: smart_mask  (preserves domain)
+    #   PERSON: replace            (replaces with "ANONYMOUS")
+    #   PHONE_NUMBER: mask         (shows last 4 digits)
+    #   US_SSN: mask               (shows last 4 digits)
+    #   CREDIT_CARD: hash          (SHA-256 hash)
     #   See docs/presidio.md for complete list
 
     # Allowlist: Fields to skip PII detection (false positives)
@@ -401,17 +401,32 @@ The tool will:
 
 ### PII Anonymization
 
-Built-in PII anonymization:
+Built-in PII anonymization with support for multi-entity fields:
 
 ```yaml
 replication:
    collections:
      users:
-        pii_anonymized_fields:
-          email: fake_email              # Generate realistic fake email
-          phone: fake_phone              # Generate realistic fake phone
-          ssn: mask                      # Mask all but last 4 digits
+        # New format: supports multiple entity types per field
+        pii_anonymization:
+          - field: email
+            operator: mask_email
+            entity_type: EMAIL_ADDRESS
+          - field: phone
+            operator: mask_phone
+            entity_type: PHONE_NUMBER
+          - field: contact_info           # Field with multiple PII types
+            operator: mask_person
+            entity_type: PERSON
+          - field: contact_info           # Same field, second entity type
+            operator: mask_email
+            entity_type: EMAIL_ADDRESS
+          - field: ssn
+            operator: hash
+            entity_type: US_SSN
 ```
+
+The scan command automatically detects multi-entity fields and configures operators in confidence order.
 
 ### Field Transformations
 

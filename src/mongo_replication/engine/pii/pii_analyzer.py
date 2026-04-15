@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field
 
+from mongo_replication.engine.pii.custom_operators import resolve_smart_operator
 from mongo_replication.engine.pii.presidio_analyzer import PresidioAnalyzer
 from mongo_replication.engine.pii.sampler import SamplingResult
 
@@ -28,6 +29,8 @@ class FieldPIIStats(BaseModel):
     avg_confidence: float
     min_confidence: float
     max_confidence: float
+    sample_value: Optional[str] = None
+    """Sample value from first detection (for anonymization example generation)."""
 
     def __str__(self) -> str:
         """Human-readable representation."""
@@ -58,12 +61,41 @@ class CollectionPIIAnalysis(BaseModel):
 
     def get_pii_config(self) -> Dict[str, str]:
         """
-        Get pii_fields config dict for YAML generation.
+        Get pii_fields config dict for YAML generation (DEPRECATED).
+
+        DEPRECATED: This method returns the old dict format. Use get_pii_anonymization_list() instead.
 
         Returns:
             Dict mapping field_path -> strategy
         """
         return {stat.field_path: stat.suggested_strategy for stat in self.fields_with_pii}
+
+    def get_pii_anonymization_list(self) -> List[Dict[str, Any]]:
+        """
+        Get pii_anonymization config list for YAML generation (NEW FORMAT).
+
+        For fields with multiple entity types, entries are sorted by confidence
+        (highest first) to ensure operators are applied in order of detection strength.
+
+        Returns:
+            List of dicts with 'field', 'operator', and 'params' keys,
+            where params contains 'entity_type' and any other operator parameters.
+            Sorted by (field_path, -avg_confidence) for multi-entity support
+        """
+        # Sort by field path first, then by confidence (descending) within each field
+        # This ensures multi-entity fields have operators in confidence order
+        sorted_stats = sorted(
+            self.fields_with_pii, key=lambda stat: (stat.field_path, -stat.avg_confidence)
+        )
+
+        return [
+            {
+                "field": stat.field_path,
+                "operator": stat.suggested_strategy,
+                "params": {"entity_type": stat.entity_type},
+            }
+            for stat in sorted_stats
+        ]
 
 
 class PIIAnalysisEngine:
@@ -149,6 +181,10 @@ class PIIAnalysisEngine:
         # Structure: {field_path: {entity_type: [confidence_scores]}}
         field_detections: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
 
+        # Track sample values per field (capture first non-None value)
+        # Structure: {field_path: {entity_type: sample_value}}
+        field_sample_values: Dict[str, Dict[str, str]] = defaultdict(dict)
+
         # Track all field names seen
         all_fields: Set[str] = set()
 
@@ -179,6 +215,18 @@ class PIIAnalysisEngine:
                 normalized_path = self._normalize_array_path(field_path)
                 field_detections[normalized_path][entity_type].append(confidence)
 
+                # Capture sample value (first non-None value per field+entity)
+                if (
+                    normalized_path not in field_sample_values
+                    or entity_type not in field_sample_values[normalized_path]
+                ):
+                    field_value = self._get_field_value(doc, field_path)
+                    if field_value is not None:
+                        field_sample_values[normalized_path][entity_type] = str(field_value)
+                        logger.debug(
+                            f"      Captured sample value for {normalized_path}.{entity_type}: {field_value}"
+                        )
+
         # Convert detections to statistics
         total_samples = len(sample_docs)
         fields_with_pii: List[FieldPIIStats] = []
@@ -203,6 +251,15 @@ class PIIAnalysisEngine:
                 # Determine redaction strategy
                 strategy = self._recommend_strategy(entity_type, avg_confidence)
 
+                # Get sample value for this field+entity
+                sample_value = field_sample_values.get(field_path, {}).get(entity_type)
+                if sample_value:
+                    logger.debug(
+                        f"      Sample value for {field_path}.{entity_type}: {sample_value}"
+                    )
+                else:
+                    logger.debug(f"      No sample value captured for {field_path}.{entity_type}")
+
                 stats = FieldPIIStats(
                     field_path=field_path,
                     entity_type=entity_type,
@@ -213,6 +270,7 @@ class PIIAnalysisEngine:
                     avg_confidence=avg_confidence,
                     min_confidence=min_confidence,
                     max_confidence=max_confidence,
+                    sample_value=sample_value,
                 )
 
                 fields_with_pii.append(stats)
@@ -264,22 +322,30 @@ class PIIAnalysisEngine:
 
     def _recommend_strategy(self, entity_type: str, avg_confidence: float) -> str:
         """
-        Recommend redaction strategy based on entity type and confidence.
+        Recommend anonymization strategy based on entity type and confidence.
+
+        This method resolves smart operators (smart_mask, smart_fake) to concrete
+        operators based on the detected entity type. The resolved operator will be
+        stored in the replication config.
 
         Args:
             entity_type: Detected entity type (e.g., "EMAIL_ADDRESS")
             avg_confidence: Average confidence score
 
         Returns:
-            Strategy name (e.g., "redact", "hash")
+            Concrete operator name (e.g., "mask_email", "fake_phone", "mask")
         """
         # Priority 1: Check if user configured a strategy for this specific entity type
         if self.default_strategies and entity_type in self.default_strategies:
-            return self.default_strategies[entity_type]
+            strategy = self.default_strategies[entity_type]
+            # Resolve smart operators to concrete operators
+            return resolve_smart_operator(strategy, entity_type)
 
         # Priority 2: Check if user configured a DEFAULT strategy for all types
         if self.default_strategies and "DEFAULT" in self.default_strategies:
-            return self.default_strategies["DEFAULT"]
+            strategy = self.default_strategies["DEFAULT"]
+            # Resolve smart operators to concrete operators
+            return resolve_smart_operator(strategy, entity_type)
 
         # Priority 3: Fallback to hardcoded logic (for backwards compatibility)
         # Highly sensitive - always hash for referential integrity
@@ -296,7 +362,8 @@ class PIIAnalysisEngine:
         if entity_type == "US_SSN" and avg_confidence >= 0.9:
             return "hash"
 
-        # Default to smart format-preserving redaction
+        # Default to smart format-preserving redaction (legacy behavior)
+        # Note: "redact" is a legacy operator, new configs should use smart_mask/smart_fake
         return "redact"
 
     @staticmethod
@@ -362,6 +429,46 @@ class PIIAnalysisEngine:
                     paths.update(nested_paths)
 
         return paths
+
+    @staticmethod
+    def _get_field_value(doc: Dict[str, Any], field_path: str) -> Optional[Any]:
+        """
+        Get the value of a field from a document using dot notation path.
+
+        Args:
+            doc: Document to extract value from
+            field_path: Field path in dot notation (e.g., "user.email" or "contacts[0].name")
+
+        Returns:
+            Field value if found, None otherwise
+        """
+        import re
+
+        # Split path into parts, handling array notation
+        parts = re.split(r"[\.\[]", field_path)
+        parts = [p.rstrip("]") for p in parts]  # Remove closing brackets
+
+        current = doc
+        for part in parts:
+            if not part:  # Skip empty parts
+                continue
+
+            # Handle array index
+            if part.isdigit():
+                idx = int(part)
+                if isinstance(current, list) and 0 <= idx < len(current):
+                    current = current[idx]
+                else:
+                    return None
+            # Handle dict key
+            elif isinstance(current, dict):
+                current = current.get(part)
+                if current is None:
+                    return None
+            else:
+                return None
+
+        return current
 
     def get_summary_statistics(
         self,

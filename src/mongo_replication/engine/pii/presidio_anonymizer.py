@@ -5,13 +5,14 @@ AnonymizerEngine with custom operators for:
 - Built-in Presidio operators (mask, hash, redact, replace, etc.)
 - Custom Mimesis-based operators for realistic synthetic data generation
 - Smart redaction that preserves format
+- Multi-entity anonymization (applying multiple operators to same field)
 
 The anonymization operators are configured via YAML (presidio.yaml).
 """
 
 import copy
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
@@ -55,7 +56,6 @@ class PresidioAnonymizer:
         # Load operator configurations from YAML
         self.presidio_config = PresidioConfig(presidio_config_path)
         self.operator_configs = operator_overrides or self.presidio_config.get_operator_configs()
-        self.strategy_aliases = self.presidio_config.get_strategy_aliases()
 
         logger.info(
             f"PresidioAnonymizer initialized with {len(self.operator_configs)} operator configs"
@@ -79,7 +79,7 @@ class PresidioAnonymizer:
         Example:
             >>> anonymizer = PresidioAnonymizer()
             >>> doc = {"email": "john@example.com", "ssn": "123-45-6789"}
-            >>> pii_field_strategy = {"email": "smart_redact", "ssn": "hash"}
+            >>> pii_field_strategy = {"email": "smart_mask", "ssn": "hash"}
             >>> anonymized = anonymizer.apply_anonymization(doc, pii_field_strategy)
         """
         # Deep copy to avoid modifying original
@@ -93,6 +93,100 @@ class PresidioAnonymizer:
             self._anonymize_field(anonymized, field_path, operator_config)
 
         return anonymized
+
+    def apply_multi_entity_anonymization(
+        self,
+        document: Dict[str, Any],
+        field_operators: Dict[str, List[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """
+        Apply multi-entity anonymization to a document.
+
+        Supports fields with multiple entity types by applying operators sequentially
+        in order of detection confidence (operators should be pre-sorted).
+
+        Args:
+            document: The MongoDB document to anonymize
+            field_operators: Dict mapping field paths to list of operator configs.
+                Format: {
+                    "field_path": [
+                        {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+                        {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}}
+                    ]
+                }
+
+        Returns:
+            Anonymized document with PII fields redacted
+
+        Example:
+            >>> anonymizer = PresidioAnonymizer()
+            >>> doc = {"contact": "John Smith john@example.com"}
+            >>> field_operators = {
+            ...     "contact": [
+            ...         {"operator": "mask_person", "params": {"entity_type": "PERSON"}},
+            ...         {"operator": "mask_email", "params": {"entity_type": "EMAIL_ADDRESS"}}
+            ...     ]
+            ... }
+            >>> anonymized = anonymizer.apply_multi_entity_anonymization(doc, field_operators)
+        """
+        # Deep copy to avoid modifying original
+        anonymized = copy.deepcopy(document)
+
+        # Apply operators to each field (in order for multi-entity fields)
+        for field_path, operators_list in field_operators.items():
+            for operator_info in operators_list:
+                operator_name = operator_info["operator"]
+                params = operator_info.get("params")
+
+                # Convert to OperatorConfig
+                operator_config = self._build_operator_config(operator_name, params)
+                if operator_config:
+                    self._anonymize_field(anonymized, field_path, operator_config)
+
+        return anonymized
+
+    def anonymize_text(
+        self,
+        text: str,
+        operator_name: str,
+        entity_type: Optional[str] = None,
+    ) -> str:
+        """
+        Anonymize a text value using a specific operator.
+
+        This is a convenience method for anonymizing individual text values,
+        primarily used for generating examples in scan reports.
+
+        Args:
+            text: The text to anonymize
+            operator_name: The operator to use (e.g., 'mask_email', 'smart_mask')
+            entity_type: Optional entity type (used by some operators)
+
+        Returns:
+            Anonymized text
+
+        Example:
+            >>> anonymizer = PresidioAnonymizer()
+            >>> anonymizer.anonymize_text("john@example.com", "mask_email")
+            'jo*@example.com'
+        """
+        if not text or not text.strip():
+            return text
+
+        # Build params with entity_type if provided
+        params = {"entity_type": entity_type} if entity_type else None
+
+        # Convert strategy name to operator config
+        operator_config = self._build_operator_config(operator_name, params)
+        if not operator_config:
+            logger.warning(
+                f"No operator config found for '{operator_name}', returning original text"
+            )
+            return text
+
+        # Use the internal method to anonymize
+        return self._anonymize_value(str(text), operator_config)
+        return self._anonymize_value(str(text), operator_config)
 
     def _build_field_operators(
         self,
@@ -114,37 +208,39 @@ class PresidioAnonymizer:
             for field_path, strategy_name in pii_field_strategy.items():
                 if strategy_name is not None:
                     # Convert strategy name to operator config
-                    operator_config = self._strategy_to_operator_config(strategy_name)
+                    operator_config = self._build_operator_config(strategy_name)
                     if operator_config:
                         field_operators[field_path] = operator_config
 
         return field_operators
 
-    def _strategy_to_operator_config(self, strategy_name: str) -> Optional[OperatorConfig]:
+    def _build_operator_config(
+        self,
+        operator_name: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Optional[OperatorConfig]:
         """
         Convert a strategy name to an OperatorConfig.
 
         Strategy names can be:
         1. Operator names directly (e.g., "mask", "hash", "redact")
-        2. Strategy aliases from YAML (e.g., "fake_email", "smart_redact")
-        3. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
+        2. Entity types from YAML config (e.g., "EMAIL_ADDRESS")
 
         Args:
-            strategy_name: The strategy name to convert
+            operator_name: The strategy name to convert
+            params: Optional parameters dict to pass to the operator (may include 'entity_type')
 
         Returns:
             OperatorConfig object, or None if strategy not found
         """
-        # First check if it's a strategy alias
-        operator_name = self.strategy_aliases.get(strategy_name, strategy_name)
-
         # Check if it's an entity type with configured operator
-        if strategy_name in self.operator_configs:
-            return self.operator_configs[strategy_name]
+        if operator_name in self.operator_configs:
+            return self.operator_configs[operator_name]
 
-        # Create OperatorConfig for the operator name
-        # For simple operators like "mask", "hash", "redact", use default params
-        return OperatorConfig(operator_name, {})
+        # Use provided params or empty dict
+        final_params = params.copy() if params else {}
+
+        return OperatorConfig(operator_name, final_params)
 
     def _anonymize_field(
         self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
@@ -238,15 +334,21 @@ class PresidioAnonymizer:
         This method treats the value as text and creates a synthetic RecognizerResult
         that spans the entire value, then uses Presidio to anonymize it.
 
+        Handles arrays by anonymizing each element individually and preserving array type.
+
         Args:
-            value: The value to anonymize
+            value: The value to anonymize (can be string, number, list, etc.)
             operator_config: The OperatorConfig to apply
 
         Returns:
-            Anonymized value
+            Anonymized value (preserving original type when possible)
         """
         if value is None:
             return None
+
+        # Handle arrays: anonymize each element individually
+        if isinstance(value, list):
+            return [self._anonymize_value(item, operator_config) for item in value]
 
         # Convert value to string for anonymization
         text = str(value)

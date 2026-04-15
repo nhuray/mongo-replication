@@ -1,6 +1,33 @@
 # CHANGELOG
 
 
+## Unreleased
+
+### Features
+
+* feat: add multi-entity PII support for fields with multiple entity types
+
+- Added support for applying multiple anonymization operators to a single field
+- Fields can now have multiple entity types (e.g., PERSON and EMAIL_ADDRESS in same field)
+- Operators are applied sequentially in order of detection confidence (highest first)
+- Updated PIIHandler to accept List[PIIFieldAnonymization] instead of Dict
+- Added apply_multi_entity_anonymization() method to PresidioAnonymizer
+- Enhanced CollectionPIIAnalysis to sort operators by confidence for multi-entity fields
+- Maintains backward compatibility with legacy dict format (pii_anonymized_fields)
+- Added 23 comprehensive tests for multi-entity anonymization scenarios
+- Updated documentation with multi-entity examples
+
+This allows proper anonymization of fields containing multiple PII types:
+```yaml
+pii_anonymization:
+  - field: contact_info
+    operator: mask_person
+    entity_type: PERSON
+  - field: contact_info
+    operator: mask_email
+    entity_type: EMAIL_ADDRESS
+```
+
 ## v0.2.0 (2026-04-13)
 
 ### Features

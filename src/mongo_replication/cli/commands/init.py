@@ -68,7 +68,7 @@ def load_entity_strategies_from_config(
 
     Returns:
         Dictionary mapping entity types to operator names.
-        Example: {"EMAIL_ADDRESS": "smart_redact", "PERSON": "replace", ...}
+        Example: {"EMAIL_ADDRESS": "smart_mask", "PERSON": "replace", ...}
     """
     try:
         presidio_config = PresidioConfig(presidio_config_path)
@@ -482,6 +482,26 @@ def _run_init_wizard(job: str, output: Optional[Path]) -> None:
         # Load entity strategies from the config (default or custom)
         entity_strategies = load_entity_strategies_from_config(presidio_config)
 
+        # Load Presidio config to get supported entity types
+        try:
+            presidio_cfg = PresidioConfig(presidio_config)
+            available_entity_types = presidio_cfg.get_supported_entity_types()
+        except Exception as e:
+            logger.warning(f"Failed to load entity types from config: {e}, using defaults")
+            available_entity_types = [
+                "EMAIL_ADDRESS",
+                "PHONE_NUMBER",
+                "PERSON",
+                "CREDIT_CARD",
+                "IBAN_CODE",
+                "US_SSN",
+                "IP_ADDRESS",
+                "URL",
+                "LOCATION",
+                "US_BANK_ACCOUNT",
+                "CA_BANK_ACCOUNT",
+            ]
+
         # Confidence threshold
         confidence = questionary.text(
             "PII confidence threshold (0.0-1.0):",
@@ -524,45 +544,34 @@ def _run_init_wizard(job: str, output: Optional[Path]) -> None:
 
         # Entity types
         console.print()
-        default_entity_types = [
-            "EMAIL_ADDRESS",
-            "PHONE_NUMBER",
-            "PERSON",
-            "CREDIT_CARD",
-            "IBAN_CODE",
-            "US_SSN",
-            "IP_ADDRESS",
-            "URL",
-        ]
+
+        # Use entity types from registry, pre-select common ones
+        common_entity_types = {"EMAIL_ADDRESS", "PHONE_NUMBER", "PERSON", "LOCATION"}
 
         entity_types = questionary.checkbox(
             "Select PII entity types to detect:",
             choices=[
                 questionary.Choice(
-                    title=f"{et} → {entity_strategies.get(et, entity_strategies.get('DEFAULT', 'redact'))}",
+                    title=f"{et} → {entity_strategies.get(et, entity_strategies.get('DEFAULT', 'smart_mask'))}",
                     value=et,
-                    checked=True,
+                    checked=(et in common_entity_types),
                 )
-                for et in default_entity_types
+                for et in available_entity_types
             ],
             style=custom_style,
             instruction="(Space to select/deselect, Enter to confirm)",
         ).ask()
 
         if not entity_types:
-            print_warning("No entity types selected, using all defaults")
-            entity_types = default_entity_types
+            print_warning("No entity types selected, using common defaults")
+            entity_types = list(common_entity_types & set(available_entity_types))
 
         # Step 6: PII Anonymization Strategies
         print_step(6, 10, "PII Anonymization Strategies")
         console.print()
 
-        console.print("[dim]Available operators (see docs/presidio.md for details):[/dim]")
-        console.print("[dim]  Built-in: replace, redact, mask, hash, encrypt, keep[/dim]")
-        console.print(
-            "[dim]  Custom: fake_email, fake_name, fake_phone, smart_redact, stripe_testing_cc, etc.[/dim]"
-        )
-        console.print("[dim]  Aliases: fake, partial_redact, sha256, etc.[/dim]")
+        console.print("[dim]Choose anonymization operators for detected PII.[/dim]")
+        console.print("[dim]Examples will be shown for each operator.[/dim]")
         console.print()
 
         use_custom_strategies = questionary.confirm(
@@ -575,31 +584,58 @@ def _run_init_wizard(job: str, output: Optional[Path]) -> None:
         default_strategies = entity_strategies.copy()
 
         if use_custom_strategies:
-            # Common operators for user selection
-            common_operators = [
-                "replace",
-                "redact",
-                "mask",
-                "hash",
-                "fake",
-                "fake_email",
-                "fake_name",
-                "fake_phone",
-                "smart_redact",
-                "keep",
-            ]
-
             custom_strategies = {}
+
             for entity_type in entity_types:
+                console.print()
+                console.print(f"[bold cyan]Configuring strategy for: {entity_type}[/bold cyan]")
+
+                # Get available operators for this entity type
+                operators_for_entity = presidio_cfg.get_operators_for_entity_type(entity_type)
+
+                # Add generic operators
+                generic_operators = ["hash", "keep", "redact", "replace", "mask"]
+                all_operators = generic_operators + [
+                    op for op in operators_for_entity if op not in generic_operators
+                ]
+
+                # Get default strategy for this entity
                 default_strategy = default_strategies.get(
-                    entity_type, default_strategies.get("DEFAULT", "replace")
+                    entity_type, default_strategies.get("DEFAULT", "smart_mask")
                 )
+
+                # Build choices with descriptions
+                operator_choices = []
+                for op in all_operators:
+                    # Try to get an example
+                    examples = presidio_cfg.get_operator_examples(op, entity_type=entity_type)
+                    if examples:
+                        example = examples[0]
+                        desc = f"{op:20} (e.g., {example['input'][:30]} → {example['output'][:30]})"
+                    else:
+                        desc = op
+
+                    operator_choices.append(questionary.Choice(title=desc, value=op))
+
+                # Show examples for default operator if available
+                if default_strategy in [choice.value for choice in operator_choices]:
+                    examples = presidio_cfg.get_operator_examples(
+                        default_strategy, entity_type=entity_type
+                    )
+                    if examples:
+                        console.print(f"[dim]Default operator: {default_strategy}[/dim]")
+                        for ex in examples[:2]:  # Show up to 2 examples
+                            console.print(f"[dim]  Example: {ex['input']} → {ex['output']}[/dim]")
+
                 strategy = questionary.select(
-                    f"Strategy for {entity_type}:",
-                    choices=common_operators,
-                    default=default_strategy if default_strategy in common_operators else "replace",
+                    "Select operator:",
+                    choices=operator_choices,
+                    default=default_strategy
+                    if default_strategy in all_operators
+                    else all_operators[0],
                     style=custom_style,
                 ).ask()
+
                 custom_strategies[entity_type] = strategy
 
             default_strategies = custom_strategies

@@ -29,10 +29,10 @@
 
 **Samples Analyzed:** {{ collection.total_samples }}
 
-| Field | Entity Type | Strategy | Prevalence | Avg Confidence | Detections |
-|-------|-------------|----------|------------|----------------|------------|
+| Field | Entity Type | Strategy | Prevalence | Avg Confidence | Detections | Example |
+|-------|-------------|----------|------------|----------------|------------|---------|
 {% for field in collection.fields %}
-| `{{ field.field_path }}` | {{ field.entity_type }} | `{{ field.suggested_strategy }}` | {{ field.prevalence_pct }}% | {{ field.avg_confidence }} | {{ field.detections }}/{{ field.total_samples }} |
+| `{{ field.field_path }}` | {{ field.entity_type }} | `{{ field.suggested_strategy }}` | {{ field.prevalence_pct }}% | {{ field.avg_confidence }} | {{ field.detections }}/{{ field.total_samples }} | {% if field.example %}`{{ field.example }}`{% else %}N/A{% endif %} |
 {% endfor %}
 
 {% endfor %}

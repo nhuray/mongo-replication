@@ -4,6 +4,7 @@ Scan report generator - creates markdown reports from scan analysis.
 Includes PII analysis, cursor field detection, and schema relationships.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -11,6 +12,9 @@ from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mongo_replication.engine.pii import CollectionPIIAnalysis
+from mongo_replication.engine.pii.presidio_anonymizer import PresidioAnonymizer
+
+logger = logging.getLogger(__name__)
 
 
 def generate_scan_report(
@@ -63,9 +67,12 @@ def generate_scan_report(
         "total_relationships": len(schema_relationships) if schema_relationships else 0,
     }
 
-    # Prepare PII data
+    # Prepare PII data with anonymization examples
     collections_with_pii_data = []
     collections_without_pii_data = []
+
+    # Initialize anonymizer for generating examples
+    anonymizer = None
 
     if pii_analyses:
         # Sort collections alphabetically
@@ -82,8 +89,9 @@ def generate_scan_report(
                 reverse=True,
             )
 
-            fields_data = [
-                {
+            fields_data = []
+            for field in sorted_fields:
+                field_data = {
                     "field_path": field.field_path,
                     "entity_type": field.entity_type,
                     "suggested_strategy": field.suggested_strategy,
@@ -91,9 +99,39 @@ def generate_scan_report(
                     "avg_confidence": f"{field.avg_confidence:.2f}",
                     "detections": field.detections,
                     "total_samples": field.total_samples,
+                    "example": None,  # Will be populated if sample_value exists
                 }
-                for field in sorted_fields
-            ]
+
+                # Generate anonymization example if sample value is available
+                if field.sample_value:
+                    try:
+                        # Lazy initialize anonymizer only if needed
+                        if anonymizer is None:
+                            anonymizer = PresidioAnonymizer()
+
+                        # Anonymize the sample value
+                        anonymized = anonymizer.anonymize_text(
+                            text=field.sample_value,
+                            operator_name=field.suggested_strategy,
+                            entity_type=field.entity_type,
+                        )
+                        field_data["example"] = f"{field.sample_value} → {anonymized}"
+                        logger.debug(
+                            f"Generated example for {collection_name}.{field.field_path}: "
+                            f"{field.sample_value} → {anonymized}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to generate example for {collection_name}.{field.field_path}: {e}"
+                        )
+                        field_data["example"] = None
+                else:
+                    logger.debug(
+                        f"No sample value for {collection_name}.{field.field_path} "
+                        f"({field.entity_type}), skipping example generation"
+                    )
+
+                fields_data.append(field_data)
 
             collections_with_pii_data.append(
                 {

@@ -1,5 +1,6 @@
+# =============================================================================
 # Presidio Analyzer Engine Configuration
-# ========================================
+# =============================================================================
 # This file configures the Presidio PII detection engine for MongoDB Replication Tool.
 #
 # Configuration sections:
@@ -12,22 +13,52 @@
 # Adding recognizers: https://microsoft.github.io/presidio/analyzer/adding_recognizers/
 
 # =============================================================================
-# NLP Engine Configuration
+# USAGE NOTES
 # =============================================================================
-# Presidio uses NLP models to improve PII detection accuracy through:
-# - Named Entity Recognition (NER)
-# - Part-of-speech tagging
-# - Dependency parsing
-# - Lemmatization
 #
-# The spaCy en_core_web_lg model provides robust entity detection.
-# Make sure to install it: python -m spacy download en_core_web_lg
-
-nlp_configuration:
-  nlp_engine_name: spacy
-  models:
-    - lang_code: en
-      model_name: en_core_web_lg
+# 1. Customizing for Your Domain:
+#    - Copy this file to your job config directory: config/{job}_presidio.yaml
+#    - Uncomment and modify the example recognizers
+#    - Add your own custom patterns based on your data
+#
+# 2. Regex Pattern Tips:
+#    - Use \\b for word boundaries to avoid partial matches
+#    - Test your regex patterns thoroughly
+#    - Start with lower scores and adjust based on false positives
+#    - Use context words to improve accuracy
+#
+# 3. Context Words:
+#    - Context words increase confidence when found near detected PII
+#    - Add domain-specific terminology
+#    - Include common field names from your MongoDB collections
+#
+# 4. Score Thresholds:
+#    - Pattern score: How confident the pattern match is (0.0-1.0)
+#    - Global threshold: Minimum score to report detection
+#    - Context words can boost the score
+#
+# 5. Performance Considerations:
+#    - Complex regex patterns can slow down scanning
+#    - Use specific patterns rather than broad ones
+#    - Consider using deny-lists for exact matches
+#
+# 6. Testing Your Configuration:
+#    - Run a small scan first to validate your patterns
+#    - Check for false positives in the scan results
+#    - Adjust scores and patterns as needed
+#    - Use the allowlist feature to exclude known safe fields
+#
+# 7. Language Support:
+#    - This default config supports English only
+#    - To add languages, install appropriate spaCy models
+#    - Update supported_languages and add model to nlp_configuration
+#
+# 8. NLP Model Selection:
+#    - en_core_web_lg: Large model, best accuracy, slower
+#    - en_core_web_md: Medium model, good balance
+#    - en_core_web_sm: Small model, faster but less accurate
+#    - Install with: python -m spacy download <model_name>
+# =============================================================================
 
 # =============================================================================
 # Global Analyzer Settings
@@ -40,6 +71,26 @@ supported_languages:
 # Default minimum confidence score for PII detections (0.0-1.0)
 # This can be overridden by the confidence_threshold in ScanPIIConfig
 default_score_threshold: 0.35
+
+# =============================================================================
+# NLP Engine Configuration
+# =============================================================================
+# Presidio uses NLP models to improve PII detection accuracy through:
+# - Named Entity Recognition (NER)
+# - Part-of-speech tagging
+# - Dependency parsing
+# - Lemmatization
+#
+# The spaCy en_core_web_lg model provides robust entity detection.
+# Make sure to install it: python -m spacy download en_core_web_lg
+# =============================================================================
+
+nlp_configuration:
+  nlp_engine_name: spacy
+  models:
+    - lang_code: en
+      model_name: en_core_web_lg
+
 
 # =============================================================================
 # PII Recognizers Configuration
@@ -57,6 +108,7 @@ default_score_threshold: 0.35
 # - patterns: Regex patterns with scores and context words
 # - context: Context words that increase confidence when found nearby
 # - deny_list: Exact string matches to flag as PII
+# =============================================================================
 
 recognizer_registry:
   recognizers:
@@ -102,8 +154,8 @@ recognizer_registry:
         - "tel"
         - "fax"
 
-  # CREDIT CARD DETECTION
-  # Detects major credit card numbers (Visa, Mastercard, Amex, etc.)
+    # CREDIT CARD DETECTION
+    # Detects major credit card numbers (Visa, Mastercard, Amex, etc.)
     - name: CreditCardRecognizer
       supported_entity: CREDIT_CARD
       supported_languages:
@@ -121,8 +173,8 @@ recognizer_registry:
         - "cvv"
         - "expiry"
 
-  # US SOCIAL SECURITY NUMBER DETECTION
-  # Detects SSNs in format XXX-XX-XXXX or variations
+    # US SOCIAL SECURITY NUMBER DETECTION
+    # Detects SSNs in format XXX-XX-XXXX or variations
     - name: UsSsnRecognizer
       supported_entity: US_SSN
       supported_languages:
@@ -134,8 +186,8 @@ recognizer_registry:
         - "ss#"
         - "ss #"
 
-  # IP ADDRESS DETECTION
-  # Detects IPv4 and IPv6 addresses
+    # IP ADDRESS DETECTION
+    # Detects IPv4 and IPv6 addresses
     - name: IpRecognizer
       supported_entity: IP_ADDRESS
       supported_languages:
@@ -150,8 +202,8 @@ recognizer_registry:
         - "server"
         - "client"
 
-  # URL DETECTION
-  # Detects web URLs and URIs
+    # URL DETECTION
+    # Detects web URLs and URIs
     - name: UrlRecognizer
       supported_entity: URL
       supported_languages:
@@ -166,8 +218,8 @@ recognizer_registry:
         - "uri"
         - "href"
 
-  # IBAN (International Bank Account Number) DETECTION
-  # Detects European bank account numbers
+    # IBAN (International Bank Account Number) DETECTION
+    # Detects European bank account numbers
     - name: IbanRecognizer
       supported_entity: IBAN_CODE
       supported_languages:
@@ -180,15 +232,15 @@ recognizer_registry:
         - "swift"
         - "bic"
 
-  # ===========================================================================
-  # CUSTOM RECOGNIZERS (Domain-Specific Patterns)
-  # ===========================================================================
-  # These are examples of custom PII recognizers for your domain.
-  # Uncomment and customize them based on your needs.
-  # ===========================================================================
+    # ===========================================================================
+    # CUSTOM RECOGNIZERS (Domain-Specific Patterns)
+    # ===========================================================================
+    # These are examples of custom PII recognizers for your domain.
+    # Uncomment and customize them based on your needs.
+    # ===========================================================================
 
-  # US BANK ACCOUNT NUMBER DETECTION
-  # Detects US routing numbers (9 digits) and account numbers (8-17 digits)
+    # US BANK ACCOUNT NUMBER DETECTION
+    # Detects US routing numbers (9 digits) and account numbers (8-17 digits)
     - name: UsBankAccountRecognizer
       supported_entity: US_BANK_ACCOUNT
       supported_languages:
@@ -214,6 +266,92 @@ recognizer_registry:
         - "ach"
         - "wire"
         - "direct deposit"
+        - "number"
+
+    # CANADIAN SOCIAL INSURANCE NUMBER (SIN) DETECTION
+    # Detects Canadian SIN in format XXX-XXX-XXX or XXXXXXXXX
+    - name: CaSinRecognizer
+      supported_entity: CA_SIN
+      supported_languages:
+        - en
+      patterns:
+        # SIN with dashes: XXX-XXX-XXX
+        - name: sin_with_dashes
+          regex: "\\b[0-9]{3}-[0-9]{3}-[0-9]{3}\\b"
+          score: 0.8
+        # SIN without dashes: XXXXXXXXX (9 digits)
+        - name: sin_without_dashes
+          regex: "\\b[0-9]{9}\\b"
+          score: 0.6
+      context:
+        - "sin"
+        - "sin number"
+        - "social insurance"
+        - "social insurance number"
+        - "assurance sociale"
+        - "nas"
+        - "numero d'assurance sociale"
+
+    # CANADIAN TAX IDENTIFICATION NUMBER (TIN/BN) DETECTION
+    # Detects Canadian Business Number (BN) format: XXXXXXXXX or XXXXXXXXX + program identifier
+    - name: CaTinRecognizer
+      supported_entity: CA_TIN
+      supported_languages:
+        - en
+      patterns:
+        # Business Number with program identifier: XXXXXXXXXRCXXXX
+        - name: tin_with_program
+          regex: "\\b[0-9]{9}(RC|RM|RP|RT)[0-9]{4}\\b"
+          score: 0.9
+        # Business Number: XXXXXXXXX (9 digits)
+        - name: tin_basic
+          regex: "\\b[0-9]{9}\\b"
+          score: 0.5
+        # Business Number with dashes: XXXXX-XXXX
+        - name: tin_with_dash
+          regex: "\\b[0-9]{5}-[0-9]{4}\\b"
+          score: 0.6
+      context:
+        - "tin"
+        - "tax identification"
+        - "tax id"
+        - "business number"
+        - "bn"
+        - "numéro d'entreprise"
+        - "gst"
+        - "hst"
+        - "qst"
+        - "payroll"
+
+
+    # CA BANK ACCOUNT NUMBER DETECTION
+    # Detects CA transit numbers (5 digits), institution numbers (3 digits)  and account numbers (7-12 digits)
+    - name: CaBankAccountRecognizer
+      supported_entity: CA_BANK_ACCOUNT
+      supported_languages:
+        - en
+      patterns:
+      # CA Transit Number: 5 digits
+    - name: transit_number_pattern
+      regex: "\\b[0-9]{5}\\b"
+      score: 0.5
+      # CA Institution Number: 3 digits
+    - name: institution_number_pattern
+      regex: "\\b[0-9]{3}\\b"
+      score: 0.5
+      # CA Account Number: 7-12 digits
+    - name: account_number_pattern
+      regex: "\\b[0-9]{7,12}\\b"
+      score: 0.5
+      context:
+        - "transit"
+        - "transit number"
+        - "institution"
+        - "institution number"
+        - "account"
+        - "account number"
+        - "bank account"
+        - "number"
 
   # ===========================================================================
   # COMMENTED EXAMPLES - Uncomment and customize for your needs
@@ -333,281 +471,398 @@ recognizer_registry:
   #     - "registration"
   #     - "car"
 
-# =============================================================================
-# USAGE NOTES
-# =============================================================================
-#
-# 1. Customizing for Your Domain:
-#    - Copy this file to your job config directory: config/{job}_presidio.yaml
-#    - Uncomment and modify the example recognizers
-#    - Add your own custom patterns based on your data
-#
-# 2. Regex Pattern Tips:
-#    - Use \\b for word boundaries to avoid partial matches
-#    - Test your regex patterns thoroughly
-#    - Start with lower scores and adjust based on false positives
-#    - Use context words to improve accuracy
-#
-# 3. Context Words:
-#    - Context words increase confidence when found near detected PII
-#    - Add domain-specific terminology
-#    - Include common field names from your MongoDB collections
-#
-# 4. Score Thresholds:
-#    - Pattern score: How confident the pattern match is (0.0-1.0)
-#    - Global threshold: Minimum score to report detection
-#    - Context words can boost the score
-#
-# 5. Performance Considerations:
-#    - Complex regex patterns can slow down scanning
-#    - Use specific patterns rather than broad ones
-#    - Consider using deny-lists for exact matches
-#
-# 6. Testing Your Configuration:
-#    - Run a small scan first to validate your patterns
-#    - Check for false positives in the scan results
-#    - Adjust scores and patterns as needed
-#    - Use the allowlist feature to exclude known safe fields
-#
-# 7. Language Support:
-#    - This default config supports English only
-#    - To add languages, install appropriate spaCy models
-#    - Update supported_languages and add model to nlp_configuration
-#
-# 8. NLP Model Selection:
-#    - en_core_web_lg: Large model, best accuracy, slower
-#    - en_core_web_md: Medium model, good balance
-#    - en_core_web_sm: Small model, faster but less accurate
-#    - Install with: python -m spacy download <model_name>
-#
-# =============================================================================
-# PII ANONYMIZATION OPERATORS CONFIGURATION
-# =============================================================================
-# This section configures how detected PII entities should be anonymized.
-#
-# IMPORTANT: This is a CUSTOM mongo-replication feature, NOT built into Presidio.
-# The tool will parse this YAML and convert to Presidio's OperatorConfig objects.
-#
-# Available Presidio built-in operators:
-# - replace: Replace with a fixed value
-# - redact: Remove completely (empty string)
-# - mask: Replace characters with masking char
-# - hash: SHA-256 hash (uses random salt by default for security)
-# - encrypt: Encrypt (requires decryption key)
-# - keep: Keep original value (for allowlisting)
-#
-# Custom operators (implemented by mongo-replication):
-# - fake_email: Generate realistic fake email (Mimesis)
-# - fake_name: Generate realistic fake name (Mimesis)
-# - fake_phone: Generate realistic fake phone (Mimesis)
-# - fake_address: Generate realistic fake address (Mimesis)
-# - fake_ssn: Generate realistic fake SSN (Mimesis)
-# - fake_credit_card: Generate realistic fake credit card (Mimesis)
-# - fake_iban: Generate realistic fake IBAN (Mimesis)
-# - fake_us_bank_account: Generate realistic fake US bank account (Mimesis)
-# - stripe_testing_cc: Use Stripe test credit card numbers
-# - smart_redact: Smart redaction preserving format (emails, SSN, phone, IP)
-#
-# Documentation:
-# - Presidio Anonymizer: https://microsoft.github.io/presidio/anonymizer/
-# - Presidio Operators: https://microsoft.github.io/presidio/anonymizer/adding_operators/
-# =============================================================================
-
-anonymization_operators:
-  # Email addresses - use smart redaction to preserve domain and uniqueness
-  EMAIL_ADDRESS:
-    operator: smart_redact
-    params: {}
-
-  # Person names - replace with generic placeholder
-  PERSON:
-    operator: replace
-    params:
-      new_value: "ANONYMOUS"
-
-  # Phone numbers - mask all but last 4 digits
-  PHONE_NUMBER:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 10
-      from_end: false
-
-  # Location - partial masking
-  LOCATION:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 5
-      from_end: false
-
-  # US SSN - mask all but last 4
-  US_SSN:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
-
-  # Generic SSN - mask all but last 4
-  SSN:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
-
-  # Credit card - hash completely (too sensitive for masking)
-  CREDIT_CARD:
-    operator: hash
-    params:
-      hash_type: sha256
-
-  # IBAN - hash completely
-  IBAN_CODE:
-    operator: hash
-    params:
-      hash_type: sha256
-
-  # Cryptocurrency - hash completely
-  CRYPTO:
-    operator: hash
-    params:
-      hash_type: sha256
-
-  # US Passport - hash completely
-  US_PASSPORT:
-    operator: hash
-    params:
-      hash_type: sha256
-
-  # US Bank Account - hash completely
-  US_BANK_ACCOUNT:
-    operator: hash
-    params:
-      hash_type: sha256
-
-  # Driver's license - mask
-  US_DRIVER_LICENSE:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 8
-      from_end: false
-
-  # UK NHS number - mask
-  UK_NHS:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 7
-      from_end: false
-
-  # Date/time - mask partially (preserve year, mask day/month)
-  DATE_TIME:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 5
-      from_end: false
-
-  # IP addresses - use smart redaction to preserve first and last octet
-  IP_ADDRESS:
-    operator: smart_redact
-    params: {}
-
-  # URLs - keep (usually not PII)
-  URL:
-    operator: keep
-    params: {}
-
-  # Default operator for any unspecified entity type
-  DEFAULT:
-    operator: mask
-    params:
-      masking_char: "*"
-      chars_to_mask: 10
-      from_end: false
 
 # =============================================================================
-# CUSTOM STRATEGY ALIASES
+# Anonymizer Registry
 # =============================================================================
-# For convenience and readability, you can use these strategy names in your
-# collection configuration instead of operator names.
+# This section documents all available anonymization operators.
+# Operators are used in the collection configuration to specify how PII should
+# be anonymized during replication.
 #
-# Example in collection config:
-#   pii_fields:
-#     email: "fake_email"      # Use Mimesis to generate fake email
-#     ssn: "hash"              # Use Presidio's hash operator
-#     name: "smart_redact"     # Use smart redaction
+# Usage in collection config (new list format):
+#   pii_anonymization:
+#     - field: email
+#       operator: mask_email
+#     - field: ssn
+#       operator: mask_ssn
+#     - field: phone
+#       operator: smart_mask
 #
-# These aliases map to the operators defined above.
+# Operator categories:
+# 1. Entity-specific mask operators: Preserve format while hiding sensitive data
+# 2. Entity-specific fake operators: Generate realistic replacement data
+# 3. Smart operators: Detect entity type and delegate to appropriate operator
+# 4. Built-in Presidio operators: General-purpose operators
 # =============================================================================
 
-custom_strategy_aliases:
-  # Mimesis-based fake data generation
+anonymizer_registry:
+  # ===========================================================================
+  # ENTITY-SPECIFIC MASK OPERATORS
+  # ===========================================================================
+  # These operators preserve the format of the original data while masking
+  # sensitive portions. They provide a balance between data utility and privacy.
+  # ===========================================================================
+
+  mask_email:
+    description: "Mask email local part while preserving domain"
+    class: MaskEmailOperator
+    supported_entities: [EMAIL_ADDRESS]
+    examples:
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
+        output: "jo******th@example.com"
+
+  mask_phone:
+    description: "Mask phone number while showing last 4 digits"
+    class: MaskPhoneOperator
+    supported_entities: [PHONE_NUMBER]
+    examples:
+      - entity_type: PHONE_NUMBER
+        input: "+1 (555) 123-4567"
+        output: "+* (***) ***-4567"
+
+  mask_credit_card:
+    description: "Mask credit card showing only last 4 digits"
+    class: MaskCreditCardOperator
+    supported_entities: [CREDIT_CARD]
+    examples:
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "**** **** **** 4242"
+
+  mask_ssn:
+    description: "Mask SSN showing only last 4 digits"
+    class: MaskSSNOperator
+    supported_entities: [US_SSN]
+    examples:
+      - entity_type: US_SSN
+        input: "123-45-6789"
+        output: "***-**-6789"
+
+  mask_sin:
+    description: "Mask Canadian SIN showing only last 3 digits"
+    class: MaskSINOperator
+    supported_entities: [CA_SIN]
+    examples:
+      - entity_type: CA_SIN
+        input: "123-456-789"
+        output: "***-***-789"
+      - entity_type: CA_SIN
+        input: "123456789"
+        output: "******789"
+
+  mask_tin:
+    description: "Mask Canadian TIN showing only last 4 digits"
+    class: MaskTINOperator
+    supported_entities: [CA_TIN]
+    examples:
+      - entity_type: CA_TIN
+        input: "123456789"
+        output: "*****6789"
+      - entity_type: CA_TIN
+        input: "123456789RC0001"
+        output: "*****6789RC0001"
+
+  mask_ip_address:
+    description: "Mask IP address showing first and last octet"
+    class: MaskIPAddressOperator
+    supported_entities: [IP_ADDRESS]
+    examples:
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "192.***.*.1"
+
+  mask_iban:
+    description: "Mask IBAN showing country code and last 4 digits"
+    class: MaskIBANOperator
+    supported_entities: [IBAN_CODE]
+    examples:
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB******************5432"
+
+  mask_person:
+    description: "Mask person name showing first character of each word"
+    class: MaskPersonOperator
+    supported_entities: [PERSON]
+    examples:
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "J*** S****"
+
+  mask_location:
+    description: "Mask location showing first 3 characters"
+    class: MaskLocationOperator
+    supported_entities: [LOCATION]
+    examples:
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "San *********"
+
+  mask_us_bank:
+    description: "Mask US bank account showing last 4 of each number"
+    class: MaskUSBankAccountOperator
+    supported_entities: [US_BANK_ACCOUNT]
+    examples:
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: *****6789, Account: ******3210"
+
+  mask_ca_bank:
+    description: "Mask CA bank account showing last 4 of each number"
+    class: MaskCABankAccountOperator
+    supported_entities: [CA_BANK_ACCOUNT]
+    examples:
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: *2345, Institution: *89, Account: ******7890"
+
+  # ===========================================================================
+  # ENTITY-SPECIFIC FAKE OPERATORS
+  # ===========================================================================
+  # These operators generate realistic replacement data using the Mimesis library.
+  # Useful for creating anonymized datasets that maintain data characteristics.
+  # ===========================================================================
+
   fake_email:
-    description: "Generate realistic fake email address using Mimesis"
-    operator: fake_email
-
-  fake_name:
-    description: "Generate realistic fake full name using Mimesis"
-    operator: fake_name
+    description: "Generate realistic fake email address"
+    class: FakeEmailOperator
+    supported_entities: [EMAIL_ADDRESS]
+    examples:
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
+        output: "sarah.miller@company.net"
 
   fake_phone:
-    description: "Generate realistic fake phone number using Mimesis"
-    operator: fake_phone
-
-  fake_address:
-    description: "Generate realistic fake address using Mimesis"
-    operator: fake_address
-
-  fake_ssn:
-    description: "Generate realistic fake SSN using Mimesis"
-    operator: fake_ssn
+    description: "Generate realistic fake phone number"
+    class: FakePhoneOperator
+    supported_entities: [PHONE_NUMBER]
+    examples:
+      - entity_type: PHONE_NUMBER
+        input: "+1 (555) 123-4567"
+        output: "+1 (555) 789-0123"
 
   fake_credit_card:
-    description: "Generate realistic fake credit card using Mimesis"
-    operator: fake_credit_card
+    description: "Generate realistic fake credit card number"
+    class: FakeCreditCardOperator
+    supported_entities: [CREDIT_CARD]
+    examples:
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "4532 1234 5678 9010"
+
+  fake_ssn:
+    description: "Generate realistic fake SSN"
+    class: FakeSSNOperator
+    supported_entities: [US_SSN]
+    examples:
+      - entity_type: US_SSN
+        input: "123-45-6789"
+        output: "987-65-4321"
+
+  fake_ip:
+    description: "Generate realistic fake IP address"
+    class: FakeIPAddressOperator
+    supported_entities: [IP_ADDRESS]
+    examples:
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "203.45.67.89"
 
   fake_iban:
-    description: "Generate realistic fake IBAN using Mimesis"
-    operator: fake_iban
+    description: "Generate realistic fake IBAN"
+    class: FakeIBANOperator
+    supported_entities: [IBAN_CODE]
+    examples:
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB29NWBK60161331926819"
 
-  fake_us_bank_account:
-    description: "Generate realistic fake US bank account using Mimesis"
-    operator: fake_us_bank_account
+  fake_name:
+    description: "Generate realistic fake person name"
+    class: FakeNameOperator
+    supported_entities: [PERSON]
+    examples:
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "Sarah Miller"
 
-  # Stripe testing credit cards
-  stripe_testing_cc:
-    description: "Use Stripe test credit card numbers"
-    operator: stripe_testing_cc
+  fake_location:
+    description: "Generate realistic fake location"
+    class: FakeLocationOperator
+    supported_entities: [LOCATION]
+    examples:
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "Chicago"
 
-  # Smart redaction (format-preserving)
-  smart_redact:
-    description: "Smart redaction that preserves format (emails, SSN, phone, IP)"
-    operator: smart_redact
+  fake_us_bank:
+    description: "Generate realistic fake US bank account"
+    class: FakeUSBankAccountOperator
+    supported_entities: [US_BANK_ACCOUNT]
+    examples:
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: 987654321, Account: 1234567890"
 
-  # Built-in Presidio operators (convenience aliases)
+  fake_ca_bank:
+    description: "Generate realistic fake CA bank account"
+    class: FakeCABankAccountOperator
+    supported_entities: [CA_BANK_ACCOUNT]
+    examples:
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: 54321, Institution: 123, Account: 9876543210"
+
+  # ===========================================================================
+  # SMART OPERATORS
+  # ===========================================================================
+  # Smart operators detect the entity type from the data format or accept an
+  # explicit entity_type parameter, then delegate to the appropriate
+  # entity-specific operator.
+  # ===========================================================================
+
+  smart_mask:
+    description: "Intelligently detect entity type and apply appropriate mask"
+    class: SmartMaskOperator
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, CA_SIN, CA_TIN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    examples:
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
+        output: "jo******th@example.com"
+      - entity_type: PHONE_NUMBER
+        input: "555-123-4567"
+        output: "***-***-4567"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "**** **** **** 4242"
+      - entity_type: US_SSN
+        input: "123-45-6789"
+        output: "***-**-6789"
+      - entity_type: CA_SIN
+        input: "123-456-789"
+        output: "***-***-789"
+      - entity_type: CA_TIN
+        input: "123456789RC0001"
+        output: "*****6789RC0001"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "192.***.*.1"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB******************5432"
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "J*** S****"
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "San *********"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: *****6789, Account: ******3210"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: *2345, Institution: *89, Account: ******7890"
+    notes:
+      - "Auto-detects entity type from format"
+      - "Falls back to generic masking for unknown types"
+      - "Accepts explicit entity_type parameter"
+
+  smart_fake:
+    description: "Intelligently detect entity type and generate appropriate fake data"
+    class: SmartFakeOperator
+    supported_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, US_SSN, CA_SIN, CA_TIN, IP_ADDRESS, IBAN_CODE, PERSON, LOCATION, US_BANK_ACCOUNT, CA_BANK_ACCOUNT]
+    examples:
+      - entity_type: EMAIL_ADDRESS
+        input: "john.smith@example.com"
+        output: "sarah.miller@company.net"
+      - entity_type: PHONE_NUMBER
+        input: "555-123-4567"
+        output: "555-987-6543"
+      - entity_type: CREDIT_CARD
+        input: "4242 4242 4242 4242"
+        output: "4532 1234 5678 9010"
+      - entity_type: US_SSN
+        input: "123-45-6789"
+        output: "987-65-4321"
+      - entity_type: IP_ADDRESS
+        input: "192.168.1.1"
+        output: "203.45.67.89"
+      - entity_type: IBAN_CODE
+        input: "GB82WEST12345698765432"
+        output: "GB29NWBK60161331926819"
+      - entity_type: PERSON
+        input: "John Smith"
+        output: "Sarah Miller"
+      - entity_type: LOCATION
+        input: "San Francisco"
+        output: "Chicago"
+      - entity_type: US_BANK_ACCOUNT
+        input: "Routing: 123456789, Account: 9876543210"
+        output: "Routing: 987654321, Account: 1234567890"
+      - entity_type: CA_BANK_ACCOUNT
+        input: "Transit: 12345, Institution: 789, Account: 1234567890"
+        output: "Transit: 54321, Institution: 123, Account: 9876543210"
+    notes:
+      - "Auto-detects entity type from format"
+      - "Falls back to generic identifier for unknown types"
+      - "Accepts explicit entity_type parameter"
+
+  # ===========================================================================
+  # BUILT-IN PRESIDIO OPERATORS
+  # ===========================================================================
+  # General-purpose operators provided by Presidio for common anonymization needs.
+  # ===========================================================================
+
   redact:
-    description: "Remove PII completely (empty string)"
-    operator: redact
+    description: "Remove PII completely (replace with empty string)"
+    type: builtin
+    examples:
+      - input: "john.smith@example.com"
+        output: ""
+      - input: "sensitive data"
+        output: ""
 
   mask:
-    description: "Replace characters with asterisks"
-    operator: mask
+    description: "Replace characters with masking character (default: *)"
+    type: builtin
+    params:
+      - masking_char: "Character to use for masking (default: *)"
+      - chars_to_mask: "Number of characters to mask"
+      - from_end: "Mask from end instead of beginning (default: false)"
+    examples:
+      - input: "123456789"
+        output: "*****6789"
+        params: {chars_to_mask: 5, from_end: false}
 
   hash:
-    description: "SHA-256 hash (uses random salt for security)"
-    operator: hash
+    description: "SHA-256 hash with random salt for security"
+    type: builtin
+    params:
+      - hash_type: "Hash algorithm (default: sha256)"
+    examples:
+      - input: "sensitive data"
+        output: "a1b2c3d4e5f6..."
+    notes:
+      - "Uses random salt by default - same input produces different hashes"
+      - "Not reversible"
 
   replace:
-    description: "Replace with fixed value"
-    operator: replace
+    description: "Replace PII with a fixed value"
+    type: builtin
+    params:
+      - new_value: "Value to replace with"
+    examples:
+      - input: "John Smith"
+        output: "REDACTED"
+        params: {new_value: "REDACTED"}
 
   keep:
-    description: "Keep original value (for allowlisting)"
-    operator: keep
+    description: "Keep original value unchanged (for allowlisting)"
+    type: builtin
+    examples:
+      - input: "not_actually_pii@example.com"
+        output: "not_actually_pii@example.com"
 
 # =============================================================================
 # REFERENCES

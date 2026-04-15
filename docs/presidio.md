@@ -258,29 +258,12 @@ params: {}
 **Output examples:**
 - `123456789` → `987654321`
 
-#### `stripe_testing_cc`
-Replaces credit card numbers with Stripe test card numbers for testing payment flows.
+#### `smart_mask`
+#### `smart_mask`
+Format-preserving masking that maintains structure while hiding sensitive data.
 
 ```yaml
-operator: stripe_testing_cc
-params: {}
-```
-
-**Output:** Maps to appropriate Stripe test card based on first digit:
-- Visa: `4242424242424242`
-- Mastercard: `5555555555554444`
-- Amex: `378282246310005`
-- Discover: `6011111111111117`
-
-**Use cases:**
-- Testing payment integrations
-- Safe credit card data for development
-
-#### `smart_redact`
-Format-preserving redaction that maintains structure while hiding sensitive data.
-
-```yaml
-operator: smart_redact
+operator: smart_mask
 params: {}
 ```
 
@@ -314,7 +297,7 @@ params: {}
 The bundled `presidio.yaml` configures these default anonymization strategies:
 
 ```yaml
-EMAIL_ADDRESS: smart_redact    # Preserves domain: jo****@example.com
+EMAIL_ADDRESS: smart_mask      # Preserves domain: jo****@example.com
 PERSON: replace                # Replaces with "ANONYMOUS"
 PHONE_NUMBER: mask             # Shows last 4 digits: ***-***-4567
 LOCATION: mask                 # Partial masking: New Y***
@@ -602,7 +585,6 @@ anonymization_operators:
     params: {}
 
 custom_strategy_aliases:
-  test_card: stripe_testing_cc
   fake_account: fake_us_bank_account
 ```
 
@@ -617,7 +599,6 @@ collections:
   transactions:
     pii_anonymized_fields:
       account_number: fake_account    # Uses alias
-      credit_card: test_card          # Uses alias
       iban: fake_iban
       customer_email: fake_email
 ```
@@ -642,9 +623,9 @@ collections:
     pii_anonymized_fields:
       # Auto-detected fields use default strategies
       # Manual overrides for specific needs
-      email: fake_email              # Override default smart_redact
+      email: fake_email              # Override default smart_mask
       phone: fake_phone              # Override default mask
-      "billing.card_number": stripe_testing_cc  # Nested field
+      "billing.card_number": fake_credit_card  # Nested field
       "shipping.address": fake_address
 
   orders:
