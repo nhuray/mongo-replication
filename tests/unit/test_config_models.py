@@ -13,7 +13,6 @@ from mongo_replication.config.models import (
     ScanPIIAnalysisConfig,
     Config,
     PIIFieldAnonymization,
-    CollectionConfig,
 )
 from mongo_replication.config.manager import (
     load_config,
@@ -391,96 +390,29 @@ class TestPIIFieldAnonymization:
         assert pii_config.params == {"entity_type": "UNKNOWN"}
 
 
-class TestCollectionConfigPIIAnonymization:
-    """Tests for pii_anonymization field in CollectionConfig."""
-
-    def test_pii_anonymization_list_format(self):
-        """Test using new pii_anonymization list format."""
-        config = CollectionConfig(
-            name="users",
-            pii_anonymization=[
-                PIIFieldAnonymization(
-                    field="email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
-                ),
-                PIIFieldAnonymization(
-                    field="phone", operator="mask_phone", params={"entity_type": "PHONE_NUMBER"}
-                ),
-            ],
-        )
-
-        assert len(config.pii_anonymization) == 2
-        assert config.pii_anonymization[0].field == "email"
-        assert config.pii_anonymization[0].operator == "mask_email"
-        assert config.pii_anonymization[0].params == {"entity_type": "EMAIL_ADDRESS"}
-        assert config.pii_anonymization[1].field == "phone"
-        assert config.pii_anonymization[1].operator == "mask_phone"
-        assert config.pii_anonymization[1].params == {"entity_type": "PHONE_NUMBER"}
-
-    def test_backward_compatibility_migration(self):
-        """Test backward compatibility with old pii_anonymized_fields format."""
-        import warnings
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-
-            config = CollectionConfig(
-                name="users", pii_anonymized_fields={"email": "mask_email", "phone": "mask_phone"}
-            )
-
-            # Should have triggered deprecation warning
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "deprecated" in str(w[0].message).lower()
-
-        # Should have auto-migrated to new format
-        assert len(config.pii_anonymization) == 2
-
-        # Find email and phone fields (order not guaranteed)
-        email_config = next((p for p in config.pii_anonymization if p.field == "email"), None)
-        phone_config = next((p for p in config.pii_anonymization if p.field == "phone"), None)
-
-        assert email_config is not None
-        assert email_config.operator == "mask_email"
-        assert email_config.params is None  # Legacy format has no params
-
-        assert phone_config is not None
-        assert phone_config.operator == "mask_phone"
-        assert phone_config.params is None  # Legacy format has no params
-
-    def test_empty_pii_anonymization_list(self):
-        """Test collection with empty pii_anonymization list."""
-        config = CollectionConfig(name="users", pii_anonymization=[])
-
-        assert config.pii_anonymization == []
-
-    def test_default_empty_list(self):
-        """Test that pii_anonymization defaults to empty list."""
-        config = CollectionConfig(name="users")
-
-        assert config.pii_anonymization == []
-
-
 class TestConfigTemplateSerialization:
-    """Tests for config template serialization with pii_anonymization."""
+    """Tests for config template serialization with transforms."""
 
-    def test_save_and_load_with_pii_anonymization(self):
-        """Test saving and loading config with new pii_anonymization format."""
+    def test_save_and_load_with_transforms(self):
+        """Test saving and loading config with transforms format."""
         from mongo_replication.config.models import ReplicationConfig, Config
         from mongo_replication.config.manager import save_config, load_config
 
-        # Create config with new pii_anonymization format
+        # Create config with transforms
         collections_dict = {
             "users": {
                 "cursor_field": "updated_at",
                 "write_disposition": "merge",
                 "primary_key": "_id",
-                "pii_anonymization": [
+                "transforms": [
                     {
+                        "type": "anonymize",
                         "field": "email",
                         "operator": "mask_email",
                         "params": {"entity_type": "EMAIL_ADDRESS"},
                     },
                     {
+                        "type": "anonymize",
                         "field": "phone",
                         "operator": "mask_phone",
                         "params": {"entity_type": "PHONE_NUMBER"},
@@ -499,10 +431,11 @@ class TestConfigTemplateSerialization:
         try:
             save_config(config, temp_path)
 
-            # Verify YAML content includes params with entity_type
+            # Verify YAML content includes transforms
             with open(temp_path, "r") as f:
                 yaml_content = f.read()
-                assert "pii_anonymization:" in yaml_content
+                assert "transforms:" in yaml_content
+                assert "type: anonymize" in yaml_content
                 assert "params:" in yaml_content
                 assert "entity_type: EMAIL_ADDRESS" in yaml_content
                 assert "entity_type: PHONE_NUMBER" in yaml_content
@@ -511,43 +444,44 @@ class TestConfigTemplateSerialization:
             loaded_config = load_config(temp_path)
             users_config = loaded_config.replication.collections.root["users"]
 
-            assert len(users_config.pii_anonymization) == 2
+            assert len(users_config.transforms) == 2
 
-            # Check first PII field
-            email_pii = users_config.pii_anonymization[0]
-            assert email_pii.field == "email"
-            assert email_pii.operator == "mask_email"
-            assert email_pii.params == {"entity_type": "EMAIL_ADDRESS"}
+            # Check first transform
+            email_transform = users_config.transforms[0]
+            assert email_transform.type == "anonymize"
+            assert email_transform.field == "email"
+            assert email_transform.operator == "mask_email"
+            assert email_transform.params == {"entity_type": "EMAIL_ADDRESS"}
 
-            # Check second PII field
-            phone_pii = users_config.pii_anonymization[1]
-            assert phone_pii.field == "phone"
-            assert phone_pii.operator == "mask_phone"
-            assert phone_pii.params == {"entity_type": "PHONE_NUMBER"}
+            # Check second transform
+            phone_transform = users_config.transforms[1]
+            assert phone_transform.type == "anonymize"
+            assert phone_transform.field == "phone"
+            assert phone_transform.operator == "mask_phone"
+            assert phone_transform.params == {"entity_type": "PHONE_NUMBER"}
         finally:
             temp_path.unlink()
 
-    def test_template_handles_both_old_and_new_format(self):
-        """Test that template can handle both old and new PII formats."""
+    def test_template_with_multiple_transform_types(self):
+        """Test that template handles multiple transform types."""
         from mongo_replication.config.models import ReplicationConfig, Config
         from mongo_replication.config.manager import save_config
 
-        # Test with new format (already tested above)
-        # Now test that old format still works if someone has it
+        # Test with various transform types
         collections_dict = {
             "users": {
                 "write_disposition": "merge",
                 "primary_key": "_id",
-                "pii_anonymized_fields": {"email": "fake", "phone": "redact"},
+                "transforms": [
+                    {"type": "set_field", "field": "processed", "value": True},
+                    {"type": "anonymize", "field": "email", "operator": "mask_email"},
+                    {"type": "remove_field", "field": "internal_notes"},
+                ],
             }
         }
 
-        import warnings
-
-        with warnings.catch_warnings(record=True):
-            warnings.simplefilter("always")
-            replication_config = ReplicationConfig(collections=collections_dict)
-            config = Config(replication=replication_config)
+        replication_config = ReplicationConfig(collections=collections_dict)
+        config = Config(replication=replication_config)
 
         # Save to temp file
         with NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -556,12 +490,12 @@ class TestConfigTemplateSerialization:
         try:
             save_config(config, temp_path)
 
-            # Should still save successfully (even though it auto-migrates)
+            # Verify YAML content includes all transform types
             with open(temp_path, "r") as f:
                 yaml_content = f.read()
-                # After migration, should have new format
-                assert "pii_anonymization:" in yaml_content
-                # Legacy format doesn't have params, so no params section should appear
-                assert "params:" not in yaml_content
+                assert "transforms:" in yaml_content
+                assert "type: set_field" in yaml_content
+                assert "type: anonymize" in yaml_content
+                assert "type: remove_field" in yaml_content
         finally:
             temp_path.unlink()
