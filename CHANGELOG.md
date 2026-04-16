@@ -1,11 +1,43 @@
 # CHANGELOG
 
 
+## v1.0.2 (2026-04-16)
+
+### Bug Fixes
+
+* fix: Include documents with missing cursor field in merge queries (#21)
+
+fix: include documents with missing cursor field in merge queries
+
+When replicating with write_disposition=merge and a cursor_field that
+doesn't exist in some documents, those documents were being excluded
+from replication, causing data loss.
+
+This fix updates the MongoDB query to use $or with $exists:false to
+include documents where the cursor field is missing OR greater than
+the last cursor value.
+
+Changes:
+- Updated _build_query() to use $or with $exists:false
+- Updated in-loop queries in _replicate_merge() and _replicate_append()
+- Added 3 new tests for cursor_initial_value and nested fields
+- Updated 3 existing tests to match new query structure
+
+Example query:
+{$or: [{"meta.updatedAt": {$exists: false}}, {"meta.updatedAt": {$gt: ISODate(...)}}]}
+
+All 435 tests passing. ([`d352c1a`](https://github.com/nhuray/mongo-replication/commit/d352c1aa0714e858a1dfc0ef334402945533283d))
+
+
 ## v1.0.1 (2026-04-15)
 
 ### Bug Fixes
 
 * fix: update FakeEmailOperator to generate unique email addresses ([`767ba25`](https://github.com/nhuray/mongo-replication/commit/767ba25bca5f383f0e8392bd629775715fbc987e))
+
+### Chores
+
+* chore(release): 1.0.1 [skip ci] ([`9828958`](https://github.com/nhuray/mongo-replication/commit/9828958c7235ad9fa0d176128400a9a8d57345ee))
 
 
 ## v1.0.0 (2026-04-15)
