@@ -324,6 +324,7 @@ class CollectionReplicator:
         """Build query for incremental loading based on last cursor value and match filter.
 
         Combines incremental cursor filter with user-defined match filter using $and.
+        For documents where cursor_field doesn't exist, includes them with $or to avoid data loss.
 
         Args:
             cursor_field: Field to use as cursor
@@ -349,7 +350,16 @@ class CollectionReplicator:
                 )
 
             if last_value is not None:
-                filters.append({cursor_field: {"$gt": last_value}})
+                # Include docs where cursor field > last_value OR cursor field doesn't exist
+                # This ensures we don't lose documents missing the cursor field
+                filters.append(
+                    {
+                        "$or": [
+                            {cursor_field: {"$exists": False}},
+                            {cursor_field: {"$gt": last_value}},
+                        ]
+                    }
+                )
 
         # Add user-defined match filter
         match_filter = getattr(self, "_match_filter", None)
@@ -727,7 +737,13 @@ class CollectionReplicator:
             if cursor_field:
                 last_cursor_value = self.validator.get_field_value(batch[-1], cursor_field)
                 # Update query for next batch to continue from where we left off
-                query = {cursor_field: {"$gt": last_cursor_value}}
+                # Include docs where cursor field doesn't exist to avoid data loss
+                query = {
+                    "$or": [
+                        {cursor_field: {"$exists": False}},
+                        {cursor_field: {"$gt": last_cursor_value}},
+                    ]
+                }
 
             total_docs += written
             batch_duration = time.time() - batch_start
@@ -820,8 +836,14 @@ class CollectionReplicator:
             # Track last cursor value for this run
             if cursor_field:
                 last_cursor_value = self.validator.get_field_value(batch[-1], cursor_field)
-                # Update query for next batch
-                query = {cursor_field: {"$gt": last_cursor_value}}
+                # Update query for next batch to continue from where we left off
+                # Include docs where cursor field doesn't exist to avoid data loss
+                query = {
+                    "$or": [
+                        {cursor_field: {"$exists": False}},
+                        {cursor_field: {"$gt": last_cursor_value}},
+                    ]
+                }
 
             total_docs += written
             batch_duration = time.time() - batch_start
