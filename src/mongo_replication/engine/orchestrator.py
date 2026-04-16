@@ -19,12 +19,10 @@ from mongo_replication.config import CollectionConfig, ReplicationConfig
 from mongo_replication.config.manager import deep_merge
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.discovery import CollectionDiscovery, DiscoveryResult
-from mongo_replication.engine.field_exclusion import FieldExcluder
 from mongo_replication.engine.indexes import IndexManager
-from mongo_replication.engine.pii import create_pii_handler_from_config
 from mongo_replication.engine.replicator import CollectionReplicator, ReplicationResult
 from mongo_replication.engine.state import StateManager
-from mongo_replication.engine.transformations import FieldTransformer
+from mongo_replication.engine.transformations import TransformationEngine
 from mongo_replication.engine.validation import CursorValidator
 
 logger = logging.getLogger(__name__)
@@ -82,8 +80,14 @@ class OrchestrationResult(BaseModel):
         )
 
         # Count collections with special features
-        pii_count = sum(1 for r in self.collection_results.values() if r.pii_fields_redacted > 0)
-        logger.info(f"   Collections with PII redaction: {pii_count}")
+        transformed_count = sum(
+            1 for r in self.collection_results.values() if r.documents_transformed > 0
+        )
+        if transformed_count > 0:
+            total_transforms = sum(r.transforms_applied for r in self.collection_results.values())
+            logger.info(
+                f"   Collections with transformations: {transformed_count} ({total_transforms:,} transforms applied)"
+            )
 
         # Index replication summary
         total_indexes = sum(r.indexes_replicated for r in self.collection_results.values())
@@ -171,8 +175,8 @@ class ReplicationOrchestrator:
             merged_data = deep_merge(base_data, override_data)
             return CollectionConfig.model_validate(merged_data)
 
-        # Auto-discovered collection - use defaults with empty PII fields
-        base_data["pii_anonymization"] = []  # No PII redaction for auto-discovered
+        # Auto-discovered collection - use defaults with no transforms
+        base_data["transforms"] = []  # No transformations for auto-discovered
         return CollectionConfig.model_validate(base_data)
 
     def _replicate_single_collection(
@@ -211,23 +215,13 @@ class ReplicationOrchestrator:
                 index_manager=self.index_mgr,
             )
 
-            # Create transformation engines if configured
-            field_transformer = None
-            if config.field_transforms:
-                field_transformer = FieldTransformer(
-                    transforms=config.field_transforms,
+            # Create transformation engine if configured
+            transformation_engine = None
+            if config.transforms:
+                transformation_engine = TransformationEngine(
+                    transforms=config.transforms,
                     error_mode=config.transform_error_mode,
                 )
-
-            field_excluder = None
-            if config.fields_exclude:
-                field_excluder = FieldExcluder(
-                    fields_to_exclude=config.fields_exclude,
-                )
-
-            # Create PII handler from collection config
-            # Pass full pii_anonymization list (supports multi-entity fields)
-            pii_handler = create_pii_handler_from_config(config.pii_anonymization)
 
             # Debug: Log match filter being used
             logger.info(
@@ -240,11 +234,9 @@ class ReplicationOrchestrator:
                 cursor_field=config.cursor_field,
                 write_disposition=config.write_disposition,
                 primary_key=config.primary_key,
-                pii_handler=pii_handler,
+                transformation_engine=transformation_engine,
                 batch_size=batch_size,
                 match_filter=config.match,
-                field_transformer=field_transformer,
-                field_excluder=field_excluder,
                 cursor_initial_value=config.cursor_initial_value,
             )
 
@@ -334,9 +326,12 @@ class ReplicationOrchestrator:
                         if config.batch_size is not None
                         else f"batch_size: {coll_batch_size} [default]"
                     )
-                    logger.info(
-                        f"   ⚙️  {coll_name}: Configured (PII: {len(config.pii_anonymization)} fields, {batch_info})"
+                    transforms_info = (
+                        f"transforms: {len(config.transforms)}"
+                        if config.transforms
+                        else "transforms: 0"
                     )
+                    logger.info(f"   ⚙️  {coll_name}: Configured ({transforms_info}, {batch_info})")
 
             # Step 3: Replicate collections in parallel
             max_workers = self.config.performance.max_parallel_collections

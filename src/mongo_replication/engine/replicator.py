@@ -15,11 +15,9 @@ from pymongo import ReplaceOne
 from pymongo.collection import Collection
 from pymongo.errors import BulkWriteError
 
-from mongo_replication.engine.field_exclusion import FieldExcluder, ExclusionStats
 from mongo_replication.engine.indexes import IndexManager
-from mongo_replication.engine.pii import PIIHandler
 from mongo_replication.engine.state import StateManager
-from mongo_replication.engine.transformations import FieldTransformer, TransformStats
+from mongo_replication.engine.transformations import TransformationEngine
 from mongo_replication.engine.validation import CursorValidator
 
 logger = logging.getLogger(__name__)
@@ -102,11 +100,10 @@ class ReplicationResult(BaseModel):
     error_message: Optional[str] = None
     cursor_field_used: Optional[str] = None
     write_disposition: Optional[str] = None
-    pii_fields_redacted: int = 0
 
-    # Transformation statistics (Phase 6+)
-    transform_stats: Optional[TransformStats] = None
-    exclusion_stats: Optional[ExclusionStats] = None
+    # Transformation statistics
+    documents_transformed: int = 0
+    transforms_applied: int = 0
 
     # Index replication statistics
     indexes_replicated: int = 0
@@ -159,50 +156,42 @@ class CollectionReplicator:
         cursor_field: Optional[str],
         write_disposition: str,
         primary_key: str = "_id",
-        pii_handler: Optional[PIIHandler] = None,
+        transformation_engine: Optional[TransformationEngine] = None,
         batch_size: int = 1000,
         match_filter: Optional[Dict[str, Any]] = None,
-        field_transformer: Optional[FieldTransformer] = None,
-        field_excluder: Optional[FieldExcluder] = None,
         cursor_initial_value: Optional[datetime] = None,
     ) -> ReplicationResult:
         """Replicate the collection from source to destination.
 
         All BSON types (ObjectId, datetime, Decimal128) are preserved throughout.
 
-        Processing pipeline order:
+        Processing pipeline:
         1. Fetch from MongoDB (with match filter applied at query level)
-        2. Apply field transformations (regex replacements)
-        3. Apply PII redaction (security on transformed data)
-        4. Apply field exclusions (remove unwanted fields)
-        5. Write to destination
+        2. Apply transformations (unified pipeline with all transform types)
+        3. Write to destination
 
         Args:
             state_id: ObjectId of the collection state document
             cursor_field: Field to use for incremental loading (None for replace mode)
             write_disposition: Strategy - "merge", "append", or "replace"
             primary_key: Primary key field for merge operations (default: _id)
-            pii_handler: PIIHandler instance for PII detection and redaction (optional)
+            transformation_engine: TransformationEngine instance for document transformations (optional)
             batch_size: Number of documents per batch (default: 1000)
             match_filter: MongoDB match filter to apply at query time (optional)
-            field_transformer: FieldTransformer instance for field transformations (optional)
-            field_excluder: FieldExcluder instance for field exclusions (optional)
             cursor_initial_value: Initial cursor value for first-time replication (datetime object, optional)
 
         Returns:
             ReplicationResult with statistics and status
 
         Raises:
-            ReplicationError: On PII redaction failure, duplicate keys, or data conflicts
+            ReplicationError: On transformation failure, duplicate keys, or data conflicts
         """
         start_time = time.time()
         match_filter = match_filter or {}
 
-        # Store transformation engines and match_filter for use in processing pipeline
+        # Store transformation engine and match_filter for use in processing pipeline
         self._match_filter = match_filter
-        self._field_transformer = field_transformer
-        self._field_excluder = field_excluder
-        self._pii_handler = pii_handler
+        self._transformation_engine = transformation_engine
         self._state_id = state_id
         self._cursor_initial_value = cursor_initial_value
 
@@ -210,14 +199,10 @@ class CollectionReplicator:
         logger.info(f"   State ID: {state_id}")
         logger.info(f"   Write disposition: {write_disposition}")
         logger.info(f"   Batch size: {batch_size}")
-        if pii_handler and pii_handler.pii_field_count > 0:
-            logger.info(f"   PII fields configured: {pii_handler.pii_field_count}")
+        if transformation_engine and transformation_engine.transforms:
+            logger.info(f"   Transforms configured: {len(transformation_engine.transforms)}")
         if match_filter:
             logger.info(f"   Match filter applied: {match_filter}")
-        if field_transformer and field_transformer.transforms:
-            logger.info(f"   Field transformations: {len(field_transformer.transforms)}")
-        if field_excluder and field_excluder.fields_to_exclude:
-            logger.info(f"   Fields to exclude: {len(field_excluder.fields_to_exclude)}")
 
         try:
             # Validate cursor field and get actual field to use
@@ -290,7 +275,8 @@ class CollectionReplicator:
                 duration_seconds=duration,
                 cursor_field_used=actual_cursor_field,
                 write_disposition=write_disposition,
-                pii_fields_redacted=pii_handler.pii_field_count if pii_handler else 0,
+                documents_transformed=result.documents_transformed,
+                transforms_applied=result.transforms_applied,
                 indexes_replicated=final_indexes_replicated,
                 indexes_failed=final_indexes_failed,
                 index_errors=final_index_errors,
@@ -402,83 +388,34 @@ class CollectionReplicator:
 
         return list(cursor)
 
-    def _apply_pii_redaction(
+    def _apply_transformations(
         self,
         documents: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Apply PII redaction to documents using PIIHandler.
-
-        CRITICAL: Redaction preserves BSON types for non-PII fields.
-        PII fields are replaced with synthetic data (strings) or redacted.
-
-        Args:
-            documents: List of documents to redact
-
-        Returns:
-            List of redacted documents
-
-        Raises:
-            ReplicationError: If redaction fails for any document
-        """
-        if not self._pii_handler:
-            return documents
-
-        try:
-            return self._pii_handler.process_documents(documents)
-        except Exception as e:
-            # Fail fast on PII redaction errors (per requirements)
-            raise ReplicationError(f"PII redaction failed for {self.collection_name}: {e}") from e
-
-    def _apply_transformations_and_exclusions(
-        self,
-        documents: List[Dict[str, Any]],
-    ) -> tuple[List[Dict[str, Any]], TransformStats, ExclusionStats]:
-        """Apply complete transformation pipeline to documents.
-
-        Pipeline order (CRITICAL):
-        1. Apply field transformations (regex replacements)
-        2. Apply PII redaction (security on transformed data)
-        3. Apply field exclusions (remove unwanted fields)
+    ) -> tuple[List[Dict[str, Any]], int, int]:
+        """Apply transformation pipeline to documents.
 
         Args:
             documents: List of documents to process
 
         Returns:
-            Tuple of (processed documents, transform stats, exclusion stats)
+            Tuple of (processed documents, documents_transformed, transforms_applied)
 
         Raises:
-            ReplicationError: If transformation or PII redaction fails
+            ReplicationError: If transformation fails
         """
-        processed_docs = documents
-        transform_stats = TransformStats()
-        exclusion_stats = ExclusionStats()
+        if not self._transformation_engine:
+            return documents, 0, 0
 
-        # Step 1: Apply field transformations
-        if self._field_transformer:
-            try:
-                processed_docs, transform_stats = self._field_transformer.transform_documents(
-                    processed_docs
-                )
-            except Exception as e:
-                raise ReplicationError(
-                    f"Field transformation failed for {self.collection_name}: {e}"
-                ) from e
+        try:
+            processed_docs, stats = self._transformation_engine.transform_documents(documents)
 
-        # Step 2: Apply PII redaction
-        processed_docs = self._apply_pii_redaction(processed_docs)
+            # Use stats from transformation engine
+            documents_transformed = stats.documents_processed
+            transforms_applied = stats.transforms_applied
 
-        # Step 3: Apply field exclusions
-        if self._field_excluder:
-            try:
-                processed_docs, exclusion_stats = (
-                    self._field_excluder.exclude_fields_from_documents(processed_docs)
-                )
-            except Exception as e:
-                raise ReplicationError(
-                    f"Field exclusion failed for {self.collection_name}: {e}"
-                ) from e
-
-        return processed_docs, transform_stats, exclusion_stats
+            return processed_docs, documents_transformed, transforms_applied
+        except Exception as e:
+            raise ReplicationError(f"Transformation failed for {self.collection_name}: {e}") from e
 
     def _write_batch_merge(
         self,
@@ -607,8 +544,8 @@ class CollectionReplicator:
         is_first_batch = True
 
         # Initialize aggregate statistics
-        total_transform_stats = TransformStats()
-        total_exclusion_stats = ExclusionStats()
+        total_documents_transformed = 0
+        total_transforms_applied = 0
 
         # Index statistics (captured from first batch)
         indexes_replicated = 0
@@ -629,19 +566,12 @@ class CollectionReplicator:
             batch_num += 1
             batch_start = time.time()
 
-            # Apply complete transformation pipeline
-            processed, transform_stats, exclusion_stats = (
-                self._apply_transformations_and_exclusions(batch)
-            )
+            # Apply transformation pipeline
+            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_transform_stats.documents_processed += transform_stats.documents_processed
-            total_transform_stats.total_transforms += transform_stats.total_transforms
-            total_transform_stats.successful_transforms += transform_stats.successful_transforms
-            total_transform_stats.failed_transforms += transform_stats.failed_transforms
-
-            total_exclusion_stats.documents_processed += exclusion_stats.documents_processed
-            total_exclusion_stats.fields_excluded += exclusion_stats.fields_excluded
+            total_documents_transformed += docs_transformed
+            total_transforms_applied += transforms_applied
 
             # Write batch (and handle indexes on first batch)
             written, idx_rep, idx_fail, idx_errs = self._write_batch_replace(
@@ -668,8 +598,8 @@ class CollectionReplicator:
             status="completed",
             documents_processed=total_docs,
             batches_processed=batch_num,
-            transform_stats=total_transform_stats,
-            exclusion_stats=total_exclusion_stats,
+            documents_transformed=total_documents_transformed,
+            transforms_applied=total_transforms_applied,
             indexes_replicated=indexes_replicated,
             indexes_failed=indexes_failed,
             index_errors=index_errors,
@@ -694,8 +624,8 @@ class CollectionReplicator:
         last_cursor_value = None
 
         # Initialize aggregate statistics
-        total_transform_stats = TransformStats()
-        total_exclusion_stats = ExclusionStats()
+        total_documents_transformed = 0
+        total_transforms_applied = 0
 
         # Get starting cursor value from state
         # After this initial query, we track cursor locally for this run
@@ -716,19 +646,12 @@ class CollectionReplicator:
             batch_num += 1
             batch_start = time.time()
 
-            # Apply complete transformation pipeline
-            processed, transform_stats, exclusion_stats = (
-                self._apply_transformations_and_exclusions(batch)
-            )
+            # Apply transformation pipeline
+            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_transform_stats.documents_processed += transform_stats.documents_processed
-            total_transform_stats.total_transforms += transform_stats.total_transforms
-            total_transform_stats.successful_transforms += transform_stats.successful_transforms
-            total_transform_stats.failed_transforms += transform_stats.failed_transforms
-
-            total_exclusion_stats.documents_processed += exclusion_stats.documents_processed
-            total_exclusion_stats.fields_excluded += exclusion_stats.fields_excluded
+            total_documents_transformed += docs_transformed
+            total_transforms_applied += transforms_applied
 
             # Write batch
             written = self._write_batch_append(processed)
@@ -770,8 +693,8 @@ class CollectionReplicator:
             documents_processed=total_docs,
             batches_processed=batch_num,
             duration_seconds=0,  # Set by caller
-            transform_stats=total_transform_stats,
-            exclusion_stats=total_exclusion_stats,
+            documents_transformed=total_documents_transformed,
+            transforms_applied=total_transforms_applied,
         )
 
     def _replicate_merge(
@@ -795,8 +718,8 @@ class CollectionReplicator:
         last_cursor_value = None
 
         # Initialize aggregate statistics
-        total_transform_stats = TransformStats()
-        total_exclusion_stats = ExclusionStats()
+        total_documents_transformed = 0
+        total_transforms_applied = 0
 
         # Get starting cursor value from state
         query = self._build_query(cursor_field)
@@ -816,19 +739,12 @@ class CollectionReplicator:
             batch_num += 1
             batch_start = time.time()
 
-            # Apply complete transformation pipeline
-            processed, transform_stats, exclusion_stats = (
-                self._apply_transformations_and_exclusions(batch)
-            )
+            # Apply transformation pipeline
+            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_transform_stats.documents_processed += transform_stats.documents_processed
-            total_transform_stats.total_transforms += transform_stats.total_transforms
-            total_transform_stats.successful_transforms += transform_stats.successful_transforms
-            total_transform_stats.failed_transforms += transform_stats.failed_transforms
-
-            total_exclusion_stats.documents_processed += exclusion_stats.documents_processed
-            total_exclusion_stats.fields_excluded += exclusion_stats.fields_excluded
+            total_documents_transformed += docs_transformed
+            total_transforms_applied += transforms_applied
 
             # Write batch
             written = self._write_batch_merge(processed, primary_key)
@@ -870,6 +786,6 @@ class CollectionReplicator:
             documents_processed=total_docs,
             batches_processed=batch_num,
             duration_seconds=0,  # Set by caller
-            transform_stats=total_transform_stats,
-            exclusion_stats=total_exclusion_stats,
+            documents_transformed=total_documents_transformed,
+            transforms_applied=total_transforms_applied,
         )

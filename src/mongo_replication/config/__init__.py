@@ -5,17 +5,35 @@ from .manager import (
     get_mongodb_connection_string,
 )
 from .models import (
+    AddFieldTransform,
+    AnonymizeTransform,
     CollectionConfig,
+    ConditionConfig,
+    CopyFieldTransform,
+    RegexReplaceTransform,
+    RemoveFieldTransform,
+    RenameFieldTransform,
     ReplicationConfig,
-    FieldTransformConfig,
     ReplicationDefaultsConfig,
+    SetFieldTransform,
+    TransformConfig,
+    TransformStep,
 )
 
 __all__ = [
     "CollectionConfig",
     "ReplicationConfig",
-    "FieldTransformConfig",
     "ReplicationDefaultsConfig",
+    "TransformConfig",
+    "TransformStep",
+    "AddFieldTransform",
+    "SetFieldTransform",
+    "RemoveFieldTransform",
+    "RenameFieldTransform",
+    "CopyFieldTransform",
+    "RegexReplaceTransform",
+    "AnonymizeTransform",
+    "ConditionConfig",
     "get_collection_config",
     "get_mongodb_connection_string",
 ]

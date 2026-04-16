@@ -7,7 +7,7 @@ This module defines the configuration schema with two main sections:
 
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator, RootModel
 
@@ -163,39 +163,150 @@ class ScanConfig(BaseModel):
 # =============================================================================
 
 
-class FieldTransformConfig(BaseModel):
-    """Configuration for a single field transformation."""
+# =============================================================================
+# TRANSFORMATION PIPELINE MODELS
+# =============================================================================
+
+
+class ConditionConfig(BaseModel):
+    """Configuration for conditional transform execution."""
+
+    field: str
+    """Field to check for condition."""
+
+    operator: Literal["$exists", "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin"]
+    """Comparison operator."""
+
+    value: Any
+    """Value to compare against."""
+
+
+class TransformStep(BaseModel):
+    """Base class for all transformation types."""
+
+    type: str
+    """Transform type discriminator."""
+
+    condition: Optional[ConditionConfig] = None
+    """Optional condition - transform only applies if condition is true."""
+
+
+class AddFieldTransform(TransformStep):
+    """Add a new field with a value (error if field already exists)."""
+
+    type: Literal["add_field"] = "add_field"
+
+    field: str
+    """Field path to add (supports dot notation for nested fields)."""
+
+    value: Any
+    """Value to set. Can be literal or template string with $field references."""
+
+
+class SetFieldTransform(TransformStep):
+    """Set a field value (overwrites if field already exists)."""
+
+    type: Literal["set_field"] = "set_field"
+
+    field: str
+    """Field path to set (supports dot notation for nested fields)."""
+
+    value: Any
+    """Value to set. Can be literal or template string with $field references."""
+
+
+class RemoveFieldTransform(TransformStep):
+    """Remove one or more fields from documents."""
+
+    type: Literal["remove_field"] = "remove_field"
+
+    field: str | List[str]
+    """Field path(s) to remove (supports dot notation for nested fields)."""
+
+
+class RenameFieldTransform(TransformStep):
+    """Rename a field."""
+
+    type: Literal["rename_field"] = "rename_field"
+
+    from_field: str
+    """Source field path (supports dot notation for nested fields)."""
+
+    to_field: str
+    """Target field path (supports dot notation for nested fields)."""
+
+    overwrite: bool = False
+    """If True, overwrite target field if it exists. If False, error on conflict."""
+
+
+class CopyFieldTransform(TransformStep):
+    """Copy a field value to another field."""
+
+    type: Literal["copy_field"] = "copy_field"
+
+    from_field: str
+    """Source field path (supports dot notation for nested fields)."""
+
+    to_field: str
+    """Target field path (supports dot notation for nested fields)."""
+
+    overwrite: bool = False
+    """If True, overwrite target field if it exists. If False, error on conflict."""
+
+
+class RegexReplaceTransform(TransformStep):
+    """Apply regex pattern replacement to a field value."""
+
+    type: Literal["regex_replace"] = "regex_replace"
 
     field: str
     """Field path (supports dot notation for nested fields)."""
-
-    type: str
-    """Transformation type (currently only "regex_replace")."""
 
     pattern: str
     """Regex pattern to match."""
 
     replacement: str
-    """Replacement string."""
+    """Replacement string (supports capture groups)."""
 
-    @model_validator(mode="after")
-    def validate_transformation(self) -> "FieldTransformConfig":
-        """Validate transformation configuration."""
-        if self.type != "regex_replace":
-            raise ValueError(
-                f"Invalid transformation type '{self.type}' for field '{self.field}'. "
-                f"Currently only 'regex_replace' is supported."
-            )
-
-        # Validate regex pattern at config load time (fail-fast)
+    @field_validator("pattern")
+    @classmethod
+    def validate_regex_pattern(cls, v: str) -> str:
+        """Validate regex pattern compiles at config load time (fail-fast)."""
         try:
-            re.compile(self.pattern)
+            re.compile(v)
         except re.error as e:
-            raise ValueError(
-                f"Invalid regex pattern '{self.pattern}' for field '{self.field}': {str(e)}"
-            )
+            raise ValueError(f"Invalid regex pattern '{v}': {str(e)}")
+        return v
 
-        return self
+
+class AnonymizeTransform(TransformStep):
+    """Apply PII anonymization to a field."""
+
+    type: Literal["anonymize"] = "anonymize"
+
+    field: str
+    """Field path to anonymize (supports dot notation for nested fields)."""
+
+    operator: str
+    """Anonymization operator name (e.g., 'mask_email', 'hash', 'smart_mask')."""
+
+    params: Optional[Dict[str, Any]] = None
+    """Optional parameters to pass to the operator."""
+
+
+# Union type for all transform configurations (discriminated by 'type' field)
+TransformConfig = Annotated[
+    Union[
+        AddFieldTransform,
+        SetFieldTransform,
+        RemoveFieldTransform,
+        RenameFieldTransform,
+        CopyFieldTransform,
+        RegexReplaceTransform,
+        AnonymizeTransform,
+    ],
+    Field(discriminator="type"),
+]
 
 
 class ReplicationDiscoveryConfig(BaseModel):
@@ -299,7 +410,11 @@ class ReplicationDefaultsConfig(BaseModel):
 
 
 class PIIFieldAnonymization(BaseModel):
-    """Configuration for anonymizing a single field."""
+    """DEPRECATED: Old configuration for anonymizing a single field.
+
+    This class is kept temporarily for reference but is no longer used.
+    Use AnonymizeTransform in the transforms pipeline instead.
+    """
 
     field: str
     """Field path to anonymize (supports dot notation for nested fields)."""
@@ -333,50 +448,8 @@ class CollectionConfig(ReplicationDefaultsConfig):
     match: Optional[Dict[str, Any]] = None
     """MongoDB match filter to apply during replication."""
 
-    field_transforms: List[FieldTransformConfig] = Field(default_factory=list)
-    """Field transformations to apply."""
-
-    fields_exclude: List[str] = Field(default_factory=list)
-    """Fields to exclude from replication."""
-
-    pii_anonymization: List[PIIFieldAnonymization] = Field(default_factory=list)
-    """List of field anonymization configurations (new format)."""
-
-    pii_anonymized_fields: Optional[Dict[str, str]] = Field(default=None)
-    """DEPRECATED: Mapping of field paths to anonymization strategies.
-
-    This field is deprecated in favor of pii_anonymization (list format).
-    If present, it will be automatically converted to pii_anonymization format
-    with a deprecation warning. Support for this field will be removed in a future version.
-    """
-
-    @model_validator(mode="after")
-    def migrate_pii_config(self) -> "CollectionConfig":
-        """Auto-migrate old pii_anonymized_fields format to new pii_anonymization format.
-
-        Issues a deprecation warning if old format is detected.
-        """
-        import warnings
-
-        # If old format is present and new format is empty, convert it
-        if self.pii_anonymized_fields and not self.pii_anonymization:
-            warnings.warn(
-                f"Collection '{self.name}': The 'pii_anonymized_fields' configuration format "
-                f"is deprecated and will be removed in a future version. "
-                f"Please use 'pii_anonymization' (list format) instead. "
-                f"See documentation for migration guide.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            # Convert dict format to list format
-            # Set entity_type to "UNKNOWN" for migrated configs since we don't have that info
-            self.pii_anonymization = [
-                PIIFieldAnonymization(field=field, operator=operator, entity_type="UNKNOWN")
-                for field, operator in self.pii_anonymized_fields.items()
-            ]
-
-        return self
+    transforms: List[TransformConfig] = Field(default_factory=list)
+    """Transformation pipeline to apply to documents (executed in order)."""
 
     @field_validator("batch_size")
     @classmethod
