@@ -464,9 +464,7 @@ replication:
       write_disposition: "merge"
       primary_key: "_id"
       match: {...}
-      fields_exclude: [...]
-      pii_anonymized_fields: {...}
-      field_transforms: [...]
+      transforms: [...]
 ```
 
 #### Basic Collection Options
@@ -507,88 +505,211 @@ replication:
     plan: { $in: ["premium", "enterprise"] }
   ```
 
-#### Field Exclusion
+#### Document Transformations
 
-**`fields_exclude`** (list of strings, optional)
-- List of field names to exclude from replication
-- Supports nested fields with dot notation
-- Example:
-  ```yaml
-  fields_exclude:
-    - password_hash
-    - internal_notes
-    - metadata.internal_id
-    - legacy_data
-  ```
+**`transforms`** (list of transform objects, optional)
+- Unified transformation pipeline applied to documents during replication
+- Transforms execute sequentially in the order defined
+- Supports 7 transform types: field operations, regex, and PII anonymization
+- All transformations support conditional execution
 
-#### PII Configuration
+**Transform Pipeline Example:**
+```yaml
+transforms:
+  # Add metadata field
+  - type: add_field
+    field: "processed_at"
+    value: "$now"
 
-**`pii_anonymized_fields`** (object, optional)
-- Configure PII field anonymization for this collection
-- Keys: Field names (supports dot notation for nested fields)
-- Values: Operator name (see [Presidio Documentation](presidio.md#anonymization-operators) for all available operators)
+  # Remove sensitive fields
+  - type: remove_field
+    field: ["password_hash", "internal_notes"]
+
+  # Anonymize PII
+  - type: anonymize
+    field: "email"
+    operator: "mask_email"
+
+  # Transform data with regex
+  - type: regex_replace
+    field: "phone"
+    pattern: "\\D"
+    replacement: ""
+```
+
+##### Transform Types
+
+**1. Field Operations**
+
+**`add_field`** - Add a new field (error if exists)
+```yaml
+- type: add_field
+  field: "status"
+  value: "active"
+```
+
+**`set_field`** - Set field value (overwrites if exists)
+```yaml
+- type: set_field
+  field: "environment"
+  value: "staging"
+```
+
+**`remove_field`** - Remove one or more fields
+```yaml
+- type: remove_field
+  field: "password_hash"
+  # Or multiple fields:
+  # field: ["password_hash", "ssn", "internal_notes"]
+```
+
+**`rename_field`** - Rename a field
+```yaml
+- type: rename_field
+  from_field: "old_name"
+  to_field: "new_name"
+  overwrite: false  # Optional: allow overwriting existing field
+```
+
+**`copy_field`** - Copy field value to another field
+```yaml
+- type: copy_field
+  from_field: "email"
+  to_field: "email_backup"
+  overwrite: false  # Optional: allow overwriting existing field
+```
+
+**2. Text Transformation**
+
+**`regex_replace`** - Apply regex pattern replacement
+```yaml
+- type: regex_replace
+  field: "phone"
+  pattern: "\\D"
+  replacement: ""
+```
+
+**3. PII Anonymization**
+
+**`anonymize`** - Apply PII anonymization operators
+```yaml
+- type: anonymize
+  field: "email"
+  operator: "mask_email"
+  params: {}  # Optional: operator-specific parameters
+```
 
 **Available operators:**
-- **Built-in**: `replace`, `redact`, `mask`, `hash`, `encrypt`, `keep`
-- **Custom**: `fake_email`, `fake_name`, `fake_phone`, `fake_address`, `fake_ssn`, `fake_credit_card`, `fake_iban`, `fake_us_bank_account`, `smart_mask`, `smart_fake`
-- **Aliases**: `fake`, `partial_redact`, `sha256`, `obscure`, `null`, `remove` (see [Strategy Aliases](presidio.md#strategy-aliases))
+- **Masking**: `mask_email`, `mask_phone`, `mask_ssn`, `mask_credit_card`, `mask`, `smart_mask`
+- **Hashing**: `hash`, `sha256`
+- **Fake Data**: `fake_email`, `fake_phone`, `fake_name`, `fake_address`, `fake_ssn`, `fake_credit_card`, `smart_fake`
+- **Other**: `redact`, `replace`, `encrypt`, `keep`
 
-**Example:**
+> **📖 For detailed operator descriptions, see [Presidio Documentation](presidio.md#anonymization-operators).**
+
+##### Template Values
+
+Fields support template strings with field references and special values:
+
 ```yaml
-pii_anonymized_fields:
-  email: fake_email            # Generate realistic fake email
-  phone: fake_phone            # Generate realistic fake phone
-  ssn: mask                    # Mask all but last 4 digits
-  "contact.email": smart_mask  # Nested field: preserves domain
-  "address.street": fake_address # Nested field: fake address
-  password_hash: redact        # Complete redaction
+# Single field reference
+- type: add_field
+  field: "name_copy"
+  value: "$name"
+
+# Nested field reference
+- type: add_field
+  field: "city"
+  value: "$address.city"
+
+# Concatenation (space-separated)
+- type: add_field
+  field: "full_name"
+  value: "$first_name $last_name"
+
+# Special values
+- type: add_field
+  field: "created_at"
+  value: "$now"  # Current timestamp
+
+- type: add_field
+  field: "deleted_at"
+  value: "$null"  # Null value
 ```
 
-> **💡 Tip:** You can use strategy aliases for convenience: `fake` → `fake_email`, `partial_redact` → `smart_mask`
+##### Conditional Execution
 
-> **📖 For detailed operator descriptions and examples, see [Presidio Documentation](presidio.md#anonymization-operators).**
-
-#### Field Transformations
-
-**`field_transforms`** (list of objects, optional)
-- Apply transformations to fields during replication
-- Uses regex patterns for flexible string manipulation
+All transforms support optional `condition` field for conditional execution:
 
 ```yaml
-field_transforms:
-  - field: "phone"
-    type: "regex_replace"
-    pattern: "\\D"
-    replacement: ""
+# Only transform if field exists
+- type: set_field
+  field: "premium"
+  value: true
+  condition:
+    field: "plan"
+    operator: "$eq"
+    value: "premium"
+
+# Only remove if status is inactive
+- type: remove_field
+  field: "credentials"
+  condition:
+    field: "status"
+    operator: "$ne"
+    value: "active"
 ```
 
-**Transform Options:**
-- `field` (string, required): Field name (supports dot notation)
-- `type` (string, required): Transformation type (currently only `"regex_replace"`)
-- `pattern` (string, required): Regular expression pattern to match
-- `replacement` (string, required): Replacement string
-- `error_mode` (string, optional): `"skip"` or `"fail"` (overrides global setting)
+**Supported operators:**
+- `$exists`: Field exists (`value: true`) or doesn't exist (`value: false`)
+- `$eq`: Equal to
+- `$ne`: Not equal to
+- `$gt`, `$gte`: Greater than (or equal)
+- `$lt`, `$lte`: Less than (or equal)
+- `$in`: Value in list
+- `$nin`: Value not in list
 
-Example transformations:
+##### Complete Example
+
 ```yaml
-field_transforms:
-  # Remove all non-digits from phone numbers
-  - field: "phone"
-    type: "regex_replace"
+transforms:
+  # Remove internal fields
+  - type: remove_field
+    field: ["_internal", "temp_data", "cache"]
+
+  # Anonymize PII
+  - type: anonymize
+    field: "email"
+    operator: "mask_email"
+
+  - type: anonymize
+    field: "ssn"
+    operator: "hash"
+
+  # Normalize phone numbers
+  - type: regex_replace
+    field: "phone"
     pattern: "\\D"
     replacement: ""
 
-  # Convert URLs to domains
-  - field: "website"
-    type: "regex_replace"
-    pattern: "^https?://([^/]+).*"
-    replacement: "\\1"
+  # Add metadata
+  - type: add_field
+    field: "environment"
+    value: "staging"
 
-  # Mask email domains
-  - field: "email"
-    type: "regex_replace"
-    pattern: "@.*$"
-    replacement: "@example.com"
+  # Set modified timestamp
+  - type: set_field
+    field: "modified_at"
+    value: "$now"
+
+  # Copy field only for premium users
+  - type: copy_field
+    from_field: "email"
+    to_field: "contact_email"
+    condition:
+      field: "plan"
+      operator: "$eq"
+      value: "premium"
 ```
 
 ### Schema Relationships
@@ -702,11 +823,15 @@ replication:
     users:
       cursor_field: "updated_at"
       primary_key: "_id"
-      fields_exclude:
-        - password_hash
-      pii_anonymized_fields:
-        email: "fake"
-        phone: "hash"
+      transforms:
+        - type: remove_field
+          field: "password_hash"
+        - type: anonymize
+          field: "email"
+          operator: "fake_email"
+        - type: anonymize
+          field: "phone"
+          operator: "hash"
 
     orders:
       cursor_field: "created_at"
@@ -728,10 +853,16 @@ replication:
   collections:
     customers:
       primary_key: "_id"
-      pii_anonymized_fields:
-        email: "fake"
-        phone: "hash"
-        ssn: "redact"
+      transforms:
+        - type: anonymize
+          field: "email"
+          operator: "fake_email"
+        - type: anonymize
+          field: "phone"
+          operator: "hash"
+        - type: anonymize
+          field: "ssn"
+          operator: "redact"
 
     orders:
       primary_key: "_id"
@@ -758,22 +889,27 @@ replication:
   collections:
     users:
       primary_key: "_id"
-      field_transforms:
+      transforms:
         # Normalize phone numbers
-        - field: "phone"
-          type: "regex_replace"
+        - type: "regex_replace"
+          field: "phone"
           pattern: "\\D"
           replacement: ""
 
         # Extract domain from email
-        - field: "email_domain"
-          type: "regex_replace"
+        - type: "regex_replace"
+          field: "email"
           pattern: ".*@(.*)$"
           replacement: "\\1"
 
-      pii_anonymized_fields:
-        email: "fake"
-        name: "hash"
+        # Anonymize PII fields
+        - type: "anonymize"
+          field: "email"
+          operator: "fake"
+
+        - type: "anonymize"
+          field: "name"
+          operator: "hash"
 ```
 
 ### Example 4: Advanced PII Detection
@@ -812,11 +948,22 @@ scan:
 replication:
   collections:
     sensitive_data:
-      pii_anonymized_fields:
-        email: "fake"
-        phone: "redact"
-        ssn: "redact"
-        credit_card: "null"
+      transforms:
+        - type: "anonymize"
+          field: "email"
+          operator: "fake"
+
+        - type: "anonymize"
+          field: "phone"
+          operator: "redact"
+
+        - type: "anonymize"
+          field: "ssn"
+          operator: "redact"
+
+        - type: "anonymize"
+          field: "credit_card"
+          operator: "null"
 ```
 
 ## Custom Presidio Configuration
@@ -879,10 +1026,18 @@ anonymization_operators:
 ```yaml
 collections:
   employees:
-    pii_anonymized_fields:
-      employee_id: hash
-      email: fake_email
-      ssn: mask
+    transforms:
+      - type: anonymize
+        field: employee_id
+        operator: hash
+
+      - type: anonymize
+        field: email
+        operator: fake_email
+
+      - type: anonymize
+        field: ssn
+        operator: mask
 ```
 
 ### Available Resources

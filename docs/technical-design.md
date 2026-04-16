@@ -46,8 +46,8 @@ The tool follows a modular, layered architecture with clear separation of concer
                      │
 ┌────────────────────▼────────────────────────────────────┐
 │                Processing Layer                         │
-│   (PresidioAnonymizer, FieldTransformer,              │
-│    FieldExcluder, CustomOperators)                    │
+│   (TransformationEngine, PresidioAnonymizer,          │
+│    PIIHandler, CustomOperators)                       │
 └────────────────────┬────────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────────┐
@@ -220,22 +220,15 @@ def _replicate_merge():
 **Processing Pipeline** (CRITICAL ORDER):
 ```python
 def _apply_transformations_and_exclusions(documents):
-    """Apply transformations in strict order."""
-    # 1. Field transformations (regex replace)
-    if field_transformer:
-        documents = field_transformer.transform_documents(documents)
-
-    # 2. PII redaction (operates on transformed data!)
-    documents = pii_handler.process_documents(documents)
-
-    # 3. Field exclusions (remove unwanted fields)
-    if field_excluder:
-        documents = field_excluder.exclude_fields_from_documents(documents)
+    """Apply transformations in strict order using unified TransformationEngine."""
+    # Single unified transformation pipeline
+    if transformation_engine:
+        documents = transformation_engine.transform_documents(documents)
 
     return documents
 ```
 
-> **⚠️ Order Matters**: PII detection runs on *transformed* data, ensuring anonymization sees final field values. Exclusions run last to remove unwanted fields after PII processing.
+> **✨ Unified Pipeline**: As of v2.0.0, all document transformations (field operations, regex replacements, PII anonymization) are handled by a single `TransformationEngine`. This replaces the previous fragmented system with multiple handlers.
 
 **Query Building**:
 ```python
@@ -613,27 +606,66 @@ custom_strategy_aliases:
 
 ### 7. Additional Components
 
-#### FieldTransformer
+#### TransformationEngine
 **Location**: `src/mongo_replication/engine/transformations.py`
 
-**Purpose**: Apply regex-based transformations to field values
+**Purpose**: Unified transformation pipeline supporting 7 transform types with conditional execution
 
+**Transform Types**:
 ```yaml
-field_transforms:
-  - field: billing_plan
-    type: regex_replace
-    pattern: ".*"
-    replacement: "free"
+transforms:
+  # Field operations
+  - type: add_field
+    field: new_field
+    value: "constant"
+
+  - type: set_field
+    field: existing_field
+    value: "$otherField"  # Template syntax
+
+  - type: remove_field
+    field: sensitive_data
+
+  - type: rename_field
+    from_field: old_name
+    to_field: new_name
+
+  - type: copy_field
+    from_field: source
+    to_field: destination
+
+  # Text transformation
+  - type: regex_replace
+    field: phone
+    pattern: "\\D"
+    replacement: ""
+
+  # PII anonymization
+  - type: anonymize
+    field: email
+    operator: fake
 ```
 
-#### FieldExcluder
-**Location**: `src/mongo_replication/engine/field_exclusion.py`
+**Conditional Execution**:
+```yaml
+transforms:
+  - type: set_field
+    field: status
+    value: "premium"
+    condition:
+      field: subscription_tier
+      operator: equals
+      value: "gold"
+```
 
-**Purpose**: Remove specified fields from documents
+**Supported Operators**: `equals`, `not_equals`, `greater_than`, `less_than`, `greater_or_equal`, `less_or_equal`, `in`, `not_in`, `exists`, `not_exists`, `regex_match`, `starts_with`, `ends_with`, `contains`
 
 **Features**:
-- "Keep parent with remaining fields" logic (doesn't remove empty parents)
-- Supports dot notation for nested fields
+- Executes transforms sequentially in configuration order
+- Template syntax: `$fieldName`, `$now`, `$null`
+- Preserves BSON types (ObjectId, datetime, Decimal128, etc.)
+- Integrates with PIIHandler for anonymization
+- Configurable error handling: `skip` or `fail`
 
 #### IndexManager
 **Location**: `src/mongo_replication/engine/indexes.py`
@@ -910,29 +942,38 @@ result = anonymizer_engine.anonymize(
 
 ```python
 def _apply_transformations_and_exclusions(documents):
-    """CRITICAL ORDER for data integrity."""
+    """Unified transformation pipeline (v2.0.0+)."""
 
-    # 1. Field transformations (regex replace)
-    #    Example: billing_plan → "free"
-    if field_transformer:
-        documents = field_transformer.transform_documents(documents)
-
-    # 2. PII redaction (operates on TRANSFORMED data!)
-    #    Ensures PII detection sees final field values
-    documents = pii_handler.process_documents(documents)
-
-    # 3. Field exclusions (remove unwanted fields)
-    #    Runs last to avoid PII detection on excluded fields
-    if field_excluder:
-        documents = field_excluder.exclude_fields_from_documents(documents)
+    # Single transformation engine handles all transform types
+    if transformation_engine:
+        documents = transformation_engine.transform_documents(documents)
 
     return documents
 ```
 
-> **⚠️ Why Order Matters**:
-> - PII detection must see transformed values (e.g., after regex replacement)
-> - Field exclusions run last to avoid wasted PII processing
-> - Changing this order can cause PII leaks or incorrect anonymization
+**Transform Execution Order**:
+The transforms are applied sequentially in the order defined in the configuration:
+
+```yaml
+transforms:
+  # 1. First: Field manipulations
+  - type: set_field
+    field: billing_plan
+    value: "free"
+
+  # 2. Then: Regex transformations
+  - type: regex_replace
+    field: phone
+    pattern: "\\D"
+    replacement: ""
+
+  # 3. Finally: PII anonymization
+  - type: anonymize
+    field: email
+    operator: fake
+```
+
+> **✨ New in v2.0.0**: The unified `TransformationEngine` replaces the previous fragmented system (`FieldTransformer`, `PIIHandler`, `FieldExcluder`). All transforms execute in configuration order, providing predictable and flexible data transformation.
 
 ## Data Flow
 
@@ -1028,18 +1069,32 @@ def _apply_transformations_and_exclusions(documents):
 
 ## Extension Points
 
-### Custom Field Transformations
+### Document Transformations
 
-```python
-# In YAML configuration
+```yaml
+# In YAML configuration (v2.0.0+)
 replication:
   collections:
     orders:
-      field_transforms:
-        - field: price
-          type: regex_replace
+      transforms:
+        # Field operations
+        - type: remove_field
+          field: internal_notes
+
+        # Text transformations
+        - type: regex_replace
+          field: price
           pattern: '\d+'
           replacement: '0'
+
+        # Conditional transforms
+        - type: set_field
+          field: discount
+          value: "10%"
+          condition:
+            field: total
+            operator: greater_than
+            value: 100
 ```
 
 ### Custom PII Operators

@@ -347,10 +347,18 @@ custom_strategy_aliases:
 
 **Usage example:**
 ```yaml
-pii_anonymized_fields:
-  email: fake           # Alias for fake_email
-  ssn: partial_redact   # Alias for smart_redact
-  id: hash              # Uses hash operator
+transforms:
+  - type: anonymize
+    field: email
+    operator: fake           # Alias for fake_email
+
+  - type: anonymize
+    field: ssn
+    operator: partial_redact   # Alias for smart_redact
+
+  - type: anonymize
+    field: id
+    operator: hash              # Uses hash operator
 ```
 
 ## Configuration
@@ -377,11 +385,22 @@ Then configure anonymization per collection:
 ```yaml
 collections:
   users:
-    pii_anonymized_fields:
-      email: smart_redact      # Presidio operator
-      phone: fake_phone        # Custom operator
-      ssn: mask                # Presidio operator
-      "address.street": fake_address  # Nested field
+    transforms:
+      - type: anonymize
+        field: email
+        operator: smart_redact      # Presidio operator
+
+      - type: anonymize
+        field: phone
+        operator: fake_phone        # Custom operator
+
+      - type: anonymize
+        field: ssn
+        operator: mask                # Presidio operator
+
+      - type: anonymize
+        field: "address.street"
+        operator: fake_address  # Nested field
 ```
 
 ### Custom Presidio YAML Configuration
@@ -538,12 +557,26 @@ scan:
 
 collections:
   patients:
-    pii_anonymized_fields:
-      mrn: hash
-      patient_id: hash
-      name: fake_name
-      phone: fake_phone
-      ssn: mask
+    transforms:
+      - type: anonymize
+        field: mrn
+        operator: hash
+
+      - type: anonymize
+        field: patient_id
+        operator: hash
+
+      - type: anonymize
+        field: name
+        operator: fake_name
+
+      - type: anonymize
+        field: phone
+        operator: fake_phone
+
+      - type: anonymize
+        field: ssn
+        operator: mask
 ```
 
 ### Example 2: Financial Data
@@ -597,10 +630,18 @@ scan:
 
 collections:
   transactions:
-    pii_anonymized_fields:
-      account_number: fake_account    # Uses alias
-      iban: fake_iban
-      customer_email: fake_email
+    transforms:
+      - type: anonymize
+        field: account_number
+        operator: fake_account    # Uses alias
+
+      - type: anonymize
+        field: iban
+        operator: fake_iban
+
+      - type: anonymize
+        field: customer_email
+        operator: fake_email
 ```
 
 ### Example 3: E-commerce Platform
@@ -620,18 +661,34 @@ scan:
 
 collections:
   customers:
-    pii_anonymized_fields:
+    transforms:
       # Auto-detected fields use default strategies
       # Manual overrides for specific needs
-      email: fake_email              # Override default smart_mask
-      phone: fake_phone              # Override default mask
-      "billing.card_number": fake_credit_card  # Nested field
-      "shipping.address": fake_address
+      - type: anonymize
+        field: email
+        operator: fake_email              # Override default smart_mask
+
+      - type: anonymize
+        field: phone
+        operator: fake_phone              # Override default mask
+
+      - type: anonymize
+        field: "billing.card_number"
+        operator: fake_credit_card  # Nested field
+
+      - type: anonymize
+        field: "shipping.address"
+        operator: fake_address
 
   orders:
-    pii_anonymized_fields:
-      customer_email: fake_email
-      "payment.last4": keep          # Keep last 4 digits (not sensitive)
+    transforms:
+      - type: anonymize
+        field: customer_email
+        operator: fake_email
+
+      - type: anonymize
+        field: "payment.last4"
+        operator: keep          # Keep last 4 digits (not sensitive)
 ```
 
 ## Advanced Topics
@@ -684,16 +741,26 @@ The anonymizer supports complex MongoDB structures:
 
 **Nested fields:**
 ```yaml
-pii_anonymized_fields:
-  "user.profile.email": fake_email
-  "billing.address.street": fake_address
+transforms:
+  - type: anonymize
+    field: "user.profile.email"
+    operator: fake_email
+
+  - type: anonymize
+    field: "billing.address.street"
+    operator: fake_address
 ```
 
 **Array fields:**
 ```yaml
-pii_anonymized_fields:
-  "contacts.email": fake_email        # Applies to all array elements
-  "orders.items.price": keep
+transforms:
+  - type: anonymize
+    field: "contacts.email"
+    operator: fake_email        # Applies to all array elements
+
+  - type: anonymize
+    field: "orders.items.price"
+    operator: keep
 ```
 
 ### Performance Considerations
