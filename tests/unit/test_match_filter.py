@@ -46,7 +46,10 @@ class TestMatchFilterQueryBuilding:
 
         query = self.replicator._build_query("updatedAt")
 
-        assert query == {"updatedAt": {"$gt": last_date}}
+        # Should include $or to handle documents where cursor field doesn't exist
+        assert query == {
+            "$or": [{"updatedAt": {"$exists": False}}, {"updatedAt": {"$gt": last_date}}]
+        }
 
     def test_build_query_with_match_filter_only(self):
         """Test query building with match filter but no cursor."""
@@ -70,7 +73,10 @@ class TestMatchFilterQueryBuilding:
         # Should combine with $and
         assert "$and" in query
         assert len(query["$and"]) == 2
-        assert {"updatedAt": {"$gt": last_date}} in query["$and"]
+        # Cursor filter now uses $or to include docs where cursor field doesn't exist
+        assert {
+            "$or": [{"updatedAt": {"$exists": False}}, {"updatedAt": {"$gt": last_date}}]
+        } in query["$and"]
         assert match_filter in query["$and"]
 
     def test_build_query_with_complex_match_filter(self):
@@ -98,7 +104,59 @@ class TestMatchFilterQueryBuilding:
 
         # Must use $and to avoid conflicts
         assert "$and" in query
-        assert {"counter": {"$gt": last_value}} in query["$and"]
+        # Cursor filter now uses $or to include docs where cursor field doesn't exist
+        assert {
+            "$or": [{"counter": {"$exists": False}}, {"counter": {"$gt": last_value}}]
+        } in query["$and"]
+        assert match_filter in query["$and"]
+
+    def test_build_query_with_cursor_initial_value(self):
+        """Test query building with cursor_initial_value (first-time replication)."""
+        self.replicator._match_filter = {}
+        self.replicator._cursor_initial_value = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        self.state_manager.get_last_cursor_value.return_value = None
+
+        query = self.replicator._build_query("updatedAt")
+
+        # Should use cursor_initial_value and include $or for missing fields
+        assert query == {
+            "$or": [
+                {"updatedAt": {"$exists": False}},
+                {"updatedAt": {"$gt": datetime(2000, 1, 1, tzinfo=timezone.utc)}},
+            ]
+        }
+
+    def test_build_query_with_nested_cursor_field(self):
+        """Test query building with nested cursor field like meta.updatedAt."""
+        self.replicator._match_filter = {}
+        last_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        self.state_manager.get_last_cursor_value.return_value = last_date
+
+        query = self.replicator._build_query("meta.updatedAt")
+
+        # Should handle nested fields with $or for missing fields
+        assert query == {
+            "$or": [{"meta.updatedAt": {"$exists": False}}, {"meta.updatedAt": {"$gt": last_date}}]
+        }
+
+    def test_build_query_nested_cursor_with_match_filter(self):
+        """Test nested cursor field combined with match filter."""
+        match_filter = {"status": "active"}
+        self.replicator._match_filter = match_filter
+        self.replicator._cursor_initial_value = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        self.state_manager.get_last_cursor_value.return_value = None
+
+        query = self.replicator._build_query("meta.updatedAt")
+
+        # Should combine cursor $or with match filter using $and
+        assert "$and" in query
+        assert len(query["$and"]) == 2
+        assert {
+            "$or": [
+                {"meta.updatedAt": {"$exists": False}},
+                {"meta.updatedAt": {"$gt": datetime(2000, 1, 1, tzinfo=timezone.utc)}},
+            ]
+        } in query["$and"]
         assert match_filter in query["$and"]
 
 
