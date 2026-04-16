@@ -322,7 +322,12 @@ replication:
 
 
 class TestPIIFieldAnonymization:
-    """Tests for PIIFieldAnonymization model."""
+    """Tests for PIIFieldAnonymization model.
+
+    Note: PIIFieldAnonymization is an internal model used by the PII handler.
+    Users should use AnonymizeTransform in the transforms pipeline.
+    These tests verify the internal model works correctly.
+    """
 
     def test_create_with_all_fields(self):
         """Test creating PIIFieldAnonymization with all required fields."""

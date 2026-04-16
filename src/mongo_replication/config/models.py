@@ -410,10 +410,15 @@ class ReplicationDefaultsConfig(BaseModel):
 
 
 class PIIFieldAnonymization(BaseModel):
-    """Configuration for anonymizing a single field.
+    """Internal configuration model for PII field anonymization.
 
-    This is used internally by the PII handler and for backwards compatibility.
-    For new configurations, use AnonymizeTransform in the transforms pipeline.
+    This class is used internally by:
+    - The PIIHandler to process anonymization requests
+    - The TransformationEngine to interface with the PII handler
+    - The scan command to generate anonymization configs
+
+    **User-facing API:** Use `AnonymizeTransform` in the `transforms` pipeline instead.
+    This model exists for internal architecture and backwards compatibility.
     """
 
     field: str
