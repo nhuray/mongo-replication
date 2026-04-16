@@ -479,13 +479,16 @@ recognizer_registry:
 # Operators are used in the collection configuration to specify how PII should
 # be anonymized during replication.
 #
-# Usage in collection config (new list format):
-#   pii_anonymization:
-#     - field: email
+# Usage in collection config (transforms format):
+#   transforms:
+#     - type: anonymize
+#       field: email
 #       operator: mask_email
-#     - field: ssn
+#     - type: anonymize
+#       field: ssn
 #       operator: mask_ssn
-#     - field: phone
+#     - type: anonymize
+#       field: phone
 #       operator: smart_mask
 #
 # Operator categories:

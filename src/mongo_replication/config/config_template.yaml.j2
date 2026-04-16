@@ -206,44 +206,46 @@ replication:
       write_disposition: {{ coll_config.write_disposition }}
       # Primary key field for merges and deduplication
       primary_key: {{ coll_config.primary_key }}
-{%- if coll_config.pii_anonymization %}
-      # PII fields and their anonymization strategies
-      # Each entry specifies: field path, operator (e.g., mask_email, fake_phone), and params dict
-      pii_anonymization:
-{%- for pii_field in coll_config.pii_anonymization %}
-        - field: {{ pii_field.field | tojson }}
-          operator: {{ pii_field.operator }}
-{%- if pii_field.params %}
+{%- if coll_config.transforms %}
+      # Document transformations applied in order
+      # Supports: add_field, set_field, remove_field, rename_field, copy_field, regex_replace, anonymize
+      transforms:
+{%- for transform in coll_config.transforms %}
+        - type: {{ transform.type }}
+          field: {{ transform.field | tojson }}
+{%- if transform.value is defined %}
+          value: {{ transform.value | tojson }}
+{%- endif %}
+{%- if transform.to_field is defined %}
+          to_field: {{ transform.to_field | tojson }}
+{%- endif %}
+{%- if transform.pattern is defined %}
+          pattern: {{ transform.pattern | tojson }}
+{%- endif %}
+{%- if transform.replacement is defined %}
+          replacement: {{ transform.replacement | tojson }}
+{%- endif %}
+{%- if transform.operator is defined %}
+          operator: {{ transform.operator }}
+{%- endif %}
+{%- if transform.params %}
           params:
-{%- for key, value in pii_field.params.items() %}
+{%- for key, value in transform.params.items() %}
             {{ key }}: {{ value }}
 {%- endfor %}
 {%- endif %}
-{%- endfor %}
-{%- elif coll_config.pii_anonymized_fields %}
-      # DEPRECATED: Using old pii_anonymized_fields format
-      # Please migrate to pii_anonymization list format
-      pii_anonymized_fields:
-{%- for field, strategy in coll_config.pii_anonymized_fields.items() %}
-        {{ field }}: {{ strategy }}
+{%- if transform.condition %}
+          condition:
+            field: {{ transform.condition.field | tojson }}
+            operator: {{ transform.condition.operator }}
+            value: {{ transform.condition.value | tojson }}
+{%- endif %}
 {%- endfor %}
 {%- endif %}
 {%- if coll_config.match %}
       # MongoDB filter to select specific documents
       match:
 {{ coll_config.match | toyaml(indent=8) | indent(8, first=False) }}
-{%- endif %}
-{%- if coll_config.field_transforms %}
-      # Field transformations (regex replace, etc.)
-      field_transforms:
-{{ coll_config.field_transforms | toyaml(indent=10) | indent(8, first=False) }}
-{%- endif %}
-{%- if coll_config.fields_exclude %}
-      # Fields to exclude from replication
-      fields_exclude:
-{%- for field in coll_config.fields_exclude %}
-        - {{ field }}
-{%- endfor %}
 {%- endif %}
 {%- endfor %}
 {%- else %}

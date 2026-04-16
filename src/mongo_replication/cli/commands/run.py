@@ -419,10 +419,8 @@ def run_command(
                             cursor_field=None,
                             write_disposition="replace",
                             primary_key="_id",
-                            pii_anonymized_fields={},
                             match=None,
-                            field_transforms=[],
-                            fields_exclude=[],
+                            transforms=[],
                             transform_error_mode="skip",
                         )
 
@@ -572,10 +570,8 @@ def run_command(
                             cursor_field=None,
                             write_disposition="replace",
                             primary_key="_id",
-                            pii_anonymized_fields={},
                             match=None,
-                            field_transforms=[],
-                            fields_exclude=[],
+                            transforms=[],
                             transform_error_mode="skip",
                         )
                         replication_config.collections[coll_name] = coll_config
@@ -696,12 +692,8 @@ def run_command(
             else:
                 # Show standard collection list
                 for coll_name, coll_config in replication_config.collections.items():
-                    pii_count = (
-                        len(coll_config.pii_anonymized_fields)
-                        if coll_config.pii_anonymized_fields
-                        else 0
-                    )
-                    console.print(f"  • [cyan]{coll_name}[/cyan] (PII fields: {pii_count})")
+                    transforms_count = len(coll_config.transforms) if coll_config.transforms else 0
+                    console.print(f"  • [cyan]{coll_name}[/cyan] (transforms: {transforms_count})")
 
             console.print()
             print_info("Dry run complete. No data was replicated.")
