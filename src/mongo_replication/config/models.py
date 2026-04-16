@@ -410,10 +410,10 @@ class ReplicationDefaultsConfig(BaseModel):
 
 
 class PIIFieldAnonymization(BaseModel):
-    """DEPRECATED: Old configuration for anonymizing a single field.
+    """Configuration for anonymizing a single field.
 
-    This class is kept temporarily for reference but is no longer used.
-    Use AnonymizeTransform in the transforms pipeline instead.
+    This is used internally by the PII handler and for backwards compatibility.
+    For new configurations, use AnonymizeTransform in the transforms pipeline.
     """
 
     field: str
