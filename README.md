@@ -399,63 +399,63 @@ The tool will:
 3. Cascade through the entire relationship chain
 4. Replicate all matching documents
 
-### PII Anonymization
+### Transformations
 
-Built-in PII anonymization with support for multi-entity fields:
+Built-in support for field transformations, PII anonymization, and more through a unified `transforms` pipeline:
 
 ```yaml
 replication:
    collections:
      users:
-        # New format: supports multiple entity types per field
-        pii_anonymization:
+        transforms:
+          # PII anonymization - supports multiple entity types per field
           - field: email
+            type: anonymize
             operator: mask_email
-            entity_type: EMAIL_ADDRESS
+            params:
+              entity_type: EMAIL_ADDRESS
           - field: phone
+            type: anonymize
             operator: mask_phone
-            entity_type: PHONE_NUMBER
+            params:
+              entity_type: PHONE_NUMBER
           - field: contact_info           # Field with multiple PII types
+            type: anonymize
             operator: mask_person
-            entity_type: PERSON
+            params:
+              entity_type: PERSON
           - field: contact_info           # Same field, second entity type
+            type: anonymize
             operator: mask_email
-            entity_type: EMAIL_ADDRESS
+            params:
+              entity_type: EMAIL_ADDRESS
           - field: ssn
+            type: anonymize
             operator: hash
-            entity_type: US_SSN
+            params:
+              entity_type: US_SSN
+
+          # Field transformations
+          - field: status
+            type: set_field
+            value: active
+
+          # Regex transformations
+          - field: billing_plan
+            type: regex_replace
+            pattern: '.*'
+            replacement: 'free'
+
+          # Field removal
+          - field: password_hash
+            type: remove_field
+          - field: internal_notes
+            type: remove_field
+          - field: legacy_data
+            type: remove_field
 ```
 
-The scan command automatically detects multi-entity fields and configures operators in confidence order.
-
-### Field Transformations
-
-Apply custom transformations:
-
-```yaml
-replication:
-   collections:
-     orders:
-       field_transforms:
-         - field: billing_plan
-           type: regex_replace
-           pattern: '.*'
-           replacement: 'free'
-```
-
-### Field Exclusion
-
-Exclude sensitive fields:
-
-```yaml
-replication:
-   collections:
-     users:
-       fields_exclude:
-         - password_hash
-         - internal_notes
-          - legacy_data
-```
+The scan command automatically detects PII fields and multi-entity fields, configuring operators in confidence order.
 
 ## 💾 State Management
 

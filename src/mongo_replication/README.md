@@ -264,10 +264,16 @@ replication:
   # Per-collection configuration
   collections:
     users:
-      pii_fields:
-        email: fake
-        phone: fake
-        ssn: redact
+      transforms:
+        - field: email
+          type: anonymize
+          operator: fake_email
+        - field: phone
+          type: anonymize
+          operator: fake_phone
+        - field: ssn
+          type: anonymize
+          operator: redact
       cursor_field: "meta.updatedAt"
       write_disposition: merge
       primary_key: _id
