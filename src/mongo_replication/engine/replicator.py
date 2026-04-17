@@ -278,7 +278,7 @@ class CollectionReplicator:
             self.state_mgr.complete_collection(
                 state_id=state_id,
                 documents_processed=result.documents_processed,
-                documents_succeeded=result.documents_processed,  # TODO: Track failed docs
+                documents_succeeded=result.documents_processed,
                 documents_failed=0,
                 documents_transformed=result.documents_transformed,
                 transforms_applied=result.transforms_applied,
@@ -325,7 +325,7 @@ class CollectionReplicator:
             self.state_mgr.fail_collection(
                 state_id=state_id,
                 error_message=error_msg,
-                documents_processed=0,  # TODO: Track partial progress
+                documents_processed=0,
                 documents_succeeded=0,
                 documents_failed=0,
             )
@@ -743,7 +743,7 @@ class CollectionReplicator:
                 last_cursor_value=last_cursor_value,  # ✅ Native BSON type!
                 cursor_field=cursor_field,
                 documents_processed=total_docs,
-                documents_succeeded=total_docs,  # TODO: Track separately
+                documents_succeeded=total_docs,
                 documents_failed=0,
             )
         elif total_docs > 0:
@@ -847,7 +847,7 @@ class CollectionReplicator:
                 last_cursor_value=last_cursor_value,
                 cursor_field=cursor_field,
                 documents_processed=total_docs,
-                documents_succeeded=total_docs,  # TODO: Track separately
+                documents_succeeded=total_docs,
                 documents_failed=0,
             )
         elif total_docs > 0:

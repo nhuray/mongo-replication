@@ -290,30 +290,6 @@ class TransformationEngine:
 
         return result
 
-    def transform_document(self, doc: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform single document through all transformations.
-
-        DEPRECATED: This method is kept for backward compatibility but is not used
-        in the optimized batch processing pipeline. Use transform_documents() instead.
-
-        Args:
-            doc: Document to transform
-
-        Returns:
-            Transformed document
-        """
-        # Create temporary stats object (not returned in single-doc mode)
-        temp_stats = TransformResults()
-
-        # Apply non-anonymize transforms
-        result = self._apply_non_anonymize_transforms(doc, temp_stats)
-
-        # Apply anonymize transforms (single-document mode)
-        if self.anonymize_transforms and self.pii_handler:
-            result = self.pii_handler.process_documents([result])[0]
-
-        return result
-
     def _get_or_create_operation_result(
         self, stats: TransformResults, operation_type: str
     ) -> TransformOperationResults:

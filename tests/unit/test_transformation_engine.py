@@ -31,7 +31,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "status": "active"}
 
@@ -42,7 +43,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "address": {"city": "NYC"}}
 
@@ -53,27 +55,32 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice", "address": {"city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "address": {"city": "NYC", "zipcode": "10001"}}
 
     def test_add_field_error_when_exists(self):
         """Test that adding a field that exists raises error."""
-        engine = TransformationEngine(transforms=[AddFieldTransform(field="name", value="Bob")])
+        engine = TransformationEngine(
+            transforms=[AddFieldTransform(field="name", value="Bob")],
+            error_mode="fail",
+        )
 
         doc = {"name": "Alice"}
         with pytest.raises(TransformationError, match="field already exists"):
-            engine.transform_document(doc)
+            _, _ = engine.transform_documents([doc])
 
     def test_add_field_error_when_nested_exists(self):
         """Test that adding a nested field that exists raises error."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="address.city", value="LA")]
+            transforms=[AddFieldTransform(field="address.city", value="LA")],
+            error_mode="fail",
         )
 
         doc = {"address": {"city": "NYC"}}
         with pytest.raises(TransformationError, match="field already exists"):
-            engine.transform_document(doc)
+            _, _ = engine.transform_documents([doc])
 
     def test_add_field_with_literal_values(self):
         """Test adding fields with different literal types."""
@@ -87,7 +94,8 @@ class TestAddFieldTransform:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["count"] == 42
         assert result["price"] == 19.99
@@ -101,7 +109,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "name_copy": "Alice"}
 
@@ -112,7 +121,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"first_name": "Alice", "last_name": "Smith"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["full_name"] == "Alice Smith"
 
@@ -123,7 +133,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"address": {"city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["city_copy"] == "NYC"
 
@@ -135,7 +146,8 @@ class TestAddFieldTransform:
 
         doc = {}
         before = datetime.utcnow()
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
         after = datetime.utcnow()
 
         assert isinstance(result["created_at"], datetime)
@@ -148,7 +160,8 @@ class TestAddFieldTransform:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"deleted_at": None}
 
@@ -168,7 +181,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {
             "name": "Alice",
@@ -191,7 +205,8 @@ class TestAddFieldTransform:
         )
 
         doc = {"name": "Alice", "config": {}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {
             "name": "Alice",
@@ -209,7 +224,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "status": "active"}
 
@@ -220,7 +236,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "Alice", "status": "active"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "status": "inactive"}
 
@@ -231,7 +248,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "Alice", "address": {"city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["address"]["city"] == "LA"
 
@@ -242,7 +260,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["name_copy"] == "alice"
 
@@ -251,7 +270,8 @@ class TestSetFieldTransform:
         engine = TransformationEngine(transforms=[SetFieldTransform(field="a.b.c.d", value="deep")])
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"a": {"b": {"c": {"d": "deep"}}}}
 
@@ -270,7 +290,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {
             "name": "Alice",
@@ -292,7 +313,8 @@ class TestSetFieldTransform:
         )
 
         doc = {"name": "Alice", "status": "active"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {
             "name": "Alice",
@@ -308,7 +330,8 @@ class TestRemoveFieldTransform:
         engine = TransformationEngine(transforms=[RemoveFieldTransform(field="password")])
 
         doc = {"name": "Alice", "password": "secret"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice"}
 
@@ -319,7 +342,8 @@ class TestRemoveFieldTransform:
         )
 
         doc = {"name": "Alice", "password": "secret", "ssn": "123-45-6789", "age": 30}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "age": 30}
 
@@ -328,7 +352,8 @@ class TestRemoveFieldTransform:
         engine = TransformationEngine(transforms=[RemoveFieldTransform(field="address.zipcode")])
 
         doc = {"name": "Alice", "address": {"city": "NYC", "zipcode": "10001"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "address": {"city": "NYC"}}
 
@@ -337,7 +362,8 @@ class TestRemoveFieldTransform:
         engine = TransformationEngine(transforms=[RemoveFieldTransform(field="address.city")])
 
         doc = {"name": "Alice", "address": {"city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Empty 'address' object should be removed
         assert result == {"name": "Alice"}
@@ -347,7 +373,8 @@ class TestRemoveFieldTransform:
         engine = TransformationEngine(transforms=[RemoveFieldTransform(field="nonexistent")])
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice"}
 
@@ -356,7 +383,8 @@ class TestRemoveFieldTransform:
         engine = TransformationEngine(transforms=[RemoveFieldTransform(field="a.b.c.d")])
 
         doc = {"name": "Alice", "a": {"b": {"c": {"d": "value"}}}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # All empty parents should be cleaned up
         assert result == {"name": "Alice"}
@@ -369,7 +397,8 @@ class TestRemoveFieldTransform:
             "name": "Alice",
             "address": {"city": "NYC", "zipcode": "10001", "country": "USA"},
         }
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "address": {"city": "NYC", "country": "USA"}}
 
@@ -384,7 +413,8 @@ class TestRenameFieldTransform:
         )
 
         doc = {"old_name": "value", "other": "data"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"new_name": "value", "other": "data"}
 
@@ -395,7 +425,8 @@ class TestRenameFieldTransform:
         )
 
         doc = {"address": {"zip": "10001", "city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"address": {"zipcode": "10001", "city": "NYC"}}
 
@@ -406,7 +437,8 @@ class TestRenameFieldTransform:
         )
 
         doc = {"name": "Alice", "city": "NYC"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "address": {"city": "NYC"}}
 
@@ -417,19 +449,21 @@ class TestRenameFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice"}
 
     def test_rename_field_error_when_target_exists(self):
         """Test that renaming to existing field raises error."""
         engine = TransformationEngine(
-            transforms=[RenameFieldTransform(from_field="old_name", to_field="existing")]
+            transforms=[RenameFieldTransform(from_field="old_name", to_field="existing")],
+            error_mode="fail",
         )
 
         doc = {"old_name": "value", "existing": "data"}
         with pytest.raises(TransformationError, match="target field already exists"):
-            engine.transform_document(doc)
+            _, _ = engine.transform_documents([doc])
 
     def test_rename_field_with_overwrite(self):
         """Test renaming with overwrite=True."""
@@ -440,7 +474,8 @@ class TestRenameFieldTransform:
         )
 
         doc = {"old_name": "new_value", "existing": "old_value"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"existing": "new_value"}
 
@@ -451,7 +486,8 @@ class TestRenameFieldTransform:
         )
 
         doc = {"old": {"nested": {"field": "value"}}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Empty parent chain should be cleaned up
         assert result == {"new_field": "value"}
@@ -467,7 +503,8 @@ class TestCopyFieldTransform:
         )
 
         doc = {"name": "Alice", "age": 30}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "age": 30, "name_backup": "Alice"}
 
@@ -478,7 +515,8 @@ class TestCopyFieldTransform:
         )
 
         doc = {"name": "Alice", "address": {"city": "NYC", "zipcode": "10001"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["city"] == "NYC"
         assert result["address"]["city"] == "NYC"  # Original still exists
@@ -490,7 +528,8 @@ class TestCopyFieldTransform:
         )
 
         doc = {"city": "NYC"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"city": "NYC", "backup": {"city": "NYC"}}
 
@@ -501,19 +540,21 @@ class TestCopyFieldTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice"}
 
     def test_copy_field_error_when_target_exists(self):
         """Test that copying to existing field raises error."""
         engine = TransformationEngine(
-            transforms=[CopyFieldTransform(from_field="name", to_field="existing")]
+            transforms=[CopyFieldTransform(from_field="name", to_field="existing")],
+            error_mode="fail",
         )
 
         doc = {"name": "Alice", "existing": "data"}
         with pytest.raises(TransformationError, match="target field already exists"):
-            engine.transform_document(doc)
+            _, _ = engine.transform_documents([doc])
 
     def test_copy_field_with_overwrite(self):
         """Test copying with overwrite=True."""
@@ -522,7 +563,8 @@ class TestCopyFieldTransform:
         )
 
         doc = {"name": "Alice", "existing": "old_value"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "existing": "Alice"}
 
@@ -533,7 +575,8 @@ class TestCopyFieldTransform:
         )
 
         doc = {"data": {"nested": "value"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Verify it's a deep copy by checking they're different objects
         assert result["data"] == result["data_copy"]
@@ -554,7 +597,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"email": "alice@example.com"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"email": "alice@test.com"}
 
@@ -569,7 +613,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"name": "Alice Smith"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Smith, Alice"}
 
@@ -586,7 +631,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"user": {"email": "alice@example.com"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["user"]["email"] == "alice@test.com"
 
@@ -601,7 +647,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"email": "alice@other.com"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Value should remain unchanged
         assert result == {"email": "alice@other.com"}
@@ -615,7 +662,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Document should remain unchanged
         assert result == {"name": "Alice"}
@@ -627,7 +675,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"age": 30}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Non-string field should remain unchanged
         assert result == {"age": 30}
@@ -639,7 +688,8 @@ class TestRegexReplaceTransform:
         )
 
         doc = {"text": "foo foo foo"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"text": "bar bar bar"}
 
@@ -654,7 +704,8 @@ class TestAnonymizeTransform:
         )
 
         doc = {"name": "Alice", "email": "alice@example.com"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Email should be masked (exact format depends on PII handler)
         assert result["name"] == "Alice"
@@ -666,7 +717,8 @@ class TestAnonymizeTransform:
         engine = TransformationEngine(transforms=[AnonymizeTransform(field="ssn", operator="hash")])
 
         doc = {"name": "Alice", "ssn": "123-45-6789"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # SSN should be hashed
         assert result["name"] == "Alice"
@@ -686,7 +738,8 @@ class TestAnonymizeTransform:
         )
 
         doc = {"email": "alice@example.com"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Email should be masked
         assert result["email"] != "alice@example.com"
@@ -698,7 +751,8 @@ class TestAnonymizeTransform:
         )
 
         doc = {"user": {"name": "Alice", "email": "alice@example.com"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["user"]["name"] == "Alice"
         assert result["user"]["email"] != "alice@example.com"
@@ -713,7 +767,8 @@ class TestAnonymizeTransform:
         )
 
         doc = {"email": "alice@example.com", "ssn": "123-45-6789"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["email"] != "alice@example.com"
         assert result["ssn"] != "123-45-6789"
@@ -735,7 +790,8 @@ class TestConditionalExecution:
         )
 
         doc = {"name": "Alice", "email": "alice@example.com"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["has_email"] is True
 
@@ -752,7 +808,8 @@ class TestConditionalExecution:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["no_email"] is True
 
@@ -769,7 +826,8 @@ class TestConditionalExecution:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Transform should be skipped, field not added
         assert "has_email" not in result
@@ -787,7 +845,8 @@ class TestConditionalExecution:
         )
 
         doc = {"status": "active"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["is_active"] is True
 
@@ -804,7 +863,8 @@ class TestConditionalExecution:
         )
 
         doc = {"status": "inactive"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["is_active"] is False
 
@@ -821,7 +881,8 @@ class TestConditionalExecution:
         )
 
         doc = {"age": 25}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["is_adult"] is True
 
@@ -838,7 +899,8 @@ class TestConditionalExecution:
         )
 
         doc = {"age": 18}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["can_vote"] is True
 
@@ -855,7 +917,8 @@ class TestConditionalExecution:
         )
 
         doc = {"age": 15}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["is_minor"] is True
 
@@ -872,7 +935,8 @@ class TestConditionalExecution:
         )
 
         doc = {"age": 12}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["discount_eligible"] is True
 
@@ -891,7 +955,8 @@ class TestConditionalExecution:
         )
 
         doc = {"tier": "gold"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["premium_user"] is True
 
@@ -910,7 +975,8 @@ class TestConditionalExecution:
         )
 
         doc = {"tier": "bronze"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["basic_user"] is True
 
@@ -927,7 +993,8 @@ class TestConditionalExecution:
         )
 
         doc = {"address": {"country": "USA", "city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["in_usa"] is True
 
@@ -946,7 +1013,8 @@ class TestTransformPipelineOrdering:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"step1": "first", "step2": "second", "step3": "third"}
 
@@ -960,7 +1028,8 @@ class TestTransformPipelineOrdering:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice", "greeting": "Hello Alice"}
 
@@ -974,7 +1043,8 @@ class TestTransformPipelineOrdering:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"new_name": "data"}
 
@@ -988,7 +1058,8 @@ class TestTransformPipelineOrdering:
         )
 
         doc = {"original": "data"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["original"] == "modified"
         assert result["backup"] == "data"
@@ -1005,7 +1076,8 @@ class TestTransformPipelineOrdering:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Only full_name should remain
         assert result == {"full_name": "Alice Smith"}
@@ -1042,7 +1114,7 @@ class TestErrorHandling:
 
         doc = {"name": "Bob"}  # Field already exists
         with pytest.raises(TransformationError, match="Transform failed"):
-            engine.transform_documents([doc])
+            _, _ = engine.transform_documents([doc])
 
     def test_error_mode_skip_batch_processing(self):
         """Test error_mode=skip with batch processing."""
@@ -1082,7 +1154,8 @@ class TestBSONTypePreservation:
 
         object_id = ObjectId()
         doc = {"_id": object_id, "name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["_id"] == object_id
         assert isinstance(result["_id"], ObjectId)
@@ -1097,7 +1170,8 @@ class TestBSONTypePreservation:
 
         now = datetime.utcnow()
         doc = {"created_at": now, "name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["created_at"] == now
         assert isinstance(result["created_at"], datetime)
@@ -1112,7 +1186,8 @@ class TestBSONTypePreservation:
 
         object_id = ObjectId()
         doc = {"_id": object_id}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["_id"] == object_id
         assert result["original_id"] == object_id
@@ -1129,7 +1204,8 @@ class TestBSONTypePreservation:
 
         now = datetime.utcnow()
         doc = {"created_at": now}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["created_at"] == now
         assert result["backup_created_at"] == now
@@ -1152,7 +1228,8 @@ class TestBSONTypePreservation:
                 "timestamp": now,
             }
         }
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert isinstance(result["metadata"]["id"], ObjectId)
         assert isinstance(result["metadata"]["timestamp"], datetime)
@@ -1306,7 +1383,8 @@ class TestTemplateResolution:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["copy"] == "Alice"
 
@@ -1319,7 +1397,8 @@ class TestTemplateResolution:
         )
 
         doc = {"address": {"city": "NYC"}}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["city_copy"] == "NYC"
 
@@ -1332,7 +1411,8 @@ class TestTemplateResolution:
         )
 
         doc = {"first": "Alice", "last": "Smith"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["full_name"] == "Alice Smith"
 
@@ -1345,7 +1425,8 @@ class TestTemplateResolution:
         )
 
         doc = {"username": "alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["display"] == "User: alice (admin)"
 
@@ -1358,7 +1439,8 @@ class TestTemplateResolution:
         )
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["copy"] is None
 
@@ -1371,7 +1453,8 @@ class TestTemplateResolution:
         )
 
         doc = {"first": "Alice"}  # Missing 'last'
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # Missing field should be empty string in concatenation
         assert result["full_name"] == "Alice "
@@ -1386,7 +1469,8 @@ class TestTemplateResolution:
 
         doc = {}
         before = datetime.utcnow()
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
         after = datetime.utcnow()
 
         assert isinstance(result["timestamp"], datetime)
@@ -1401,7 +1485,8 @@ class TestTemplateResolution:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["deleted_at"] is None
 
@@ -1414,7 +1499,8 @@ class TestTemplateResolution:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         # "$100" is treated as field reference "100", which doesn't exist
         assert result["price"] is None
@@ -1432,7 +1518,8 @@ class TestEdgeCases:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"status": "active"}
 
@@ -1441,7 +1528,8 @@ class TestEdgeCases:
         engine = TransformationEngine(transforms=[])
 
         doc = {"name": "Alice"}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result == {"name": "Alice"}
 
@@ -1468,7 +1556,8 @@ class TestEdgeCases:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["a"]["b"]["c"]["d"]["e"]["f"] == "deep"
         assert result["x"]["y"]["z"] == "deep"
@@ -1483,7 +1572,8 @@ class TestEdgeCases:
         )
 
         doc = {}
-        result = engine.transform_document(doc)
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
 
         assert result["field-with-dash"] == "data"
         assert result["field_with_underscore"] == "data2"
@@ -1493,12 +1583,13 @@ class TestEdgeCases:
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(field="name.first", value="Alice"),
-            ]
+            ],
+            error_mode="fail",
         )
 
         doc = {"name": "Bob"}  # 'name' is a string, not dict
         with pytest.raises(TransformationError, match="is not a dictionary"):
-            engine.transform_document(doc)
+            _, _ = engine.transform_documents([doc])
 
     def test_transform_preserves_original_document(self):
         """Test that transform doesn't mutate original document."""
@@ -1511,7 +1602,8 @@ class TestEdgeCases:
         original = {"name": "Alice"}
         original_copy = original.copy()
 
-        result = engine.transform_document(original)
+        result, _ = engine.transform_documents([original])
+        result = result[0]
 
         # Original should be unchanged
         assert original == original_copy
