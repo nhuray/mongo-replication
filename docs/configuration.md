@@ -559,11 +559,32 @@ transforms:
   value: "active"
 ```
 
+You can also set object/dictionary values:
+```yaml
+- type: add_field
+  field: "metadata"
+  value:
+    created_by: "system"
+    version: 1
+    tags: ["prod", "verified"]
+```
+
 **`set_field`** - Set field value (overwrites if exists)
 ```yaml
 - type: set_field
   field: "environment"
   value: "staging"
+```
+
+Or set nested object values:
+```yaml
+- type: set_field
+  field: "config"
+  value:
+    enabled: true
+    settings:
+      timeout: 30
+      retries: 3
 ```
 
 **`remove_field`** - Remove one or more fields
@@ -618,6 +639,45 @@ transforms:
 
 > **📖 For detailed operator descriptions, see [Presidio Documentation](presidio.md#anonymization-operators).**
 
+##### Value Types
+
+The `value` field in `add_field` and `set_field` supports multiple data types:
+
+**Scalar Values:**
+```yaml
+- type: add_field
+  field: "status"
+  value: "active"  # String
+
+- type: add_field
+  field: "count"
+  value: 42  # Number
+
+- type: add_field
+  field: "enabled"
+  value: true  # Boolean
+```
+
+**Object/Dictionary Values:**
+```yaml
+- type: add_field
+  field: "metadata"
+  value:
+    created_by: "system"
+    version: 1
+    tags: ["prod", "verified"]
+    config:
+      timeout: 30
+      retries: 3
+```
+
+**Array Values:**
+```yaml
+- type: add_field
+  field: "tags"
+  value: ["production", "verified", "active"]
+```
+
 ##### Template Values
 
 Fields support template strings with field references and special values:
@@ -646,6 +706,21 @@ Fields support template strings with field references and special values:
 - type: add_field
   field: "deleted_at"
   value: "$null"  # Null value
+```
+
+**Mixing Templates with Objects:**
+
+Templates work inside object values:
+```yaml
+- type: add_field
+  field: "audit"
+  value:
+    user: "$user.email"
+    timestamp: "$now"
+    action: "created"
+    metadata:
+      ip_address: "$request.ip"
+      user_agent: "$request.user_agent"
 ```
 
 ##### Conditional Execution
@@ -703,15 +778,23 @@ transforms:
     pattern: "\\D"
     replacement: ""
 
-  # Add metadata
+  # Add metadata with object value
   - type: add_field
-    field: "environment"
-    value: "staging"
+    field: "migration_metadata"
+    value:
+      environment: "staging"
+      migrated_at: "$now"
+      version: 2
 
-  # Set modified timestamp
+  # Set audit info with nested structure
   - type: set_field
-    field: "modified_at"
-    value: "$now"
+    field: "audit"
+    value:
+      last_modified: "$now"
+      modified_by: "system"
+      tracking:
+        source: "replication"
+        batch_id: "staging-001"
 
   # Copy field only for premium users
   - type: copy_field

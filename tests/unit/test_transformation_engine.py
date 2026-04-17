@@ -152,6 +152,52 @@ class TestAddFieldTransform:
 
         assert result == {"deleted_at": None}
 
+    def test_add_field_with_dict_value(self):
+        """Test adding field with a nested dictionary value."""
+        engine = TransformationEngine(
+            transforms=[
+                AddFieldTransform(
+                    field="metadata",
+                    value={
+                        "created_by": "system",
+                        "version": 1,
+                        "tags": ["prod", "verified"],
+                    },
+                )
+            ]
+        )
+
+        doc = {"name": "Alice"}
+        result = engine.transform_document(doc)
+
+        assert result == {
+            "name": "Alice",
+            "metadata": {
+                "created_by": "system",
+                "version": 1,
+                "tags": ["prod", "verified"],
+            },
+        }
+
+    def test_add_field_with_nested_dict_to_nested_path(self):
+        """Test adding a dict value to a nested field path."""
+        engine = TransformationEngine(
+            transforms=[
+                AddFieldTransform(
+                    field="config.settings",
+                    value={"timeout": 30, "retries": 3},
+                )
+            ]
+        )
+
+        doc = {"name": "Alice", "config": {}}
+        result = engine.transform_document(doc)
+
+        assert result == {
+            "name": "Alice",
+            "config": {"settings": {"timeout": 30, "retries": 3}},
+        }
+
 
 class TestSetFieldTransform:
     """Tests for set_field transform."""
@@ -208,6 +254,50 @@ class TestSetFieldTransform:
         result = engine.transform_document(doc)
 
         assert result == {"a": {"b": {"c": {"d": "deep"}}}}
+
+    def test_set_field_with_dict_value(self):
+        """Test setting field with a nested dictionary value."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="config",
+                    value={
+                        "enabled": True,
+                        "settings": {"timeout": 30, "retries": 3},
+                    },
+                )
+            ]
+        )
+
+        doc = {"name": "Alice"}
+        result = engine.transform_document(doc)
+
+        assert result == {
+            "name": "Alice",
+            "config": {
+                "enabled": True,
+                "settings": {"timeout": 30, "retries": 3},
+            },
+        }
+
+    def test_set_field_overwrites_with_dict_value(self):
+        """Test that set_field overwrites scalar with dict value."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="status",
+                    value={"active": True, "reason": "verified"},
+                )
+            ]
+        )
+
+        doc = {"name": "Alice", "status": "active"}
+        result = engine.transform_document(doc)
+
+        assert result == {
+            "name": "Alice",
+            "status": {"active": True, "reason": "verified"},
+        }
 
 
 class TestRemoveFieldTransform:
