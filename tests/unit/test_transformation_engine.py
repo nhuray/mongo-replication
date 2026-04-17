@@ -7,7 +7,7 @@ from bson import ObjectId
 from mongo_replication.engine.transformations import (
     TransformationEngine,
     TransformationError,
-    TransformStats,
+    TransformResults,
 )
 from mongo_replication.config.models import (
     AddFieldTransform,
@@ -1210,12 +1210,74 @@ class TestStatistics:
 
     def test_stats_initial_values(self):
         """Test that statistics start at zero."""
-        stats = TransformStats()
+        stats = TransformResults()
 
         assert stats.documents_processed == 0
         assert stats.documents_failed == 0
         assert stats.transforms_applied == 0
         assert stats.transforms_skipped == 0
+        assert stats.fields_added == 0
+        assert stats.fields_set == 0
+        assert stats.fields_removed == 0
+        assert stats.fields_renamed == 0
+        assert stats.fields_copied == 0
+        assert stats.fields_regex_replaced == 0
+        assert stats.fields_anonymized == 0
+
+    def test_field_counts_per_transform_type(self):
+        """Test that field counts are tracked correctly for each transform type."""
+        engine = TransformationEngine(
+            transforms=[
+                AddFieldTransform(field="new_field", value="added"),
+                SetFieldTransform(field="status", value="active"),
+                RemoveFieldTransform(field=["temp", "cache"]),  # 2 fields removed
+                RenameFieldTransform(from_field="old_name", to_field="new_name"),
+                CopyFieldTransform(from_field="email", to_field="email_backup"),
+                RegexReplaceTransform(field="phone", pattern=r"\D", replacement=""),
+                AnonymizeTransform(field="ssn", operator="hash"),
+            ]
+        )
+
+        documents = [
+            {
+                "status": "inactive",
+                "temp": "xyz",
+                "cache": "abc",
+                "old_name": "test",
+                "email": "test@example.com",
+                "phone": "123-456-7890",
+                "ssn": "123-45-6789",
+            }
+        ]
+
+        result_docs, stats = engine.transform_documents(documents)
+
+        # Verify field counts
+        assert stats.fields_added == 1  # new_field
+        assert stats.fields_set == 1  # status
+        assert stats.fields_removed == 2  # temp, cache
+        assert stats.fields_renamed == 1  # old_name -> new_name
+        assert stats.fields_copied == 1  # email -> email_backup
+        assert stats.fields_regex_replaced == 1  # phone
+        assert stats.fields_anonymized == 1  # ssn (1 transform × 1 document)
+
+    def test_field_counts_with_multiple_documents(self):
+        """Test field counts with multiple documents and anonymize transforms."""
+        engine = TransformationEngine(
+            transforms=[
+                AddFieldTransform(field="environment", value="prod"),
+                AnonymizeTransform(field="email", operator="mask_email"),
+                AnonymizeTransform(field="phone", operator="mask_phone"),
+            ]
+        )
+
+        documents = [{"name": "Alice", "email": "alice@example.com", "phone": "123-456-7890"}] * 3
+
+        result_docs, stats = engine.transform_documents(documents)
+
+        # Verify field counts
+        assert stats.fields_added == 3  # environment added to 3 documents
+        assert stats.fields_anonymized == 6  # 2 anonymize transforms × 3 documents
 
 
 class TestTemplateResolution:
