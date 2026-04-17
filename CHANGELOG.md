@@ -1,6 +1,117 @@
 # CHANGELOG
 
 
+## v2.0.0 (2026-04-17)
+
+### Breaking
+
+* feat!: Replace fragmented transformations with unified TransformationEngine
+
+BREAKING CHANGE: Removed old transformation config fields (field_transforms, pii_anonymization, fields_exclude) in favor of a single unified 'transforms' pipeline.
+
+This redesign provides:
+- Single ordered transformation pipeline with explicit execution order
+- 7 transform types: add_field, set_field, remove_field, rename_field, copy_field, regex_replace, anonymize
+- Conditional execution support with MongoDB-style operators
+- Template value resolution with field references and concatenation
+- Integration with existing PII anonymization system
+
+Migration required: Users must update their configuration files to use the new 'transforms' list instead of separate transformation sections.
+
+Changes:
+- Add new transform type models in config/models.py (AddFieldTransform, SetFieldTransform, etc.)
+- Rewrite transformations.py with new TransformationEngine class
+- Update replicator.py to use TransformationEngine instead of three separate engines
+- Update orchestrator.py to create single TransformationEngine
+- Remove references to old field names (pii_anonymization, field_transforms, fields_exclude)
+- Update ReplicationResult to track simple transform statistics ([`45d6f2f`](https://github.com/nhuray/mongo-replication/commit/45d6f2f77558c81db9f0e9f4e5088d92a2bfff38))
+
+### Chores
+
+* chore: Remove all references to deprecated config fields
+
+Update all remaining references to old transformation config fields (pii_anonymization, field_transforms, fields_exclude) throughout the codebase:
+
+- Update config_template.yaml.j2 to generate 'transforms' instead of old fields
+- Update scan command to create AnonymizeTransform instead of PIIFieldAnonymization
+- Update run command cascade logic to use 'transforms' for new collection configs
+- Update presidio.yaml documentation to show new transforms format
+- Update dry-run output to show transform count instead of PII field count
+
+The codebase now exclusively uses the unified 'transforms' pipeline format. ([`f3c059c`](https://github.com/nhuray/mongo-replication/commit/f3c059c36905f0a2bc3e428266ffca17e161727d))
+
+* chore: Remove deprecated transformation code
+
+Remove old field_exclusion.py and obsolete test files that tested the previous fragmented transformation system (field_transforms, pii_anonymization, fields_exclude).
+
+These have been replaced by the unified TransformationEngine with a single 'transforms' pipeline. ([`2ea82f6`](https://github.com/nhuray/mongo-replication/commit/2ea82f6ff9670b226556980665d21110a944df9a))
+
+### Documentation
+
+* docs: add object/dictionary value examples for add_field and set_field transforms
+
+- Add object/dictionary value examples in add_field and set_field sections
+- Create new 'Value Types' section showing all supported types (scalars, objects, arrays)
+- Update 'Template Values' section with object+template mixing examples
+- Update 'Complete Example' to showcase object values in realistic scenario
+- Add 4 new unit tests for dict/object value support (all 98 tests passing)
+
+This clarifies that dict/object values are fully supported without needing
+any field_type parameter or casting. YAML's native object syntax is
+automatically parsed to Python dicts. ([`4114ea5`](https://github.com/nhuray/mongo-replication/commit/4114ea577c50636ee2f20a9368e6b5262328e6a3))
+
+* docs: document batch anonymization optimization and execution order
+
+- Clarify that anonymize transforms are batched and executed after non-anonymize transforms
+- Document 8-12x performance improvement for PII-heavy workloads
+- Add execution order explanation (non-anonymize first, then batched anonymize)
+- Update TransformationEngine technical design with performance optimization details
+- Add best practice recommendation for transform ordering in configs
+- Include performance metrics (non_anonymize_duration, anonymize_duration, throughput)
+
+This documents the architectural decision to group transforms by type for
+optimal performance while maintaining backward compatibility. ([`ded7992`](https://github.com/nhuray/mongo-replication/commit/ded7992aff96007ba1e1068556303438765b96d8))
+
+* docs: update documentation and add a migration guide for v2 ([`cbcd2fd`](https://github.com/nhuray/mongo-replication/commit/cbcd2fdad0b7f8eec44e556bf9e6a21386ee88f8))
+
+* docs: remove deprecated docs ([`f4b2f23`](https://github.com/nhuray/mongo-replication/commit/f4b2f23807846789a81bcbbc5fe604cfb77fafa1))
+
+* docs: update PIIFieldAnonymization docstring ([`c1404ae`](https://github.com/nhuray/mongo-replication/commit/c1404ae44df832e25d7bd79c6a669bc4a8cb7e44))
+
+* docs: Update PIIFieldAnonymization docstring
+
+Clarify that PIIFieldAnonymization is still used internally by the PII handler, not deprecated. It's just that new user configs should use AnonymizeTransform in the transforms pipeline. ([`3c4bcb9`](https://github.com/nhuray/mongo-replication/commit/3c4bcb977b9417183bab59313ba5993c60a7bebc))
+
+### Performance Improvements
+
+* perf: optimize transformation engine with batch anonymization
+
+- Separate anonymize transforms from non-anonymize transforms
+- Apply non-anonymize transforms (field ops, regex) sequentially per document
+- Batch-process all anonymize transforms across all documents in single call
+- Reduces PIIHandler calls from N×M to 1 (50k docs × 20 transforms: 1M calls → 1 call)
+- Add performance metrics: non_anonymize_duration, anonymize_duration, throughput
+- Maintain backward compatibility with transform_document() method
+- Improve logging with batch mode indicators and timing information
+
+Expected performance improvement: 8-12x speedup for PII-heavy workloads
+Tested with 50k documents and 20 anonymize transforms ([`7bde61e`](https://github.com/nhuray/mongo-replication/commit/7bde61e78e0b3398592a73de1604f164587a8ec5))
+
+### Testing
+
+* test: add tests for the TransformationEngine ([`a36f2a6`](https://github.com/nhuray/mongo-replication/commit/a36f2a60feba28c7a4042784c660550e5edcb835))
+
+* test: Update config tests to use new transforms format
+
+Remove deprecated tests for old pii_anonymization field in CollectionConfig and update template serialization tests to use the new transforms format.
+
+Changes:
+- Remove TestCollectionConfigPIIAnonymization class (4 tests)
+- Update TestConfigTemplateSerialization to test transforms instead of pii_anonymization
+- Add test for multiple transform types (set_field, anonymize, remove_field)
+- All 385 unit tests now pass ([`812293a`](https://github.com/nhuray/mongo-replication/commit/812293a828ea085bef51e4db7b5b4939bb280e11))
+
+
 ## v1.0.2 (2026-04-16)
 
 ### Bug Fixes
@@ -27,6 +138,10 @@ Example query:
 {$or: [{"meta.updatedAt": {$exists: false}}, {"meta.updatedAt": {$gt: ISODate(...)}}]}
 
 All 435 tests passing. ([`d352c1a`](https://github.com/nhuray/mongo-replication/commit/d352c1aa0714e858a1dfc0ef334402945533283d))
+
+### Chores
+
+* chore(release): 1.0.2 [skip ci] ([`3c4732e`](https://github.com/nhuray/mongo-replication/commit/3c4732e45b4cf59ea3cbb52f9dacddcd9d56cb4d))
 
 
 ## v1.0.1 (2026-04-15)
