@@ -724,13 +724,8 @@ class CollectionReplicator:
             if cursor_field:
                 last_cursor_value = self.validator.get_field_value(batch[-1], cursor_field)
                 # Update query for next batch to continue from where we left off
-                # Include docs where cursor field doesn't exist to avoid data loss
-                query = {
-                    "$or": [
-                        {cursor_field: {"$exists": False}},
-                        {cursor_field: {"$gt": last_cursor_value}},
-                    ]
-                }
+                # Only query for docs with cursor field > last value (not docs without cursor field)
+                query = {cursor_field: {"$gt": last_cursor_value}}
 
             total_docs += written
             batch_duration = time.time() - batch_start
@@ -741,6 +736,7 @@ class CollectionReplicator:
             )
 
         # Update state once at the end with final cursor value
+        # Always update state with document counts, cursor tracking is optional
         if cursor_field and last_cursor_value is not None:
             self.state_mgr.update_collection_state(
                 state_id=self._state_id,
@@ -748,6 +744,16 @@ class CollectionReplicator:
                 cursor_field=cursor_field,
                 documents_processed=total_docs,
                 documents_succeeded=total_docs,  # TODO: Track separately
+                documents_failed=0,
+            )
+        elif total_docs > 0:
+            # No cursor field, but we still need to update document counts
+            self.state_mgr.update_collection_state(
+                state_id=self._state_id,
+                last_cursor_value=None,
+                cursor_field="",
+                documents_processed=total_docs,
+                documents_succeeded=total_docs,
                 documents_failed=0,
             )
 
@@ -822,13 +828,8 @@ class CollectionReplicator:
             if cursor_field:
                 last_cursor_value = self.validator.get_field_value(batch[-1], cursor_field)
                 # Update query for next batch to continue from where we left off
-                # Include docs where cursor field doesn't exist to avoid data loss
-                query = {
-                    "$or": [
-                        {cursor_field: {"$exists": False}},
-                        {cursor_field: {"$gt": last_cursor_value}},
-                    ]
-                }
+                # Only query for docs with cursor field > last value (not docs without cursor field)
+                query = {cursor_field: {"$gt": last_cursor_value}}
 
             total_docs += written
             batch_duration = time.time() - batch_start
@@ -839,13 +840,24 @@ class CollectionReplicator:
             )
 
         # Update state once at the end with final cursor value
+        # Always update state with document counts, cursor tracking is optional
         if cursor_field and last_cursor_value is not None:
             self.state_mgr.update_collection_state(
                 state_id=self._state_id,
-                last_cursor_value=last_cursor_value,  # ✅ Native BSON type!
+                last_cursor_value=last_cursor_value,
                 cursor_field=cursor_field,
                 documents_processed=total_docs,
                 documents_succeeded=total_docs,  # TODO: Track separately
+                documents_failed=0,
+            )
+        elif total_docs > 0:
+            # No cursor field, but we still need to update document counts
+            self.state_mgr.update_collection_state(
+                state_id=self._state_id,
+                last_cursor_value=None,
+                cursor_field="",
+                documents_processed=total_docs,
+                documents_succeeded=total_docs,
                 documents_failed=0,
             )
 

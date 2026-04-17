@@ -375,12 +375,13 @@ class StateManager:
             transform_operations: Per-operation transformation statistics
         """
         state = self.state_collection.find_one({"_id": state_id})
-        if not state:
-            logger.warning(f"State {state_id} not found")
-            return
-
-        end_time = datetime.utcnow()
-        duration = (end_time - state["startedAt"]).total_seconds()
+        if state:
+            end_time = datetime.utcnow()
+            duration = (end_time - state["startedAt"]).total_seconds()
+        else:
+            logger.warning(f"State {state_id} not found, completing with duration=0")
+            end_time = datetime.utcnow()
+            duration = 0
 
         update_doc = {
             "status": "completed",
@@ -402,6 +403,7 @@ class StateManager:
         self.state_collection.update_one(
             {"_id": state_id},
             {"$set": update_doc},
+            upsert=True,
         )
 
     def fail_collection(
