@@ -1,18 +1,13 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    branches:
-      - main
-    types:
-      - completed
+  workflow_dispatch:
 
 jobs:
   release:
     name: Release to PyPI
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.ref == 'refs/heads/main'
     concurrency: release
     permissions:
       id-token: write
