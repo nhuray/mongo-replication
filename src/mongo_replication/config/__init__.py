@@ -2,7 +2,6 @@
 
 from .manager import (
     get_collection_config,
-    get_mongodb_connection_string,
 )
 from .models import (
     AddFieldTransform,
@@ -35,5 +34,4 @@ __all__ = [
     "AnonymizeTransform",
     "ConditionConfig",
     "get_collection_config",
-    "get_mongodb_connection_string",
 ]

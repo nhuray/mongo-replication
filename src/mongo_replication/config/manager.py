@@ -6,7 +6,6 @@ with support for defaults merging and validation.
 """
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -73,27 +72,6 @@ def get_collection_config(
         CollectionConfig if found, None otherwise
     """
     return config.collections.get(collection_name)
-
-
-def get_mongodb_connection_string(env_var: str = "MONGODB_SOURCE_URI") -> str:
-    """
-    Get MongoDB connection string from environment variable.
-
-    DEPRECATED: Use JobManager.get_job() instead for multi-job support.
-
-    Args:
-        env_var: Name of the environment variable containing the connection string
-
-    Returns:
-        MongoDB connection string
-
-    Raises:
-        ValueError: If environment variable is not set
-    """
-    connection_string = os.getenv(env_var)
-    if not connection_string:
-        raise ValueError(f"Environment variable {env_var} is not set")
-    return connection_string
 
 
 def load_config(config_path: Path) -> Config:

@@ -59,17 +59,6 @@ class CollectionPIIAnalysis(BaseModel):
         """Number of fields containing PII."""
         return len(self.fields_with_pii)
 
-    def get_pii_config(self) -> Dict[str, str]:
-        """
-        Get pii_fields config dict for YAML generation (DEPRECATED).
-
-        DEPRECATED: This method returns the old dict format. Use get_pii_anonymization_list() instead.
-
-        Returns:
-            Dict mapping field_path -> strategy
-        """
-        return {stat.field_path: stat.suggested_strategy for stat in self.fields_with_pii}
-
     def get_pii_anonymization_list(self) -> List[Dict[str, Any]]:
         """
         Get pii_anonymization config list for YAML generation (NEW FORMAT).
