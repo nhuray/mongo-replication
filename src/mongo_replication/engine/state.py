@@ -400,6 +400,23 @@ class StateManager:
                 "operations": transform_operations or {},
             }
 
+        update_doc = {
+            "status": "completed",
+            "endedAt": end_time,
+            "durationSeconds": duration,
+            "documents.processed": documents_processed,
+            "documents.succeeded": documents_succeeded,
+            "documents.failed": documents_failed,
+        }
+
+        # Add transformation statistics if provided
+        if documents_transformed > 0 or transforms_applied > 0 or transform_operations:
+            update_doc["transformations"] = {
+                "documentsTransformed": documents_transformed,
+                "transformsApplied": transforms_applied,
+                "operations": transform_operations or {},
+            }
+
         self.state_collection.update_one(
             {"_id": state_id},
             {"$set": update_doc},
