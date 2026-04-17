@@ -103,11 +103,31 @@ class TransformationEngine:
         self.non_anonymize_transforms = []
         self.anonymize_transforms = []
 
+        # Count transforms by type for fields_configured tracking
+        self.transform_counts = {}
+
         for transform in transforms:
             if isinstance(transform, AnonymizeTransform):
                 self.anonymize_transforms.append(transform)
+                self.transform_counts["anonymize"] = self.transform_counts.get("anonymize", 0) + 1
             else:
                 self.non_anonymize_transforms.append(transform)
+                # Determine operation type
+                if isinstance(transform, AddFieldTransform):
+                    op_type = "add_field"
+                elif isinstance(transform, SetFieldTransform):
+                    op_type = "set_field"
+                elif isinstance(transform, RemoveFieldTransform):
+                    op_type = "remove_field"
+                elif isinstance(transform, RenameFieldTransform):
+                    op_type = "rename_field"
+                elif isinstance(transform, CopyFieldTransform):
+                    op_type = "copy_field"
+                elif isinstance(transform, RegexReplaceTransform):
+                    op_type = "regex_replace"
+                else:
+                    op_type = "unknown"
+                self.transform_counts[op_type] = self.transform_counts.get(op_type, 0) + 1
 
         # Pre-compile regex patterns for performance
         self._compiled_patterns = {}
@@ -212,9 +232,11 @@ class TransformationEngine:
                 # Single batch call for all anonymizations
                 transformed = self.pii_handler.process_documents(transformed)
 
-                # Count anonymized fields: each anonymize transform × documents processed
+                # Count anonymized fields and track duration
+                anonymize_duration = time.time() - stage2_start
                 op_result = self._get_or_create_operation_result(stats, "anonymize")
                 op_result.fields_processed = len(self.anonymize_transforms) * len(transformed)
+                op_result.duration_seconds = anonymize_duration
                 stats.transforms_applied += len(self.anonymize_transforms) * len(transformed)
 
             except Exception as e:
@@ -305,7 +327,11 @@ class TransformationEngine:
             TransformOperationResults for this operation type
         """
         if operation_type not in stats.operations:
-            stats.operations[operation_type] = TransformOperationResults(type=operation_type)
+            # Initialize with the count of transforms configured for this type
+            fields_configured = self.transform_counts.get(operation_type, 0)
+            stats.operations[operation_type] = TransformOperationResults(
+                type=operation_type, fields_configured=fields_configured
+            )
         return stats.operations[operation_type]
 
     def _apply_transform(
@@ -324,44 +350,56 @@ class TransformationEngine:
             Transformed document
         """
         if isinstance(transform, AddFieldTransform):
+            start_time = time.time()
             result = self._add_field(doc, transform)
             op_result = self._get_or_create_operation_result(stats, "add_field")
             op_result.fields_processed += 1
+            op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, SetFieldTransform):
+            start_time = time.time()
             result = self._set_field(doc, transform)
             op_result = self._get_or_create_operation_result(stats, "set_field")
             op_result.fields_processed += 1
+            op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, RemoveFieldTransform):
+            start_time = time.time()
             fields = transform.field if isinstance(transform.field, list) else [transform.field]
             result = self._remove_field(doc, transform)
             op_result = self._get_or_create_operation_result(stats, "remove_field")
             op_result.fields_processed += len(fields)
+            op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, RenameFieldTransform):
+            start_time = time.time()
             source_value = self._get_nested_field(doc, transform.from_field)
             result = self._rename_field(doc, transform)
             # Only count if field actually existed and was renamed
             if source_value is not None:
                 op_result = self._get_or_create_operation_result(stats, "rename_field")
                 op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, CopyFieldTransform):
+            start_time = time.time()
             source_value = self._get_nested_field(doc, transform.from_field)
             result = self._copy_field(doc, transform)
             # Only count if field actually existed and was copied
             if source_value is not None:
                 op_result = self._get_or_create_operation_result(stats, "copy_field")
                 op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, RegexReplaceTransform):
+            start_time = time.time()
             field_value = self._get_nested_field(doc, transform.field)
             result = self._regex_replace(doc, transform)
             # Only count if field exists and is a string
             if field_value is not None and isinstance(field_value, str):
                 op_result = self._get_or_create_operation_result(stats, "regex_replace")
                 op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
             return result
         elif isinstance(transform, AnonymizeTransform):
             # Should not reach here in optimized pipeline
