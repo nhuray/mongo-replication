@@ -33,13 +33,28 @@ from mongo_replication.config.models import (
 logger = logging.getLogger(__name__)
 
 
-class TransformStats(BaseModel):
-    """Statistics for transformations."""
+class TransformOperationResults(BaseModel):
+    """Results and statistics for a single transform operation."""
+
+    type: str  # e.g. "anonymize", "regex_replace", "add_field", etc.
+    fields_configured: int = (
+        0  # Total fields configured for this transform type in the collection config
+    )
+    fields_processed: int = 0  # Fields actually processed by this transform type
+    duration_seconds: float = 0.0  # Total duration for this transform type
+
+
+class TransformResults(BaseModel):
+    """Results and statistics for transformations."""
 
     documents_processed: int = 0
     documents_failed: int = 0
     transforms_applied: int = 0
     transforms_skipped: int = 0
+
+    # Per-operation results (keyed by operation type)
+    # e.g. {"add_field": TransformOperationResults(...), "anonymize": TransformOperationResults(...)}
+    operations: Dict[str, TransformOperationResults] = {}
 
     # Performance metrics (Phase 1 optimization)
     non_anonymize_duration_seconds: float = 0.0
@@ -88,11 +103,31 @@ class TransformationEngine:
         self.non_anonymize_transforms = []
         self.anonymize_transforms = []
 
+        # Count transforms by type for fields_configured tracking
+        self.transform_counts = {}
+
         for transform in transforms:
             if isinstance(transform, AnonymizeTransform):
                 self.anonymize_transforms.append(transform)
+                self.transform_counts["anonymize"] = self.transform_counts.get("anonymize", 0) + 1
             else:
                 self.non_anonymize_transforms.append(transform)
+                # Determine operation type
+                if isinstance(transform, AddFieldTransform):
+                    op_type = "add_field"
+                elif isinstance(transform, SetFieldTransform):
+                    op_type = "set_field"
+                elif isinstance(transform, RemoveFieldTransform):
+                    op_type = "remove_field"
+                elif isinstance(transform, RenameFieldTransform):
+                    op_type = "rename_field"
+                elif isinstance(transform, CopyFieldTransform):
+                    op_type = "copy_field"
+                elif isinstance(transform, RegexReplaceTransform):
+                    op_type = "regex_replace"
+                else:
+                    op_type = "unknown"
+                self.transform_counts[op_type] = self.transform_counts.get(op_type, 0) + 1
 
         # Pre-compile regex patterns for performance
         self._compiled_patterns = {}
@@ -140,7 +175,7 @@ class TransformationEngine:
 
     def transform_documents(
         self, documents: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], TransformStats]:
+    ) -> Tuple[List[Dict[str, Any]], TransformResults]:
         """Transform batch of documents using optimized two-stage pipeline.
 
         PHASE 1 OPTIMIZATION:
@@ -157,10 +192,10 @@ class TransformationEngine:
             Tuple of (transformed documents, statistics)
         """
         if not documents:
-            return documents, TransformStats()
+            return documents, TransformResults()
 
         start_time = time.time()
-        stats = TransformStats()
+        stats = TransformResults()
         transformed = []
 
         # STAGE 1: Apply non-anonymize transforms per document
@@ -168,11 +203,13 @@ class TransformationEngine:
 
         for doc in documents:
             try:
-                # Apply non-anonymize transforms only
-                transformed_doc = self._apply_non_anonymize_transforms(doc)
+                # Apply non-anonymize transforms only (stats updated inside)
+                transformed_doc = self._apply_non_anonymize_transforms(doc, stats)
                 transformed.append(transformed_doc)
                 stats.documents_processed += 1
-                stats.transforms_applied += len(self.non_anonymize_transforms)
+                stats.transforms_applied += (
+                    len(self.non_anonymize_transforms) - stats.transforms_skipped
+                )
             except Exception as e:
                 if self.error_mode == "fail":
                     raise TransformationError(f"Transform failed: {e}") from e
@@ -194,6 +231,12 @@ class TransformationEngine:
 
                 # Single batch call for all anonymizations
                 transformed = self.pii_handler.process_documents(transformed)
+
+                # Count anonymized fields and track duration
+                anonymize_duration = time.time() - stage2_start
+                op_result = self._get_or_create_operation_result(stats, "anonymize")
+                op_result.fields_processed = len(self.anonymize_transforms) * len(transformed)
+                op_result.duration_seconds = anonymize_duration
                 stats.transforms_applied += len(self.anonymize_transforms) * len(transformed)
 
             except Exception as e:
@@ -220,11 +263,14 @@ class TransformationEngine:
 
         return transformed, stats
 
-    def _apply_non_anonymize_transforms(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_non_anonymize_transforms(
+        self, doc: Dict[str, Any], stats: TransformResults
+    ) -> Dict[str, Any]:
         """Apply all non-anonymize transforms to a single document.
 
         Args:
             doc: Document to transform
+            stats: Statistics object to update with field counts
 
         Returns:
             Transformed document
@@ -236,10 +282,11 @@ class TransformationEngine:
             # Check condition if present
             if transform.condition:
                 if not self._evaluate_condition(result, transform.condition):
+                    stats.transforms_skipped += 1
                     continue
 
-            # Apply transformation based on type
-            result = self._apply_transform(result, transform)
+            # Apply transformation based on type and count fields
+            result = self._apply_transform(result, transform, stats)
 
         return result
 
@@ -255,8 +302,11 @@ class TransformationEngine:
         Returns:
             Transformed document
         """
+        # Create temporary stats object (not returned in single-doc mode)
+        temp_stats = TransformResults()
+
         # Apply non-anonymize transforms
-        result = self._apply_non_anonymize_transforms(doc)
+        result = self._apply_non_anonymize_transforms(doc, temp_stats)
 
         # Apply anonymize transforms (single-document mode)
         if self.anonymize_transforms and self.pii_handler:
@@ -264,7 +314,29 @@ class TransformationEngine:
 
         return result
 
-    def _apply_transform(self, doc: Dict[str, Any], transform: TransformConfig) -> Dict[str, Any]:
+    def _get_or_create_operation_result(
+        self, stats: TransformResults, operation_type: str
+    ) -> TransformOperationResults:
+        """Get or create operation result for a specific transform type.
+
+        Args:
+            stats: Statistics object
+            operation_type: Type of transform operation (e.g., "add_field", "anonymize")
+
+        Returns:
+            TransformOperationResults for this operation type
+        """
+        if operation_type not in stats.operations:
+            # Initialize with the count of transforms configured for this type
+            fields_configured = self.transform_counts.get(operation_type, 0)
+            stats.operations[operation_type] = TransformOperationResults(
+                type=operation_type, fields_configured=fields_configured
+            )
+        return stats.operations[operation_type]
+
+    def _apply_transform(
+        self, doc: Dict[str, Any], transform: TransformConfig, stats: TransformResults
+    ) -> Dict[str, Any]:
         """Apply single non-anonymize transform to document.
 
         Note: Anonymize transforms are handled separately in batch mode for performance.
@@ -272,22 +344,63 @@ class TransformationEngine:
         Args:
             doc: Document to transform
             transform: Transform configuration
+            stats: Statistics object to update with field counts
 
         Returns:
             Transformed document
         """
         if isinstance(transform, AddFieldTransform):
-            return self._add_field(doc, transform)
+            start_time = time.time()
+            result = self._add_field(doc, transform)
+            op_result = self._get_or_create_operation_result(stats, "add_field")
+            op_result.fields_processed += 1
+            op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, SetFieldTransform):
-            return self._set_field(doc, transform)
+            start_time = time.time()
+            result = self._set_field(doc, transform)
+            op_result = self._get_or_create_operation_result(stats, "set_field")
+            op_result.fields_processed += 1
+            op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, RemoveFieldTransform):
-            return self._remove_field(doc, transform)
+            start_time = time.time()
+            fields = transform.field if isinstance(transform.field, list) else [transform.field]
+            result = self._remove_field(doc, transform)
+            op_result = self._get_or_create_operation_result(stats, "remove_field")
+            op_result.fields_processed += len(fields)
+            op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, RenameFieldTransform):
-            return self._rename_field(doc, transform)
+            start_time = time.time()
+            source_value = self._get_nested_field(doc, transform.from_field)
+            result = self._rename_field(doc, transform)
+            # Only count if field actually existed and was renamed
+            if source_value is not None:
+                op_result = self._get_or_create_operation_result(stats, "rename_field")
+                op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, CopyFieldTransform):
-            return self._copy_field(doc, transform)
+            start_time = time.time()
+            source_value = self._get_nested_field(doc, transform.from_field)
+            result = self._copy_field(doc, transform)
+            # Only count if field actually existed and was copied
+            if source_value is not None:
+                op_result = self._get_or_create_operation_result(stats, "copy_field")
+                op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, RegexReplaceTransform):
-            return self._regex_replace(doc, transform)
+            start_time = time.time()
+            field_value = self._get_nested_field(doc, transform.field)
+            result = self._regex_replace(doc, transform)
+            # Only count if field exists and is a string
+            if field_value is not None and isinstance(field_value, str):
+                op_result = self._get_or_create_operation_result(stats, "regex_replace")
+                op_result.fields_processed += 1
+                op_result.duration_seconds += time.time() - start_time
+            return result
         elif isinstance(transform, AnonymizeTransform):
             # Should not reach here in optimized pipeline
             # Anonymize transforms are handled in batch mode

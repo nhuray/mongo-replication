@@ -17,7 +17,11 @@ from pymongo.errors import BulkWriteError
 
 from mongo_replication.engine.indexes import IndexManager
 from mongo_replication.engine.state import StateManager
-from mongo_replication.engine.transformations import TransformationEngine
+from mongo_replication.engine.transformations import (
+    TransformationEngine,
+    TransformOperationResults,
+    TransformResults,
+)
 from mongo_replication.engine.validation import CursorValidator
 
 logger = logging.getLogger(__name__)
@@ -105,6 +109,10 @@ class ReplicationResult(BaseModel):
     documents_transformed: int = 0
     transforms_applied: int = 0
 
+    # Per-operation transform results
+    # e.g. {"add_field": TransformOperationResults(...), "anonymize": TransformOperationResults(...)}
+    transform_operations: Dict[str, TransformOperationResults] = Field(default_factory=dict)
+
     # Index replication statistics
     indexes_replicated: int = 0
     indexes_failed: int = 0
@@ -149,6 +157,28 @@ class CollectionReplicator:
         self.validator = cursor_validator
         self.index_mgr = index_manager
         self.collection_name = source_collection.name
+
+    @staticmethod
+    def _convert_operations_to_dict(
+        operations: Dict[str, TransformOperationResults],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Convert TransformOperationResults to dict for storage.
+
+        Args:
+            operations: Dictionary of operation results
+
+        Returns:
+            Dictionary suitable for MongoDB storage
+        """
+        return {
+            op_type: {
+                "type": op_result.type,
+                "fieldsConfigured": op_result.fields_configured,
+                "fieldsProcessed": op_result.fields_processed,
+                "durationSeconds": op_result.duration_seconds,
+            }
+            for op_type, op_result in operations.items()
+        }
 
     def replicate(
         self,
@@ -250,6 +280,9 @@ class CollectionReplicator:
                 documents_processed=result.documents_processed,
                 documents_succeeded=result.documents_processed,  # TODO: Track failed docs
                 documents_failed=0,
+                documents_transformed=result.documents_transformed,
+                transforms_applied=result.transforms_applied,
+                transform_operations=self._convert_operations_to_dict(result.transform_operations),
             )
 
             logger.info(
@@ -277,6 +310,7 @@ class CollectionReplicator:
                 write_disposition=write_disposition,
                 documents_transformed=result.documents_transformed,
                 transforms_applied=result.transforms_applied,
+                transform_operations=result.transform_operations,
                 indexes_replicated=final_indexes_replicated,
                 indexes_failed=final_indexes_failed,
                 index_errors=final_index_errors,
@@ -391,31 +425,52 @@ class CollectionReplicator:
     def _apply_transformations(
         self,
         documents: List[Dict[str, Any]],
-    ) -> tuple[List[Dict[str, Any]], int, int]:
+    ) -> tuple[List[Dict[str, Any]], TransformResults]:
         """Apply transformation pipeline to documents.
 
         Args:
             documents: List of documents to process
 
         Returns:
-            Tuple of (processed documents, documents_transformed, transforms_applied)
+            Tuple of (processed documents, TransformResults)
 
         Raises:
             ReplicationError: If transformation fails
         """
         if not self._transformation_engine:
-            return documents, 0, 0
+            return documents, TransformResults()
 
         try:
-            processed_docs, stats = self._transformation_engine.transform_documents(documents)
-
-            # Use stats from transformation engine
-            documents_transformed = stats.documents_processed
-            transforms_applied = stats.transforms_applied
-
-            return processed_docs, documents_transformed, transforms_applied
+            processed_docs, results = self._transformation_engine.transform_documents(documents)
+            return processed_docs, results
         except Exception as e:
             raise ReplicationError(f"Transformation failed for {self.collection_name}: {e}") from e
+
+    def _aggregate_operation_results(
+        self,
+        accumulated: Dict[str, TransformOperationResults],
+        new_results: Dict[str, TransformOperationResults],
+    ) -> None:
+        """Aggregate operation results from a batch into accumulated totals.
+
+        Args:
+            accumulated: Accumulated operation results across batches (modified in place)
+            new_results: New operation results from current batch
+        """
+        for op_type, op_result in new_results.items():
+            if op_type not in accumulated:
+                # Create new entry with same type
+                accumulated[op_type] = TransformOperationResults(
+                    type=op_type,
+                    fields_configured=op_result.fields_configured,
+                    fields_processed=op_result.fields_processed,
+                    duration_seconds=op_result.duration_seconds,
+                )
+            else:
+                # Aggregate into existing entry
+                accumulated[op_type].fields_processed += op_result.fields_processed
+                accumulated[op_type].duration_seconds += op_result.duration_seconds
+                # fields_configured should be the same across batches, so we can just keep it
 
     def _write_batch_merge(
         self,
@@ -547,6 +602,9 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
+
         # Index statistics (captured from first batch)
         indexes_replicated = 0
         indexes_failed = 0
@@ -567,11 +625,12 @@ class CollectionReplicator:
             batch_start = time.time()
 
             # Apply transformation pipeline
-            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
+            processed, results = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_documents_transformed += docs_transformed
-            total_transforms_applied += transforms_applied
+            total_documents_transformed += results.documents_processed
+            total_transforms_applied += results.transforms_applied
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch (and handle indexes on first batch)
             written, idx_rep, idx_fail, idx_errs = self._write_batch_replace(
@@ -600,6 +659,7 @@ class CollectionReplicator:
             batches_processed=batch_num,
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
+            transform_operations=aggregated_operations,
             indexes_replicated=indexes_replicated,
             indexes_failed=indexes_failed,
             index_errors=index_errors,
@@ -627,6 +687,9 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
+
         # Get starting cursor value from state
         # After this initial query, we track cursor locally for this run
         query = self._build_query(cursor_field)
@@ -647,11 +710,12 @@ class CollectionReplicator:
             batch_start = time.time()
 
             # Apply transformation pipeline
-            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
+            processed, results = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_documents_transformed += docs_transformed
-            total_transforms_applied += transforms_applied
+            total_documents_transformed += results.documents_processed
+            total_transforms_applied += results.transforms_applied
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch
             written = self._write_batch_append(processed)
@@ -695,6 +759,7 @@ class CollectionReplicator:
             duration_seconds=0,  # Set by caller
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
+            transform_operations=aggregated_operations,
         )
 
     def _replicate_merge(
@@ -721,6 +786,9 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
+
         # Get starting cursor value from state
         query = self._build_query(cursor_field)
 
@@ -740,11 +808,12 @@ class CollectionReplicator:
             batch_start = time.time()
 
             # Apply transformation pipeline
-            processed, docs_transformed, transforms_applied = self._apply_transformations(batch)
+            processed, results = self._apply_transformations(batch)
 
             # Aggregate statistics
-            total_documents_transformed += docs_transformed
-            total_transforms_applied += transforms_applied
+            total_documents_transformed += results.documents_processed
+            total_transforms_applied += results.transforms_applied
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch
             written = self._write_batch_merge(processed, primary_key)
@@ -788,4 +857,5 @@ class CollectionReplicator:
             duration_seconds=0,  # Set by caller
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
+            transform_operations=aggregated_operations,
         )
