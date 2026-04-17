@@ -1216,13 +1216,7 @@ class TestStatistics:
         assert stats.documents_failed == 0
         assert stats.transforms_applied == 0
         assert stats.transforms_skipped == 0
-        assert stats.fields_added == 0
-        assert stats.fields_set == 0
-        assert stats.fields_removed == 0
-        assert stats.fields_renamed == 0
-        assert stats.fields_copied == 0
-        assert stats.fields_regex_replaced == 0
-        assert stats.fields_anonymized == 0
+        assert stats.operations == {}
 
     def test_field_counts_per_transform_type(self):
         """Test that field counts are tracked correctly for each transform type."""
@@ -1252,14 +1246,27 @@ class TestStatistics:
 
         result_docs, stats = engine.transform_documents(documents)
 
-        # Verify field counts
-        assert stats.fields_added == 1  # new_field
-        assert stats.fields_set == 1  # status
-        assert stats.fields_removed == 2  # temp, cache
-        assert stats.fields_renamed == 1  # old_name -> new_name
-        assert stats.fields_copied == 1  # email -> email_backup
-        assert stats.fields_regex_replaced == 1  # phone
-        assert stats.fields_anonymized == 1  # ssn (1 transform × 1 document)
+        # Verify operation results
+        assert "add_field" in stats.operations
+        assert stats.operations["add_field"].fields_processed == 1  # new_field
+
+        assert "set_field" in stats.operations
+        assert stats.operations["set_field"].fields_processed == 1  # status
+
+        assert "remove_field" in stats.operations
+        assert stats.operations["remove_field"].fields_processed == 2  # temp, cache
+
+        assert "rename_field" in stats.operations
+        assert stats.operations["rename_field"].fields_processed == 1  # old_name -> new_name
+
+        assert "copy_field" in stats.operations
+        assert stats.operations["copy_field"].fields_processed == 1  # email -> email_backup
+
+        assert "regex_replace" in stats.operations
+        assert stats.operations["regex_replace"].fields_processed == 1  # phone
+
+        assert "anonymize" in stats.operations
+        assert stats.operations["anonymize"].fields_processed == 1  # ssn (1 transform × 1 document)
 
     def test_field_counts_with_multiple_documents(self):
         """Test field counts with multiple documents and anonymize transforms."""
@@ -1275,9 +1282,16 @@ class TestStatistics:
 
         result_docs, stats = engine.transform_documents(documents)
 
-        # Verify field counts
-        assert stats.fields_added == 3  # environment added to 3 documents
-        assert stats.fields_anonymized == 6  # 2 anonymize transforms × 3 documents
+        # Verify operation results
+        assert "add_field" in stats.operations
+        assert (
+            stats.operations["add_field"].fields_processed == 3
+        )  # environment added to 3 documents
+
+        assert "anonymize" in stats.operations
+        assert (
+            stats.operations["anonymize"].fields_processed == 6
+        )  # 2 anonymize transforms × 3 documents
 
 
 class TestTemplateResolution:

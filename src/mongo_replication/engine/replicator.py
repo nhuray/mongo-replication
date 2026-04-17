@@ -17,7 +17,11 @@ from pymongo.errors import BulkWriteError
 
 from mongo_replication.engine.indexes import IndexManager
 from mongo_replication.engine.state import StateManager
-from mongo_replication.engine.transformations import TransformationEngine, TransformResults
+from mongo_replication.engine.transformations import (
+    TransformationEngine,
+    TransformOperationResults,
+    TransformResults,
+)
 from mongo_replication.engine.validation import CursorValidator
 
 logger = logging.getLogger(__name__)
@@ -105,14 +109,9 @@ class ReplicationResult(BaseModel):
     documents_transformed: int = 0
     transforms_applied: int = 0
 
-    # Per-transform-type field counts
-    fields_added: int = 0
-    fields_set: int = 0
-    fields_removed: int = 0
-    fields_renamed: int = 0
-    fields_copied: int = 0
-    fields_regex_replaced: int = 0
-    fields_anonymized: int = 0
+    # Per-operation transform results
+    # e.g. {"add_field": TransformOperationResults(...), "anonymize": TransformOperationResults(...)}
+    transform_operations: Dict[str, TransformOperationResults] = Field(default_factory=dict)
 
     # Index replication statistics
     indexes_replicated: int = 0
@@ -421,6 +420,32 @@ class CollectionReplicator:
         except Exception as e:
             raise ReplicationError(f"Transformation failed for {self.collection_name}: {e}") from e
 
+    def _aggregate_operation_results(
+        self,
+        accumulated: Dict[str, TransformOperationResults],
+        new_results: Dict[str, TransformOperationResults],
+    ) -> None:
+        """Aggregate operation results from a batch into accumulated totals.
+
+        Args:
+            accumulated: Accumulated operation results across batches (modified in place)
+            new_results: New operation results from current batch
+        """
+        for op_type, op_result in new_results.items():
+            if op_type not in accumulated:
+                # Create new entry with same type
+                accumulated[op_type] = TransformOperationResults(
+                    type=op_type,
+                    fields_configured=op_result.fields_configured,
+                    fields_processed=op_result.fields_processed,
+                    duration_seconds=op_result.duration_seconds,
+                )
+            else:
+                # Aggregate into existing entry
+                accumulated[op_type].fields_processed += op_result.fields_processed
+                accumulated[op_type].duration_seconds += op_result.duration_seconds
+                # fields_configured should be the same across batches, so we can just keep it
+
     def _write_batch_merge(
         self,
         documents: List[Dict[str, Any]],
@@ -551,14 +576,8 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
-        # Aggregate field counts
-        total_fields_added = 0
-        total_fields_set = 0
-        total_fields_removed = 0
-        total_fields_renamed = 0
-        total_fields_copied = 0
-        total_fields_regex_replaced = 0
-        total_fields_anonymized = 0
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
 
         # Index statistics (captured from first batch)
         indexes_replicated = 0
@@ -585,13 +604,7 @@ class CollectionReplicator:
             # Aggregate statistics
             total_documents_transformed += results.documents_processed
             total_transforms_applied += results.transforms_applied
-            total_fields_added += results.fields_added
-            total_fields_set += results.fields_set
-            total_fields_removed += results.fields_removed
-            total_fields_renamed += results.fields_renamed
-            total_fields_copied += results.fields_copied
-            total_fields_regex_replaced += results.fields_regex_replaced
-            total_fields_anonymized += results.fields_anonymized
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch (and handle indexes on first batch)
             written, idx_rep, idx_fail, idx_errs = self._write_batch_replace(
@@ -620,13 +633,7 @@ class CollectionReplicator:
             batches_processed=batch_num,
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
-            fields_added=total_fields_added,
-            fields_set=total_fields_set,
-            fields_removed=total_fields_removed,
-            fields_renamed=total_fields_renamed,
-            fields_copied=total_fields_copied,
-            fields_regex_replaced=total_fields_regex_replaced,
-            fields_anonymized=total_fields_anonymized,
+            transform_operations=aggregated_operations,
             indexes_replicated=indexes_replicated,
             indexes_failed=indexes_failed,
             index_errors=index_errors,
@@ -654,14 +661,8 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
-        # Aggregate field counts
-        total_fields_added = 0
-        total_fields_set = 0
-        total_fields_removed = 0
-        total_fields_renamed = 0
-        total_fields_copied = 0
-        total_fields_regex_replaced = 0
-        total_fields_anonymized = 0
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
 
         # Get starting cursor value from state
         # After this initial query, we track cursor locally for this run
@@ -688,13 +689,7 @@ class CollectionReplicator:
             # Aggregate statistics
             total_documents_transformed += results.documents_processed
             total_transforms_applied += results.transforms_applied
-            total_fields_added += results.fields_added
-            total_fields_set += results.fields_set
-            total_fields_removed += results.fields_removed
-            total_fields_renamed += results.fields_renamed
-            total_fields_copied += results.fields_copied
-            total_fields_regex_replaced += results.fields_regex_replaced
-            total_fields_anonymized += results.fields_anonymized
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch
             written = self._write_batch_append(processed)
@@ -738,13 +733,7 @@ class CollectionReplicator:
             duration_seconds=0,  # Set by caller
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
-            fields_added=total_fields_added,
-            fields_set=total_fields_set,
-            fields_removed=total_fields_removed,
-            fields_renamed=total_fields_renamed,
-            fields_copied=total_fields_copied,
-            fields_regex_replaced=total_fields_regex_replaced,
-            fields_anonymized=total_fields_anonymized,
+            transform_operations=aggregated_operations,
         )
 
     def _replicate_merge(
@@ -771,14 +760,8 @@ class CollectionReplicator:
         total_documents_transformed = 0
         total_transforms_applied = 0
 
-        # Aggregate field counts
-        total_fields_added = 0
-        total_fields_set = 0
-        total_fields_removed = 0
-        total_fields_renamed = 0
-        total_fields_copied = 0
-        total_fields_regex_replaced = 0
-        total_fields_anonymized = 0
+        # Aggregate operation results across batches
+        aggregated_operations: Dict[str, TransformOperationResults] = {}
 
         # Get starting cursor value from state
         query = self._build_query(cursor_field)
@@ -804,13 +787,7 @@ class CollectionReplicator:
             # Aggregate statistics
             total_documents_transformed += results.documents_processed
             total_transforms_applied += results.transforms_applied
-            total_fields_added += results.fields_added
-            total_fields_set += results.fields_set
-            total_fields_removed += results.fields_removed
-            total_fields_renamed += results.fields_renamed
-            total_fields_copied += results.fields_copied
-            total_fields_regex_replaced += results.fields_regex_replaced
-            total_fields_anonymized += results.fields_anonymized
+            self._aggregate_operation_results(aggregated_operations, results.operations)
 
             # Write batch
             written = self._write_batch_merge(processed, primary_key)
@@ -854,11 +831,5 @@ class CollectionReplicator:
             duration_seconds=0,  # Set by caller
             documents_transformed=total_documents_transformed,
             transforms_applied=total_transforms_applied,
-            fields_added=total_fields_added,
-            fields_set=total_fields_set,
-            fields_removed=total_fields_removed,
-            fields_renamed=total_fields_renamed,
-            fields_copied=total_fields_copied,
-            fields_regex_replaced=total_fields_regex_replaced,
-            fields_anonymized=total_fields_anonymized,
+            transform_operations=aggregated_operations,
         )
