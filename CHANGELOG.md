@@ -1,6 +1,170 @@
 # CHANGELOG
 
 
+## v3.0.0 (2026-04-17)
+
+### Breaking
+
+* fix!: Fix critical infinite loop bug in append/merge replication (#23)
+
+* fix: add missing transformations statistics
+
+* refactor: make transform statistics generic and scalable
+
+Replace individual field counters (fields_added, fields_set, etc.) with a
+generic TransformOperationResults class that tracks statistics per operation
+type dynamically.
+
+BREAKING CHANGE: Transform statistics API changed from individual fields
+to operations dictionary
+
+Changes:
+- Add TransformOperationResults class with type, fields_configured,
+  fields_processed, and duration_seconds
+- Replace per-field counters in TransformResults with operations dict
+- Replace per-field counters in ReplicationResult with transform_operations
+- Add _get_or_create_operation_result() helper in TransformationEngine
+- Add _aggregate_operation_results() helper in CollectionReplicator
+- Update all three replication strategies to use new aggregation
+- Update tests to verify operations dict instead of individual fields
+
+Benefits:
+- Adding new transform types no longer requires updating result classes
+- More maintainable and follows open/closed principle
+- Each operation can track additional metrics like duration
+- Cleaner API with less boilerplate
+
+* feat: store transformation statistics in state manager
+
+Track per-operation transformation statistics in the _rep_state collection
+to provide detailed insights into what transformations were applied during
+each collection replication run.
+
+Changes:
+- Update _rep_state schema to include transformations field with:
+  - documentsTransformed: Total documents that had transforms applied
+  - transformsApplied: Total number of individual transforms applied
+  - operations: Dict of per-operation stats (type, fieldsConfigured,
+    fieldsProcessed, durationSeconds)
+- Update complete_collection() to accept transformation statistics
+- Update fail_collection() to accept transformation statistics
+- Add _convert_operations_to_dict() helper to convert TransformOperationResults
+  to dict format for MongoDB storage
+- Update replicator to pass transformation stats when completing collections
+- Update ReplicationResult return to include transform_operations
+
+Benefits:
+- Historical tracking of transformation performance and field counts
+- Per-operation visibility into what transformations were applied
+- Helps with debugging and monitoring transformation pipelines
+- Enables analysis of transformation impact across runs
+
+* fix: add missing transformations statistics
+
+* fix: resolve critical infinite loop bug in append/merge replication
+
+This commit fixes three related bugs that caused collections to get stuck
+in status=running during replication with write_disposition=merge or append:
+
+Bug #1: Infinite loop in batch processing
+- Root Cause: The batch loop queries in _replicate_append() and _replicate_merge()
+  included {cursor_field: {$exists: False}} in the $or condition. This caused
+  documents without cursor fields to be fetched repeatedly in every batch iteration,
+  creating an infinite loop.
+- Fix: Changed batch loop queries (lines 727 and 831) to only query for documents
+  with cursor_field > last_cursor_value, removing the $exists condition.
+- Note: The initial query (built by _build_query()) correctly keeps the $or with
+  $exists to capture documents without cursor fields in the first batch.
+
+Bug #2: State never updated for collections without cursor fields
+- Root Cause: Both _replicate_append() and _replicate_merge() only called
+  update_collection_state() when cursor_field existed and had a value. Collections
+  without cursor fields never had their state updated, leaving status as 'running'.
+- Fix: Added elif clause (lines 749-757 and 847-857) to update state with document
+  counts even when cursor_field is empty/None.
+
+Bug #3: State completion fails silently
+- Root Cause: complete_collection() returned early if state document not found,
+  preventing status update to 'completed'.
+- Fix: Removed early return, continue with duration=0 if state not found (like
+  fail_collection() does), and added upsert=True to ensure state is always updated.
+
+Bug #4: Exception handling doesn't update state
+- Root Cause: If exception occurred in _replicate_single_collection() after creating
+  state but before calling replicator.replicate(), state was never marked as failed.
+- Fix: Initialize state_id=None before try block and call fail_collection() in
+  exception handler if state_id exists.
+
+Files changed:
+- src/mongo_replication/engine/replicator.py (lines 727, 749-757, 831, 847-857)
+- src/mongo_replication/engine/state.py (lines 375-406)
+- src/mongo_replication/engine/orchestrator.py (lines 202, 252-257)
+
+Test results: All 485 tests passing ✅ ([`907ced2`](https://github.com/nhuray/mongo-replication/commit/907ced259b48f972189f699c079570b944d59f46))
+
+* fix: Refactor transformation statistics to be generic and scalable (#22)
+
+* fix: add missing transformations statistics
+
+* refactor: make transform statistics generic and scalable
+
+Replace individual field counters (fields_added, fields_set, etc.) with a
+generic TransformOperationResults class that tracks statistics per operation
+type dynamically.
+
+BREAKING CHANGE: Transform statistics API changed from individual fields
+to operations dictionary
+
+Changes:
+- Add TransformOperationResults class with type, fields_configured,
+  fields_processed, and duration_seconds
+- Replace per-field counters in TransformResults with operations dict
+- Replace per-field counters in ReplicationResult with transform_operations
+- Add _get_or_create_operation_result() helper in TransformationEngine
+- Add _aggregate_operation_results() helper in CollectionReplicator
+- Update all three replication strategies to use new aggregation
+- Update tests to verify operations dict instead of individual fields
+
+Benefits:
+- Adding new transform types no longer requires updating result classes
+- More maintainable and follows open/closed principle
+- Each operation can track additional metrics like duration
+- Cleaner API with less boilerplate
+
+* feat: store transformation statistics in state manager
+
+Track per-operation transformation statistics in the _rep_state collection
+to provide detailed insights into what transformations were applied during
+each collection replication run.
+
+Changes:
+- Update _rep_state schema to include transformations field with:
+  - documentsTransformed: Total documents that had transforms applied
+  - transformsApplied: Total number of individual transforms applied
+  - operations: Dict of per-operation stats (type, fieldsConfigured,
+    fieldsProcessed, durationSeconds)
+- Update complete_collection() to accept transformation statistics
+- Update fail_collection() to accept transformation statistics
+- Add _convert_operations_to_dict() helper to convert TransformOperationResults
+  to dict format for MongoDB storage
+- Update replicator to pass transformation stats when completing collections
+- Update ReplicationResult return to include transform_operations
+
+Benefits:
+- Historical tracking of transformation performance and field counts
+- Per-operation visibility into what transformations were applied
+- Helps with debugging and monitoring transformation pipelines
+- Enables analysis of transformation impact across runs
+
+* fix: add missing transformations statistics ([`2cd4a67`](https://github.com/nhuray/mongo-replication/commit/2cd4a67efde10599abc30c7b4d01f0852bb5ffd8))
+
+### Chores
+
+* chore: update release.yaml to run on workflow_dispatch ([`094dc47`](https://github.com/nhuray/mongo-replication/commit/094dc470f8682927b97439760ab13d7ebe22b295))
+
+* chore: update uv.lock ([`cafbdfd`](https://github.com/nhuray/mongo-replication/commit/cafbdfd05881b9c624937acc969fc158d70c9aeb))
+
+
 ## v2.0.0 (2026-04-17)
 
 ### Breaking
@@ -27,6 +191,8 @@ Changes:
 - Update ReplicationResult to track simple transform statistics ([`45d6f2f`](https://github.com/nhuray/mongo-replication/commit/45d6f2f77558c81db9f0e9f4e5088d92a2bfff38))
 
 ### Chores
+
+* chore(release): 2.0.0 [skip ci] ([`e3c7d17`](https://github.com/nhuray/mongo-replication/commit/e3c7d1778d620f0a8364ac7d9d7e5c0993347e3d))
 
 * chore: Remove all references to deprecated config fields
 
