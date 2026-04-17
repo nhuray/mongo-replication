@@ -199,6 +199,7 @@ class ReplicationOrchestrator:
         Returns:
             ReplicationResult
         """
+        state_id = None
         try:
             # Create collection state
             state_id = self.state_mgr.start_collection(run_id, collection_name)
@@ -247,6 +248,13 @@ class ReplicationOrchestrator:
             import traceback
 
             traceback.print_exc()
+
+            # Update state to failed if state was created
+            if state_id:
+                self.state_mgr.fail_collection(
+                    state_id=state_id,
+                    error_message=f"Unexpected error: {type(e).__name__}: {str(e)}",
+                )
 
             return ReplicationResult(
                 collection_name=collection_name,
