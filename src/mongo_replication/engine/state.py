@@ -58,6 +58,14 @@ class StateManager:
         lastCursorValue: Any                    # Last cursor value (native BSON type)
         lastCursorField: String                 # Cursor field name
         error: Object                           # Error details if failed
+        transformations.documentsTransformed: Int32     # Documents transformed
+        transformations.transformsApplied: Int32        # Total transforms applied
+        transformations.operations: Object              # Per-operation statistics
+            {operation_type}: Object                    # e.g., "add_field", "anonymize"
+                type: String                            # Operation type
+                fieldsConfigured: Int32                 # Fields configured for this operation
+                fieldsProcessed: Int32                  # Fields actually processed
+                durationSeconds: Double                 # Time spent on this operation
     """
 
     def __init__(
@@ -351,6 +359,9 @@ class StateManager:
         documents_processed: int,
         documents_succeeded: int,
         documents_failed: int,
+        documents_transformed: int = 0,
+        transforms_applied: int = 0,
+        transform_operations: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         """Mark a collection replication as completed.
 
@@ -359,6 +370,9 @@ class StateManager:
             documents_processed: Total documents processed
             documents_succeeded: Documents successfully processed
             documents_failed: Documents that failed
+            documents_transformed: Documents that had transformations applied
+            transforms_applied: Total number of transforms applied
+            transform_operations: Per-operation transformation statistics
         """
         state = self.state_collection.find_one({"_id": state_id})
         if not state:
@@ -368,18 +382,26 @@ class StateManager:
         end_time = datetime.utcnow()
         duration = (end_time - state["startedAt"]).total_seconds()
 
+        update_doc = {
+            "status": "completed",
+            "endedAt": end_time,
+            "durationSeconds": duration,
+            "documents.processed": documents_processed,
+            "documents.succeeded": documents_succeeded,
+            "documents.failed": documents_failed,
+        }
+
+        # Add transformation statistics if provided
+        if documents_transformed > 0 or transforms_applied > 0 or transform_operations:
+            update_doc["transformations"] = {
+                "documentsTransformed": documents_transformed,
+                "transformsApplied": transforms_applied,
+                "operations": transform_operations or {},
+            }
+
         self.state_collection.update_one(
             {"_id": state_id},
-            {
-                "$set": {
-                    "status": "completed",
-                    "endedAt": end_time,
-                    "durationSeconds": duration,
-                    "documents.processed": documents_processed,
-                    "documents.succeeded": documents_succeeded,
-                    "documents.failed": documents_failed,
-                }
-            },
+            {"$set": update_doc},
         )
 
     def fail_collection(
@@ -389,6 +411,9 @@ class StateManager:
         documents_processed: int = 0,
         documents_succeeded: int = 0,
         documents_failed: int = 0,
+        documents_transformed: int = 0,
+        transforms_applied: int = 0,
+        transform_operations: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
         """Mark a collection replication as failed.
 
@@ -398,6 +423,9 @@ class StateManager:
             documents_processed: Total documents processed before failure
             documents_succeeded: Documents successfully processed before failure
             documents_failed: Documents that failed
+            documents_transformed: Documents that had transformations applied before failure
+            transforms_applied: Total number of transforms applied before failure
+            transform_operations: Per-operation transformation statistics before failure
         """
         state = self.state_collection.find_one({"_id": state_id})
         if state:
@@ -407,22 +435,27 @@ class StateManager:
             end_time = datetime.utcnow()
             duration = 0
 
+        update_doc = {
+            "status": "failed",
+            "endedAt": end_time,
+            "durationSeconds": duration,
+            "documents.processed": documents_processed,
+            "documents.succeeded": documents_succeeded,
+            "documents.failed": documents_failed,
+            "error": {"message": error_message},
+        }
+
+        # Add transformation statistics if provided
+        if documents_transformed > 0 or transforms_applied > 0 or transform_operations:
+            update_doc["transformations"] = {
+                "documentsTransformed": documents_transformed,
+                "transformsApplied": transforms_applied,
+                "operations": transform_operations or {},
+            }
+
         self.state_collection.update_one(
             {"_id": state_id},
-            {
-                "$set": {
-                    "status": "failed",
-                    "endedAt": end_time,
-                    "durationSeconds": duration,
-                    "documents.processed": documents_processed,
-                    "documents.succeeded": documents_succeeded,
-                    "documents.failed": documents_failed,
-                    "error": {
-                        "message": error_message,
-                        "timestamp": end_time,
-                    },
-                }
-            },
+            {"$set": update_doc},
             upsert=True,
         )
 

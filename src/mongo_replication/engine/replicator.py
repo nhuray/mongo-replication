@@ -158,6 +158,28 @@ class CollectionReplicator:
         self.index_mgr = index_manager
         self.collection_name = source_collection.name
 
+    @staticmethod
+    def _convert_operations_to_dict(
+        operations: Dict[str, TransformOperationResults],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Convert TransformOperationResults to dict for storage.
+
+        Args:
+            operations: Dictionary of operation results
+
+        Returns:
+            Dictionary suitable for MongoDB storage
+        """
+        return {
+            op_type: {
+                "type": op_result.type,
+                "fieldsConfigured": op_result.fields_configured,
+                "fieldsProcessed": op_result.fields_processed,
+                "durationSeconds": op_result.duration_seconds,
+            }
+            for op_type, op_result in operations.items()
+        }
+
     def replicate(
         self,
         state_id,
@@ -258,6 +280,9 @@ class CollectionReplicator:
                 documents_processed=result.documents_processed,
                 documents_succeeded=result.documents_processed,  # TODO: Track failed docs
                 documents_failed=0,
+                documents_transformed=result.documents_transformed,
+                transforms_applied=result.transforms_applied,
+                transform_operations=self._convert_operations_to_dict(result.transform_operations),
             )
 
             logger.info(
@@ -285,6 +310,7 @@ class CollectionReplicator:
                 write_disposition=write_disposition,
                 documents_transformed=result.documents_transformed,
                 transforms_applied=result.transforms_applied,
+                transform_operations=result.transform_operations,
                 indexes_replicated=final_indexes_replicated,
                 indexes_failed=final_indexes_failed,
                 index_errors=final_index_errors,
