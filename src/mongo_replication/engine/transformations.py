@@ -511,6 +511,15 @@ class TransformationEngine:
             return field_value in condition.value
         elif condition.operator == "$nin":
             return field_value not in condition.value
+        elif condition.operator == "$regexp":
+            # Field must be a string and match the regex pattern
+            if not isinstance(field_value, str):
+                return False
+            try:
+                pattern = re.compile(condition.value)
+                return pattern.search(field_value) is not None
+            except re.error as e:
+                raise ValueError(f"Invalid regex pattern '{condition.value}': {e}")
         else:
             raise ValueError(f"Unknown condition operator: {condition.operator}")
 

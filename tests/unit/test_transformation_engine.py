@@ -998,6 +998,129 @@ class TestConditionalExecution:
 
         assert result["in_usa"] is True
 
+    def test_condition_regexp_match(self):
+        """Test condition with $regexp that matches."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="has_valid_email",
+                    value=True,
+                    condition=ConditionConfig(
+                        field="email", operator="$regexp", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
+                    ),
+                )
+            ]
+        )
+
+        doc = {"email": "alice@example.com"}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert result["has_valid_email"] is True
+
+    def test_condition_regexp_no_match(self):
+        """Test condition with $regexp that doesn't match."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="has_valid_email",
+                    value=True,
+                    condition=ConditionConfig(
+                        field="email", operator="$regexp", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
+                    ),
+                )
+            ]
+        )
+
+        doc = {"email": "not-an-email"}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        # Transform should be skipped, field not added
+        assert "has_valid_email" not in result
+
+    def test_condition_regexp_on_non_string(self):
+        """Test that $regexp returns False for non-string fields."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="matched",
+                    value=True,
+                    condition=ConditionConfig(field="value", operator="$regexp", value=r"\d+"),
+                )
+            ]
+        )
+
+        doc = {"value": 12345}  # Integer, not string
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        # Transform should be skipped because field is not a string
+        assert "matched" not in result
+
+    def test_condition_regexp_partial_match(self):
+        """Test that $regexp performs partial match (search, not full match)."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="contains_number",
+                    value=True,
+                    condition=ConditionConfig(field="text", operator="$regexp", value=r"\d+"),
+                )
+            ]
+        )
+
+        doc = {"text": "Hello 123 World"}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert result["contains_number"] is True
+
+    def test_condition_regexp_case_sensitive(self):
+        """Test that $regexp is case-sensitive by default."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="has_uppercase",
+                    value=True,
+                    condition=ConditionConfig(field="text", operator="$regexp", value=r"^HELLO"),
+                )
+            ]
+        )
+
+        # Should not match lowercase
+        doc1 = {"text": "hello world"}
+        result1, _ = engine.transform_documents([doc1])
+        result1 = result1[0]
+        assert "has_uppercase" not in result1
+
+        # Should match uppercase
+        doc2 = {"text": "HELLO world"}
+        result2, _ = engine.transform_documents([doc2])
+        result2 = result2[0]
+        assert result2["has_uppercase"] is True
+
+    def test_condition_regexp_case_insensitive(self):
+        """Test $regexp with case-insensitive flag."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="has_hello",
+                    value=True,
+                    condition=ConditionConfig(
+                        field="text", operator="$regexp", value=r"(?i)^hello"
+                    ),
+                )
+            ]
+        )
+
+        # Should match with case-insensitive flag
+        doc = {"text": "HELLO world"}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert result["has_hello"] is True
+
     def test_condition_on_anonymize_transform(self):
         """Test that anonymize transforms respect conditions."""
         engine = TransformationEngine(
