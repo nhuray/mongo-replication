@@ -511,7 +511,7 @@ class TransformationEngine:
             return field_value in condition.value
         elif condition.operator == "$nin":
             return field_value not in condition.value
-        elif condition.operator == "$regexp":
+        elif condition.operator == "$regex":
             # Field must be a string and match the regex pattern
             if not isinstance(field_value, str):
                 return False

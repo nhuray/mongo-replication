@@ -999,14 +999,14 @@ class TestConditionalExecution:
         assert result["in_usa"] is True
 
     def test_condition_regexp_match(self):
-        """Test condition with $regexp that matches."""
+        """Test condition with $regex that matches."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="has_valid_email",
                     value=True,
                     condition=ConditionConfig(
-                        field="email", operator="$regexp", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
+                        field="email", operator="$regex", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
                     ),
                 )
             ]
@@ -1019,14 +1019,14 @@ class TestConditionalExecution:
         assert result["has_valid_email"] is True
 
     def test_condition_regexp_no_match(self):
-        """Test condition with $regexp that doesn't match."""
+        """Test condition with $regex that doesn't match."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="has_valid_email",
                     value=True,
                     condition=ConditionConfig(
-                        field="email", operator="$regexp", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
+                        field="email", operator="$regex", value=r"^[\w\.-]+@[\w\.-]+\.\w+$"
                     ),
                 )
             ]
@@ -1040,13 +1040,13 @@ class TestConditionalExecution:
         assert "has_valid_email" not in result
 
     def test_condition_regexp_on_non_string(self):
-        """Test that $regexp returns False for non-string fields."""
+        """Test that $regex returns False for non-string fields."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="matched",
                     value=True,
-                    condition=ConditionConfig(field="value", operator="$regexp", value=r"\d+"),
+                    condition=ConditionConfig(field="value", operator="$regex", value=r"\d+"),
                 )
             ]
         )
@@ -1059,13 +1059,13 @@ class TestConditionalExecution:
         assert "matched" not in result
 
     def test_condition_regexp_partial_match(self):
-        """Test that $regexp performs partial match (search, not full match)."""
+        """Test that $regex performs partial match (search, not full match)."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="contains_number",
                     value=True,
-                    condition=ConditionConfig(field="text", operator="$regexp", value=r"\d+"),
+                    condition=ConditionConfig(field="text", operator="$regex", value=r"\d+"),
                 )
             ]
         )
@@ -1077,13 +1077,13 @@ class TestConditionalExecution:
         assert result["contains_number"] is True
 
     def test_condition_regexp_case_sensitive(self):
-        """Test that $regexp is case-sensitive by default."""
+        """Test that $regex is case-sensitive by default."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="has_uppercase",
                     value=True,
-                    condition=ConditionConfig(field="text", operator="$regexp", value=r"^HELLO"),
+                    condition=ConditionConfig(field="text", operator="$regex", value=r"^HELLO"),
                 )
             ]
         )
@@ -1101,15 +1101,13 @@ class TestConditionalExecution:
         assert result2["has_uppercase"] is True
 
     def test_condition_regexp_case_insensitive(self):
-        """Test $regexp with case-insensitive flag."""
+        """Test $regex with case-insensitive flag."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(
                     field="has_hello",
                     value=True,
-                    condition=ConditionConfig(
-                        field="text", operator="$regexp", value=r"(?i)^hello"
-                    ),
+                    condition=ConditionConfig(field="text", operator="$regex", value=r"(?i)^hello"),
                 )
             ]
         )
