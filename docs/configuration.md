@@ -754,6 +754,7 @@ All transforms support optional `condition` field for conditional execution:
 - `$lt`, `$lte`: Less than (or equal)
 - `$in`: Value in list
 - `$nin`: Value not in list
+- `$regex`: Value matches a regex pattern
 
 ##### Complete Example
 
