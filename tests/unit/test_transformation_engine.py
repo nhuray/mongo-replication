@@ -998,7 +998,7 @@ class TestConditionalExecution:
 
         assert result["in_usa"] is True
 
-    def test_condition_regexp_match(self):
+    def test_condition_regex_match(self):
         """Test condition with $regex that matches."""
         engine = TransformationEngine(
             transforms=[
@@ -1018,7 +1018,7 @@ class TestConditionalExecution:
 
         assert result["has_valid_email"] is True
 
-    def test_condition_regexp_no_match(self):
+    def test_condition_regex_no_match(self):
         """Test condition with $regex that doesn't match."""
         engine = TransformationEngine(
             transforms=[
@@ -1039,7 +1039,7 @@ class TestConditionalExecution:
         # Transform should be skipped, field not added
         assert "has_valid_email" not in result
 
-    def test_condition_regexp_on_non_string(self):
+    def test_condition_regex_on_non_string(self):
         """Test that $regex returns False for non-string fields."""
         engine = TransformationEngine(
             transforms=[
@@ -1058,7 +1058,7 @@ class TestConditionalExecution:
         # Transform should be skipped because field is not a string
         assert "matched" not in result
 
-    def test_condition_regexp_partial_match(self):
+    def test_condition_regex_partial_match(self):
         """Test that $regex performs partial match (search, not full match)."""
         engine = TransformationEngine(
             transforms=[
@@ -1076,7 +1076,7 @@ class TestConditionalExecution:
 
         assert result["contains_number"] is True
 
-    def test_condition_regexp_case_sensitive(self):
+    def test_condition_regex_case_sensitive(self):
         """Test that $regex is case-sensitive by default."""
         engine = TransformationEngine(
             transforms=[
@@ -1100,7 +1100,7 @@ class TestConditionalExecution:
         result2 = result2[0]
         assert result2["has_uppercase"] is True
 
-    def test_condition_regexp_case_insensitive(self):
+    def test_condition_regex_case_insensitive(self):
         """Test $regex with case-insensitive flag."""
         engine = TransformationEngine(
             transforms=[
