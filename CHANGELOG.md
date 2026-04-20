@@ -1,6 +1,119 @@
 # CHANGELOG
 
 
+## v3.1.0 (2026-04-20)
+
+### Bug Fixes
+
+* fix: Add condition support to anonymize transforms (#25)
+
+Add condition support to anonymize transforms
+
+- Add condition evaluation for anonymize transforms
+- Implement conditional anonymization path that processes transforms individually when conditions are present
+- Preserve batch optimization when no conditions are used
+- Add comprehensive tests for conditional anonymization
+- Ensure backward compatibility with existing anonymize behavior ([`b7cfa5d`](https://github.com/nhuray/mongo-replication/commit/b7cfa5d59a17d29147b18615335980e2f991f3bd))
+
+### Documentation
+
+* docs: Update README.md [skip ci] ([`09691f5`](https://github.com/nhuray/mongo-replication/commit/09691f5ecbf127878c2b6627a983e65dcb477a1a))
+
+### Features
+
+* feat: Add $regex condition operator for pattern matching (#26)
+
+* Add $regexp condition operator for pattern matching
+
+- Add $regexp to ConditionConfig operator types
+- Implement regex pattern matching in _evaluate_condition()
+- Return False for non-string fields
+- Use re.search() for partial matching (consistent with MongoDB behavior)
+- Add comprehensive tests covering:
+  - Basic pattern matching
+  - No match scenarios
+  - Non-string field handling
+  - Partial matching
+  - Case sensitivity
+  - Case-insensitive with (?i) flag
+- All 493 tests passing ✅
+
+* fix: rename $regexp to $regex
+
+* docs: document $regex operator
+
+* chore: minor rename ([`ae787bb`](https://github.com/nhuray/mongo-replication/commit/ae787bb9c57180252a7bfd0974f340f87efba4b1))
+
+### Refactoring
+
+* refactor: Remove deprecated code and TODOs (#24)
+
+* refactor: remove deprecated code and TODOs
+
+This commit removes deprecated methods, legacy code, and cleans up TODOs:
+
+**Removed deprecated methods:**
+1. transform_document() in transformations.py
+   - Updated 90 test cases to use transform_documents() instead
+   - Tests that expect exceptions now use error_mode='fail'
+
+2. get_mongodb_connection_string() in config/manager.py
+   - Removed function and export from __init__.py
+   - Superseded by JobManager.get_job()
+
+3. get_pii_fields() in pii_analyzer.py
+   - Removed old dict format method
+   - Use get_pii_anonymization_list() instead
+
+**Removed legacy code:**
+1. Old index cleanup code in state.py (lines 94-107)
+   - Migration code from previous schema versions
+   - No longer needed
+
+**Cleaned up TODOs:**
+1. Removed TODO comments in replicator.py (4 locations)
+   - Lines 281, 328, 746, 850
+   - Comments about tracking failed docs separately
+
+**Files changed:**
+- src/mongo_replication/config/__init__.py
+- src/mongo_replication/config/manager.py
+- src/mongo_replication/engine/pii/pii_analyzer.py
+- src/mongo_replication/engine/replicator.py
+- src/mongo_replication/engine/state.py
+- src/mongo_replication/engine/transformations.py
+- tests/unit/test_transformation_engine.py
+
+**Test results:** All 485 tests passing ✅
+
+* docs: update README files to use unified transforms syntax
+
+Fixed outdated documentation that referenced deprecated configuration fields:
+
+**README.md:**
+- Replaced 'PII Anonymization' section using pii_anonymization with unified 'Transformations' section
+- Replaced 'Field Transformations' section using field_transforms
+- Replaced 'Field Exclusion' section using fields_exclude
+- Combined all three into single 'transforms' pipeline example
+- Shows proper YAML structure with type, operator, and params
+
+**src/mongo_replication/README.md:**
+- Replaced pii_fields dict format with transforms list format
+- Updated to use type: anonymize with proper operator names
+- Maintains same functionality with correct v2.0 syntax
+
+All examples now demonstrate:
+- Unified transforms pipeline (v2.0 format)
+- Proper field structure with type, operator, params
+- Multi-entity PII field support
+- Field removal, regex, and set_field transforms
+
+Note: MIGRATION_V2.md and CHANGELOG.md intentionally kept with
+historical references for migration guidance.
+
+Test results: All 485 tests passing ✅ ([`c6f923f`](https://github.com/nhuray/mongo-replication/commit/c6f923fb079f4de587cf69c9fb6fe2c97da858cf))
+
+
 ## v3.0.0 (2026-04-17)
 
 ### Breaking
@@ -159,6 +272,8 @@ Benefits:
 * fix: add missing transformations statistics ([`2cd4a67`](https://github.com/nhuray/mongo-replication/commit/2cd4a67efde10599abc30c7b4d01f0852bb5ffd8))
 
 ### Chores
+
+* chore(release): 3.0.0 [skip ci] ([`9dbfd0d`](https://github.com/nhuray/mongo-replication/commit/9dbfd0dd8ebb4650f24ec201245e5cce49c1a43f))
 
 * chore: update release.yaml to run on workflow_dispatch ([`094dc47`](https://github.com/nhuray/mongo-replication/commit/094dc470f8682927b97439760ab13d7ebe22b295))
 
