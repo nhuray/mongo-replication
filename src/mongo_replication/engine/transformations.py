@@ -224,20 +224,28 @@ class TransformationEngine:
 
         if self.anonymize_transforms and self.pii_handler:
             try:
-                logger.debug(
-                    f"Batch anonymizing {len(transformed)} documents with "
-                    f"{len(self.anonymize_transforms)} anonymize transforms"
-                )
+                # Check if any anonymize transforms have conditions
+                has_conditions = any(t.condition for t in self.anonymize_transforms)
 
-                # Single batch call for all anonymizations
-                transformed = self.pii_handler.process_documents(transformed)
+                if has_conditions:
+                    # Process each anonymize transform individually with condition checking
+                    transformed = self._apply_conditional_anonymize_transforms(transformed, stats)
+                else:
+                    # Batch process all anonymizations (original optimized path)
+                    logger.debug(
+                        f"Batch anonymizing {len(transformed)} documents with "
+                        f"{len(self.anonymize_transforms)} anonymize transforms"
+                    )
 
-                # Count anonymized fields and track duration
-                anonymize_duration = time.time() - stage2_start
-                op_result = self._get_or_create_operation_result(stats, "anonymize")
-                op_result.fields_processed = len(self.anonymize_transforms) * len(transformed)
-                op_result.duration_seconds = anonymize_duration
-                stats.transforms_applied += len(self.anonymize_transforms) * len(transformed)
+                    # Single batch call for all anonymizations
+                    transformed = self.pii_handler.process_documents(transformed)
+
+                    # Count anonymized fields and track duration
+                    anonymize_duration = time.time() - stage2_start
+                    op_result = self._get_or_create_operation_result(stats, "anonymize")
+                    op_result.fields_processed = len(self.anonymize_transforms) * len(transformed)
+                    op_result.duration_seconds = anonymize_duration
+                    stats.transforms_applied += len(self.anonymize_transforms) * len(transformed)
 
             except Exception as e:
                 if self.error_mode == "fail":
@@ -287,6 +295,87 @@ class TransformationEngine:
 
             # Apply transformation based on type and count fields
             result = self._apply_transform(result, transform, stats)
+
+        return result
+
+    def _apply_conditional_anonymize_transforms(
+        self, documents: List[Dict[str, Any]], stats: TransformResults
+    ) -> List[Dict[str, Any]]:
+        """Apply anonymize transforms with condition checking.
+
+        This method processes each anonymize transform individually, evaluating
+        conditions for each document to determine which documents should be
+        anonymized for each transform.
+
+        Args:
+            documents: List of documents to transform
+            stats: Statistics object to update
+
+        Returns:
+            List of transformed documents
+        """
+        from mongo_replication.engine.pii import create_pii_handler_from_config
+        from mongo_replication.config.models import PIIFieldAnonymization
+
+        result = documents
+        op_result = self._get_or_create_operation_result(stats, "anonymize")
+        start_time = time.time()
+
+        for transform in self.anonymize_transforms:
+            # Determine which documents meet the condition
+            if transform.condition:
+                # Filter documents that meet the condition
+                docs_to_anonymize = []
+                doc_indices = []
+
+                for idx, doc in enumerate(result):
+                    if self._evaluate_condition(doc, transform.condition):
+                        docs_to_anonymize.append(doc)
+                        doc_indices.append(idx)
+                    else:
+                        stats.transforms_skipped += 1
+
+                if not docs_to_anonymize:
+                    # No documents meet condition, skip this transform
+                    continue
+
+                # Create handler for this specific transform
+                pii_config = PIIFieldAnonymization(
+                    field=transform.field,
+                    operator=transform.operator,
+                    params=transform.params or {},
+                )
+                handler = create_pii_handler_from_config([pii_config])
+
+                # Process only the documents that meet the condition
+                anonymized_docs = handler.process_documents(docs_to_anonymize)
+
+                # Update the documents in the result list
+                for idx, anonymized_doc in zip(doc_indices, anonymized_docs):
+                    result[idx] = anonymized_doc
+
+                # Update statistics
+                op_result.fields_processed += len(docs_to_anonymize)
+                stats.transforms_applied += len(docs_to_anonymize)
+
+            else:
+                # No condition - apply to all documents
+                pii_config = PIIFieldAnonymization(
+                    field=transform.field,
+                    operator=transform.operator,
+                    params=transform.params or {},
+                )
+                handler = create_pii_handler_from_config([pii_config])
+
+                # Process all documents
+                result = handler.process_documents(result)
+
+                # Update statistics
+                op_result.fields_processed += len(result)
+                stats.transforms_applied += len(result)
+
+        # Track duration
+        op_result.duration_seconds = time.time() - start_time
 
         return result
 
