@@ -408,51 +408,42 @@ replication:
    collections:
      users:
         transforms:
-          # PII anonymization - supports multiple entity types per field
-          - field: email
-            type: anonymize
-            operator: mask_email
-            params:
-              entity_type: EMAIL_ADDRESS
-          - field: phone
-            type: anonymize
-            operator: mask_phone
-            params:
-              entity_type: PHONE_NUMBER
-          - field: contact_info           # Field with multiple PII types
-            type: anonymize
-            operator: mask_person
-            params:
-              entity_type: PERSON
-          - field: contact_info           # Same field, second entity type
-            type: anonymize
-            operator: mask_email
-            params:
-              entity_type: EMAIL_ADDRESS
-          - field: ssn
-            type: anonymize
-            operator: hash
-            params:
-              entity_type: US_SSN
-
-          # Field transformations
+          # Field transformations - Applied before PII anonymization
+          # Set field
           - field: status
             type: set_field
             value: active
 
           # Regex transformations
-          - field: billing_plan
+          - field: phone
             type: regex_replace
-            pattern: '.*'
-            replacement: 'free'
+            pattern: '^([0-9]{3})([0-9]{3})([0-9]{4})$'
+            replacement: '^\(\1\)-\2-\3$'
 
-          # Field removal
+          # Remove fields
           - field: password_hash
             type: remove_field
           - field: internal_notes
             type: remove_field
           - field: legacy_data
             type: remove_field
+
+          # PII anonymization - supports multiple entity types per field
+          - field: email
+            type: anonymize
+            operator: mask_email
+          - field: phone
+            type: anonymize
+            operator: mask_phone
+          - field: contact_info           # Field with multiple PII types
+            type: anonymize
+            operator: mask_person
+          - field: contact_info           # Same field, second entity type
+            type: anonymize
+            operator: mask_email
+          - field: ssn
+            type: anonymize
+            operator: hash
 ```
 
 The scan command automatically detects PII fields and multi-entity fields, configuring operators in confidence order.
