@@ -998,6 +998,80 @@ class TestConditionalExecution:
 
         assert result["in_usa"] is True
 
+    def test_condition_on_anonymize_transform(self):
+        """Test that anonymize transforms respect conditions."""
+        engine = TransformationEngine(
+            transforms=[
+                AnonymizeTransform(
+                    field="email",
+                    operator="mask_email",
+                    condition=ConditionConfig(field="status", operator="$eq", value="public"),
+                )
+            ]
+        )
+
+        # Test document that meets condition - should be anonymized
+        doc1 = {"email": "alice@example.com", "status": "public"}
+        # Test document that doesn't meet condition - should NOT be anonymized
+        doc2 = {"email": "bob@example.com", "status": "private"}
+
+        result, stats = engine.transform_documents([doc1, doc2])
+
+        # First document should be anonymized (status=public)
+        assert result[0]["email"] != "alice@example.com"
+        assert "@" in result[0]["email"]  # Still looks like email but masked
+
+        # Second document should NOT be anonymized (status=private)
+        assert result[1]["email"] == "bob@example.com"
+
+        # Check statistics
+        assert stats.transforms_applied == 1  # Only one document was anonymized
+        assert stats.transforms_skipped == 1  # One was skipped
+
+    def test_condition_on_anonymize_multiple_transforms(self):
+        """Test multiple anonymize transforms with different conditions."""
+        engine = TransformationEngine(
+            transforms=[
+                AnonymizeTransform(
+                    field="email",
+                    operator="mask_email",
+                    condition=ConditionConfig(field="tier", operator="$eq", value="free"),
+                ),
+                AnonymizeTransform(
+                    field="phone",
+                    operator="hash",
+                    condition=ConditionConfig(
+                        field="tier", operator="$in", value=["free", "basic"]
+                    ),
+                ),
+            ]
+        )
+
+        # free tier: both transforms apply
+        doc1 = {"email": "free@example.com", "phone": "123-456-7890", "tier": "free"}
+        # basic tier: only phone transform applies
+        doc2 = {"email": "basic@example.com", "phone": "123-456-7890", "tier": "basic"}
+        # premium tier: no transforms apply
+        doc3 = {"email": "premium@example.com", "phone": "123-456-7890", "tier": "premium"}
+
+        result, stats = engine.transform_documents([doc1, doc2, doc3])
+
+        # Free tier: both should be anonymized
+        assert result[0]["email"] != "free@example.com"
+        assert result[0]["phone"] != "123-456-7890"
+
+        # Basic tier: only phone should be anonymized
+        assert result[1]["email"] == "basic@example.com"  # NOT anonymized
+        assert result[1]["phone"] != "123-456-7890"  # Anonymized
+
+        # Premium tier: neither should be anonymized
+        assert result[2]["email"] == "premium@example.com"
+        assert result[2]["phone"] == "123-456-7890"
+
+        # Check statistics: 2 transforms for doc1 + 1 transform for doc2 = 3 applied, 3 skipped
+        assert stats.transforms_applied == 3
+        assert stats.transforms_skipped == 3
+
 
 class TestTransformPipelineOrdering:
     """Tests for transform pipeline ordering."""
