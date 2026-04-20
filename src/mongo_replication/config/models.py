@@ -174,7 +174,9 @@ class ConditionConfig(BaseModel):
     field: str
     """Field to check for condition."""
 
-    operator: Literal["$exists", "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin"]
+    operator: Literal[
+        "$exists", "$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$regex"
+    ]
     """Comparison operator."""
 
     value: Any
