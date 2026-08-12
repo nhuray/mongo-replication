@@ -1,6 +1,50 @@
 # CHANGELOG
 
 
+## v4.0.0 (2026-08-12)
+
+### Breaking
+
+* feat: Change template syntax from $field to ${field} for explicit field references (#27)
+
+* Change template syntax from $field to ${field} for explicit field references
+
+BREAKING CHANGE: Template syntax has been updated to use ${field} instead of $field
+
+- Changed template syntax to use ${field} instead of $field for field references
+- Special values now use ${now} and ${null} instead of $now and $null
+- Added support for templates in nested dict and list values
+- String values without ${} are now always treated as literals
+- This fixes issues with special characters like bcrypt hashes ($2a$10$...) and dollar amounts ($100)
+
+Updated:
+- TransformationEngine._resolve_value() to recursively handle dict/list values
+- TransformationEngine._resolve_template() to use regex pattern matching for ${...} expressions
+- All unit tests to use new ${field} syntax
+- Documentation (configuration.md, MIGRATION_V2.md, technical-design.md)
+
+Added tests:
+- test_template_in_nested_dict_value: Validates templates work in nested objects
+- test_bcrypt_hash_as_literal: Validates bcrypt hashes are treated as literals
+- test_regex_pattern_with_dollar: Validates regex patterns with $ are literals
+- Updated test_literal_dollar_sign_not_template to validate $100 is literal
+
+All 106 transformation engine tests pass.
+
+* Fix CI lint task to use project-pinned Ruff
+
+Co-authored-by: nhuray <958983+nhuray@users.noreply.github.com>
+
+---------
+
+Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>
+Co-authored-by: nhuray <958983+nhuray@users.noreply.github.com> ([`5baf376`](https://github.com/nhuray/mongo-replication/commit/5baf37600e661543cd880770239af04de552190e))
+
+### Chores
+
+* chore: update uv.lock to version 3.1.0 ([`62b45b0`](https://github.com/nhuray/mongo-replication/commit/62b45b06b32b312af9ec11a6bd8a83c1559fe422))
+
+
 ## v3.1.0 (2026-04-20)
 
 ### Bug Fixes
@@ -14,6 +58,10 @@ Add condition support to anonymize transforms
 - Preserve batch optimization when no conditions are used
 - Add comprehensive tests for conditional anonymization
 - Ensure backward compatibility with existing anonymize behavior ([`b7cfa5d`](https://github.com/nhuray/mongo-replication/commit/b7cfa5d59a17d29147b18615335980e2f991f3bd))
+
+### Chores
+
+* chore(release): 3.1.0 [skip ci] ([`359717f`](https://github.com/nhuray/mongo-replication/commit/359717f501ec73c7bb7dac26153272858054853b))
 
 ### Documentation
 
