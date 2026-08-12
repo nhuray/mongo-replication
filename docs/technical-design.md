@@ -621,7 +621,7 @@ transforms:
 
   - type: set_field
     field: existing_field
-    value: "$otherField"  # Template syntax
+    value: "${otherField}"  # Template syntax
 
   - type: remove_field
     field: sensitive_data

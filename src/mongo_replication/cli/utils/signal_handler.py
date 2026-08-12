@@ -6,7 +6,7 @@ gracefully in CLI commands.
 
 import signal
 import sys
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from rich.console import Console
 
@@ -29,7 +29,7 @@ class SignalHandler:
 
     def __init__(
         self,
-        cleanup_callback: Optional[Callable] = None,
+        cleanup_callback: Callable | None = None,
         message: str = "Operation interrupted by user",
     ):
         """Initialize signal handler.
@@ -81,7 +81,7 @@ class SignalHandler:
         sys.exit(130)  # Standard exit code for SIGINT
 
 
-def setup_signal_handlers(cleanup_callback: Optional[Callable] = None):
+def setup_signal_handlers(cleanup_callback: Callable | None = None):
     """Setup global signal handlers for the application.
 
     This is a simpler alternative to the context manager that sets up

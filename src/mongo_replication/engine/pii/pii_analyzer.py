@@ -6,7 +6,7 @@ detailed statistics for config generation.
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -29,7 +29,7 @@ class FieldPIIStats(BaseModel):
     avg_confidence: float
     min_confidence: float
     max_confidence: float
-    sample_value: Optional[str] = None
+    sample_value: str | None = None
     """Sample value from first detection (for anonymization example generation)."""
 
     def __str__(self) -> str:
@@ -46,8 +46,8 @@ class CollectionPIIAnalysis(BaseModel):
 
     collection_name: str
     total_samples: int
-    fields_with_pii: List[FieldPIIStats] = Field(default_factory=list)
-    all_field_names: Set[str] = Field(default_factory=set)
+    fields_with_pii: list[FieldPIIStats] = Field(default_factory=list)
+    all_field_names: set[str] = Field(default_factory=set)
 
     @property
     def has_pii(self) -> bool:
@@ -59,7 +59,7 @@ class CollectionPIIAnalysis(BaseModel):
         """Number of fields containing PII."""
         return len(self.fields_with_pii)
 
-    def get_pii_anonymization_list(self) -> List[Dict[str, Any]]:
+    def get_pii_anonymization_list(self) -> list[dict[str, Any]]:
         """
         Get pii_anonymization config list for YAML generation (NEW FORMAT).
 
@@ -100,10 +100,10 @@ class PIIAnalysisEngine:
         confidence_threshold: float = 0.7,
         language: str = "en",
         prevalence_threshold: float = 0.10,  # Skip fields with <10% prevalence
-        allowlist_fields: Optional[List[str]] = None,
-        entity_types: Optional[List[str]] = None,
-        presidio_config: Optional[str] = None,
-        default_strategies: Optional[Dict[str, str]] = None,
+        allowlist_fields: list[str] | None = None,
+        entity_types: list[str] | None = None,
+        presidio_config: str | None = None,
+        default_strategies: dict[str, str] | None = None,
     ):
         """
         Initialize PII analysis engine.
@@ -126,7 +126,7 @@ class PIIAnalysisEngine:
         self.default_strategies = default_strategies or {}
 
         # Lazy load analyzer
-        self._analyzer: Optional[PresidioAnalyzer] = None
+        self._analyzer: PresidioAnalyzer | None = None
 
     def get_analyzer(self) -> PresidioAnalyzer:
         """Lazy load Presidio analyzer."""
@@ -168,14 +168,14 @@ class PIIAnalysisEngine:
 
         # Track PII detections per field
         # Structure: {field_path: {entity_type: [confidence_scores]}}
-        field_detections: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
+        field_detections: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
         # Track sample values per field (capture first non-None value)
         # Structure: {field_path: {entity_type: sample_value}}
-        field_sample_values: Dict[str, Dict[str, str]] = defaultdict(dict)
+        field_sample_values: dict[str, dict[str, str]] = defaultdict(dict)
 
         # Track all field names seen
-        all_fields: Set[str] = set()
+        all_fields: set[str] = set()
 
         analyzer = self.get_analyzer()
 
@@ -218,7 +218,7 @@ class PIIAnalysisEngine:
 
         # Convert detections to statistics
         total_samples = len(sample_docs)
-        fields_with_pii: List[FieldPIIStats] = []
+        fields_with_pii: list[FieldPIIStats] = []
 
         for field_path, entity_types in field_detections.items():
             for entity_type, confidences in entity_types.items():
@@ -277,8 +277,8 @@ class PIIAnalysisEngine:
 
     def analyze_all_collections(
         self,
-        sampling_results: Dict[str, SamplingResult],
-    ) -> Dict[str, CollectionPIIAnalysis]:
+        sampling_results: dict[str, SamplingResult],
+    ) -> dict[str, CollectionPIIAnalysis]:
         """
         Analyze PII across multiple collections.
 
@@ -382,9 +382,9 @@ class PIIAnalysisEngine:
 
     def _get_all_field_paths(
         self,
-        doc: Dict[str, Any],
+        doc: dict[str, Any],
         parent_path: str = "",
-    ) -> Set[str]:
+    ) -> set[str]:
         """
         Recursively extract all field paths from a document.
 
@@ -420,7 +420,7 @@ class PIIAnalysisEngine:
         return paths
 
     @staticmethod
-    def _get_field_value(doc: Dict[str, Any], field_path: str) -> Optional[Any]:
+    def _get_field_value(doc: dict[str, Any], field_path: str) -> Any | None:
         """
         Get the value of a field from a document using dot notation path.
 
@@ -461,8 +461,8 @@ class PIIAnalysisEngine:
 
     def get_summary_statistics(
         self,
-        analyses: Dict[str, CollectionPIIAnalysis],
-    ) -> Dict[str, Any]:
+        analyses: dict[str, CollectionPIIAnalysis],
+    ) -> dict[str, Any]:
         """
         Generate summary statistics across all collections.
 
@@ -479,7 +479,7 @@ class PIIAnalysisEngine:
         total_pii_fields = sum(a.pii_field_count for a in analyses.values())
 
         # Count by entity type
-        entity_type_counts: Dict[str, int] = defaultdict(int)
+        entity_type_counts: dict[str, int] = defaultdict(int)
         for analysis in analyses.values():
             for field_stat in analysis.fields_with_pii:
                 entity_type_counts[field_stat.entity_type] += 1

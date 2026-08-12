@@ -1,9 +1,10 @@
 """Tests for the init command."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from pymongo.errors import ConnectionFailure
 
-from mongo_replication.cli.commands.init import validate_connection, get_collections_from_source
+from mongo_replication.cli.commands.init import get_collections_from_source, validate_connection
 
 
 class TestConnectionValidation:

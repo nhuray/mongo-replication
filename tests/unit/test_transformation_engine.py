@@ -1,23 +1,24 @@
 """Unit tests for TransformationEngine."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from bson import ObjectId
 
+from mongo_replication.config.models import (
+    AddFieldTransform,
+    AnonymizeTransform,
+    ConditionConfig,
+    CopyFieldTransform,
+    RegexReplaceTransform,
+    RemoveFieldTransform,
+    RenameFieldTransform,
+    SetFieldTransform,
+)
 from mongo_replication.engine.transformations import (
     TransformationEngine,
     TransformationError,
     TransformResults,
-)
-from mongo_replication.config.models import (
-    AddFieldTransform,
-    SetFieldTransform,
-    RemoveFieldTransform,
-    RenameFieldTransform,
-    CopyFieldTransform,
-    RegexReplaceTransform,
-    AnonymizeTransform,
-    ConditionConfig,
 )
 
 
@@ -105,7 +106,7 @@ class TestAddFieldTransform:
     def test_add_field_with_template_single_field(self):
         """Test adding field with single field reference template."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="name_copy", value="$name")]
+            transforms=[AddFieldTransform(field="name_copy", value="${name}")]
         )
 
         doc = {"name": "Alice"}
@@ -117,7 +118,7 @@ class TestAddFieldTransform:
     def test_add_field_with_template_concatenation(self):
         """Test adding field with concatenation template."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="full_name", value="$first_name $last_name")]
+            transforms=[AddFieldTransform(field="full_name", value="${first_name} ${last_name}")]
         )
 
         doc = {"first_name": "Alice", "last_name": "Smith"}
@@ -129,7 +130,7 @@ class TestAddFieldTransform:
     def test_add_field_with_template_nested_reference(self):
         """Test adding field with nested field reference."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="city_copy", value="$address.city")]
+            transforms=[AddFieldTransform(field="city_copy", value="${address.city}")]
         )
 
         doc = {"address": {"city": "NYC"}}
@@ -139,9 +140,9 @@ class TestAddFieldTransform:
         assert result["city_copy"] == "NYC"
 
     def test_add_field_with_special_value_now(self):
-        """Test adding field with $now special value."""
+        """Test adding field with ${now} special value."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="created_at", value="$now")]
+            transforms=[AddFieldTransform(field="created_at", value="${now}")]
         )
 
         doc = {}
@@ -154,9 +155,9 @@ class TestAddFieldTransform:
         assert before <= result["created_at"] <= after
 
     def test_add_field_with_special_value_null(self):
-        """Test adding field with $null special value."""
+        """Test adding field with ${null} special value."""
         engine = TransformationEngine(
-            transforms=[AddFieldTransform(field="deleted_at", value="$null")]
+            transforms=[AddFieldTransform(field="deleted_at", value="${null}")]
         )
 
         doc = {}
@@ -256,7 +257,7 @@ class TestSetFieldTransform:
     def test_set_field_with_template(self):
         """Test setting field with template (single field reference)."""
         engine = TransformationEngine(
-            transforms=[SetFieldTransform(field="name_copy", value="$name")]
+            transforms=[SetFieldTransform(field="name_copy", value="${name}")]
         )
 
         doc = {"name": "alice"}
@@ -319,6 +320,27 @@ class TestSetFieldTransform:
         assert result == {
             "name": "Alice",
             "status": {"active": True, "reason": "verified"},
+        }
+
+    def test_set_field_with_special_characters(self):
+        """Test that set_field overwrites scalar with dict value."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="password",
+                    value="$2a$08$cn1eISCieYAKpFpJBrMpDOrmlG/BM3h2iyobxyZ3eT0bM6YA3ClJC",
+                )
+            ]
+        )
+
+        doc = {"name": "Alice", "email": "alice@gmail.com", "password": "123456"}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert result == {
+            "name": "Alice",
+            "email": "alice@gmail.com",
+            "password": "$2a$08$cn1eISCieYAKpFpJBrMpDOrmlG/BM3h2iyobxyZ3eT0bM6YA3ClJC",
         }
 
 
@@ -1218,7 +1240,7 @@ class TestTransformPipelineOrdering:
         engine = TransformationEngine(
             transforms=[
                 AddFieldTransform(field="name", value="Alice"),
-                AddFieldTransform(field="greeting", value="Hello $name"),
+                AddFieldTransform(field="greeting", value="Hello ${name}"),
             ]
         )
 
@@ -1265,7 +1287,7 @@ class TestTransformPipelineOrdering:
             transforms=[
                 AddFieldTransform(field="first_name", value="Alice"),
                 AddFieldTransform(field="last_name", value="Smith"),
-                AddFieldTransform(field="full_name", value="$first_name $last_name"),
+                AddFieldTransform(field="full_name", value="${first_name} ${last_name}"),
                 RemoveFieldTransform(field=["first_name", "last_name"]),
             ]
         )
@@ -1573,7 +1595,7 @@ class TestTemplateResolution:
         """Test single field reference template."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="copy", value="$name"),
+                SetFieldTransform(field="copy", value="${name}"),
             ]
         )
 
@@ -1587,7 +1609,7 @@ class TestTemplateResolution:
         """Test nested field reference template."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="city_copy", value="$address.city"),
+                SetFieldTransform(field="city_copy", value="${address.city}"),
             ]
         )
 
@@ -1601,7 +1623,7 @@ class TestTemplateResolution:
         """Test concatenation template."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="full_name", value="$first $last"),
+                SetFieldTransform(field="full_name", value="${first} ${last}"),
             ]
         )
 
@@ -1612,10 +1634,10 @@ class TestTemplateResolution:
         assert result["full_name"] == "Alice Smith"
 
     def test_template_concatenation_with_literal(self):
-        """Test concatenation with literal text (space-separated)."""
+        """Test concatenation with literal text."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="display", value="User: $username (admin)"),
+                SetFieldTransform(field="display", value="User: ${username} (admin)"),
             ]
         )
 
@@ -1629,7 +1651,7 @@ class TestTemplateResolution:
         """Test template with missing field reference."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="copy", value="$nonexistent"),
+                SetFieldTransform(field="copy", value="${nonexistent}"),
             ]
         )
 
@@ -1643,7 +1665,7 @@ class TestTemplateResolution:
         """Test concatenation template with missing field."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="full_name", value="$first $last"),
+                SetFieldTransform(field="full_name", value="${first} ${last}"),
             ]
         )
 
@@ -1655,10 +1677,10 @@ class TestTemplateResolution:
         assert result["full_name"] == "Alice "
 
     def test_template_special_value_now(self):
-        """Test $now special value."""
+        """Test ${now} special value."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="timestamp", value="$now"),
+                SetFieldTransform(field="timestamp", value="${now}"),
             ]
         )
 
@@ -1672,10 +1694,10 @@ class TestTemplateResolution:
         assert before <= result["timestamp"] <= after
 
     def test_template_special_value_null(self):
-        """Test $null special value."""
+        """Test ${null} special value."""
         engine = TransformationEngine(
             transforms=[
-                SetFieldTransform(field="deleted_at", value="$null"),
+                SetFieldTransform(field="deleted_at", value="${null}"),
             ]
         )
 
@@ -1686,7 +1708,7 @@ class TestTemplateResolution:
         assert result["deleted_at"] is None
 
     def test_literal_dollar_sign_not_template(self):
-        """Test that literal $ in middle of string is not treated as template."""
+        """Test that literal $ without ${} is not treated as template."""
         engine = TransformationEngine(
             transforms=[
                 SetFieldTransform(field="price", value="$100"),
@@ -1697,8 +1719,72 @@ class TestTemplateResolution:
         result, _ = engine.transform_documents([doc])
         result = result[0]
 
-        # "$100" is treated as field reference "100", which doesn't exist
-        assert result["price"] is None
+        # "$100" should be treated as a literal string since it doesn't use ${} syntax
+        assert result["price"] == "$100"
+
+    def test_template_in_nested_dict_value(self):
+        """Test that templates work inside nested dictionary values."""
+        engine = TransformationEngine(
+            transforms=[
+                AddFieldTransform(
+                    field="audit",
+                    value={
+                        "user": "${user.email}",
+                        "timestamp": "${now}",
+                        "action": "created",
+                        "metadata": {"ip": "${request.ip}", "agent": "${request.user_agent}"},
+                    },
+                )
+            ]
+        )
+
+        doc = {
+            "user": {"email": "alice@example.com"},
+            "request": {"ip": "192.168.1.1", "user_agent": "Mozilla/5.0"},
+        }
+        before = datetime.utcnow()
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+        after = datetime.utcnow()
+
+        assert result["audit"]["user"] == "alice@example.com"
+        assert isinstance(result["audit"]["timestamp"], datetime)
+        assert before <= result["audit"]["timestamp"] <= after
+        assert result["audit"]["action"] == "created"
+        assert result["audit"]["metadata"]["ip"] == "192.168.1.1"
+        assert result["audit"]["metadata"]["agent"] == "Mozilla/5.0"
+
+    def test_bcrypt_hash_as_literal(self):
+        """Test that bcrypt hashes (containing $) are treated as literals."""
+        engine = TransformationEngine(
+            transforms=[
+                SetFieldTransform(
+                    field="password_hash",
+                    value="$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+                )
+            ]
+        )
+
+        doc = {}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert (
+            result["password_hash"]
+            == "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+        )
+
+    def test_regex_pattern_with_dollar(self):
+        """Test that regex patterns containing $ are treated as literals."""
+        engine = TransformationEngine(
+            transforms=[SetFieldTransform(field="regex", value="^start.*end$")]
+        )
+
+        doc = {}
+        result, _ = engine.transform_documents([doc])
+        result = result[0]
+
+        assert result["regex"] == "^start.*end$"
 
 
 class TestEdgeCases:
@@ -1746,7 +1832,7 @@ class TestEdgeCases:
         engine = TransformationEngine(
             transforms=[
                 AddFieldTransform(field="a.b.c.d.e.f", value="deep"),
-                SetFieldTransform(field="x.y.z", value="$a.b.c.d.e.f"),
+                SetFieldTransform(field="x.y.z", value="${a.b.c.d.e.f}"),
             ]
         )
 

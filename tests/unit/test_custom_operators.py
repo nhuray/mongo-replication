@@ -2,7 +2,6 @@
 
 import re
 
-
 from mongo_replication.engine.pii.custom_operators import (
     FakeCABankAccountOperator,
     FakeIPAddressOperator,
@@ -22,7 +21,6 @@ from mongo_replication.engine.pii.custom_operators import (
     SmartMaskOperator,
     resolve_smart_operator,
 )
-
 
 # =============================================================================
 # MASK OPERATORS TESTS

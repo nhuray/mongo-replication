@@ -12,7 +12,7 @@ Supports YAML-based configuration for:
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 from presidio_analyzer import AnalyzerEngine, AnalyzerEngineProvider
 from presidio_analyzer.nlp_engine import NlpEngineProvider
@@ -32,7 +32,7 @@ class PresidioAnalyzer:
     """
 
     _instance: Optional["PresidioAnalyzer"] = None
-    _analyzer_cache: Dict[str, AnalyzerEngine] = {}  # Cache analyzers by config path
+    _analyzer_cache: dict[str, AnalyzerEngine] = {}  # Cache analyzers by config path
     _supported_languages = ["en", "fr"]
 
     def __new__(cls) -> "PresidioAnalyzer":
@@ -41,7 +41,7 @@ class PresidioAnalyzer:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_analyzer(self, presidio_config_path: Optional[str] = None) -> AnalyzerEngine:
+    def get_analyzer(self, presidio_config_path: str | None = None) -> AnalyzerEngine:
         """
         Get or create the Presidio AnalyzerEngine instance.
 
@@ -214,13 +214,13 @@ class PresidioAnalyzer:
 
     def analyze_document(
         self,
-        document: Dict[str, Any],
+        document: dict[str, Any],
         confidence_threshold: float = 0.7,
         language: str = "en",
-        entity_types: Optional[List[str]] = None,
-        allowlist_fields: Optional[List[str]] = None,
-        presidio_config_path: Optional[str] = None,
-    ) -> Dict[str, Tuple[str, float]]:
+        entity_types: list[str] | None = None,
+        allowlist_fields: list[str] | None = None,
+        presidio_config_path: str | None = None,
+    ) -> dict[str, tuple[str, float]]:
         """
         Analyze a MongoDB document to detect PII fields.
 
@@ -237,7 +237,7 @@ class PresidioAnalyzer:
             Example: {"email": ("EMAIL_ADDRESS", 0.95), "user.ssn": ("US_SSN", 0.99)}
         """
         analyzer = self.get_analyzer(presidio_config_path=presidio_config_path)
-        pii_map: Dict[str, Tuple[str, float]] = {}
+        pii_map: dict[str, tuple[str, float]] = {}
 
         # Flatten the document to handle nested fields
         flattened = self._flatten_document(document)
@@ -282,7 +282,7 @@ class PresidioAnalyzer:
 
         return pii_map
 
-    def _flatten_document(self, document: Dict[str, Any], parent_key: str = "") -> Dict[str, Any]:
+    def _flatten_document(self, document: dict[str, Any], parent_key: str = "") -> dict[str, Any]:
         """
         Flatten a nested MongoDB document into dot-notation field paths.
 
@@ -294,7 +294,7 @@ class PresidioAnalyzer:
             Flattened dictionary with dot-notation keys
             Example: {"user.address.street": "123 Main St", "user.email": "test@example.com"}
         """
-        items: List[Tuple[str, Any]] = []
+        items: list[tuple[str, Any]] = []
 
         for key, value in document.items():
             new_key = f"{parent_key}.{key}" if parent_key else key
@@ -315,8 +315,8 @@ class PresidioAnalyzer:
         return dict(items)
 
     def _filter_allowlist(
-        self, flattened: Dict[str, Any], allowlist_patterns: List[str]
-    ) -> Dict[str, Any]:
+        self, flattened: dict[str, Any], allowlist_patterns: list[str]
+    ) -> dict[str, Any]:
         """
         Filter out fields matching allowlist patterns.
 
@@ -393,7 +393,7 @@ class PresidioAnalyzer:
 
         return False
 
-    def get_supported_entity_types(self, presidio_config_path: Optional[str] = None) -> Set[str]:
+    def get_supported_entity_types(self, presidio_config_path: str | None = None) -> set[str]:
         """
         Get the set of entity types supported by Presidio.
 
@@ -412,13 +412,13 @@ analyzer = PresidioAnalyzer()
 
 
 def analyze_document(
-    document: Dict[str, Any],
+    document: dict[str, Any],
     confidence_threshold: float = 0.7,
     language: str = "en",
-    entity_types: Optional[List[str]] = None,
-    allowlist_fields: Optional[List[str]] = None,
-    presidio_config_path: Optional[str] = None,
-) -> Dict[str, Tuple[str, float]]:
+    entity_types: list[str] | None = None,
+    allowlist_fields: list[str] | None = None,
+    presidio_config_path: str | None = None,
+) -> dict[str, tuple[str, float]]:
     """
     Convenience function to analyze a document for PII.
 

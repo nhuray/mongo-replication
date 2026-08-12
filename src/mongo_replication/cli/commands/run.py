@@ -5,28 +5,27 @@ Usage:
     mongorep run <job> [OPTIONS]
 """
 
-import time
 import json
+import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Annotated, Any
 
 import typer
 from pymongo import MongoClient
 from rich.live import Live
 from rich.table import Table
-from typing_extensions import Annotated
 
 from mongo_replication.cli.interactive.selectors import select_collections
 from mongo_replication.cli.utils.cascade_tree import CascadeTreeBuilder
 from mongo_replication.cli.utils.output import (
+    console,
     print_banner,
-    print_success,
     print_error,
-    print_warning,
     print_info,
     print_step,
+    print_success,
     print_summary,
-    console,
+    print_warning,
 )
 from mongo_replication.config.manager import load_replication_config, load_schema_relationships
 from mongo_replication.config.models import CollectionConfig
@@ -34,11 +33,11 @@ from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, Cascad
 from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.engine.jobs import JobManager
 from mongo_replication.engine.orchestrator import ReplicationOrchestrator
-from mongo_replication.engine.relationships import RelationshipGraph, Relationship
+from mongo_replication.engine.relationships import Relationship, RelationshipGraph
 from mongo_replication.engine.replicator import ReplicationResult
 
 
-def parse_ids_option(ids_str: str) -> tuple[str, List[str]]:
+def parse_ids_option(ids_str: str) -> tuple[str, list[str]]:
     """
     Parse --ids option.
 
@@ -80,7 +79,7 @@ def parse_ids_option(ids_str: str) -> tuple[str, List[str]]:
     return collection, ids
 
 
-def parse_query_option(query_str: str) -> tuple[str, Dict[str, Any]]:
+def parse_query_option(query_str: str) -> tuple[str, dict[str, Any]]:
     """
     Parse --query option.
 
@@ -127,7 +126,7 @@ def parse_query_option(query_str: str) -> tuple[str, Dict[str, Any]]:
 def run_command(
     job: Annotated[str, typer.Argument(help="Job ID to run (e.g., 'prod_db')")],
     collections: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--collections",
             help="Comma-separated list of collections to replicate (default: all configured)",
@@ -149,7 +148,7 @@ def run_command(
         ),
     ] = False,
     parallel: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--parallel",
             "-p",
@@ -157,7 +156,7 @@ def run_command(
         ),
     ] = None,
     batch_size: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--batch-size",
             "-b",
@@ -165,7 +164,7 @@ def run_command(
         ),
     ] = None,
     ids: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--ids",
             help=(
@@ -176,7 +175,7 @@ def run_command(
         ),
     ] = None,
     query: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--query",
             help=(
@@ -864,7 +863,7 @@ def run_command(
         # Use Live display for dynamic updates
         with Live(create_progress_display(), console=console, refresh_per_second=2) as live:
 
-            def on_progress(collection_name: str, status: str, result: Optional[ReplicationResult]):
+            def on_progress(collection_name: str, status: str, result: ReplicationResult | None):
                 """Progress callback for orchestrator."""
                 nonlocal total_collections
 
@@ -884,14 +883,12 @@ def run_command(
 
                 elif status == "completed":
                     # Move from replicating to completed
-                    if collection_name in replicating_collections:
-                        del replicating_collections[collection_name]
+                    replicating_collections.pop(collection_name, None)
                     completed_collections.append((collection_name, result))
 
                 elif status == "failed":
                     # Move from replicating to failed
-                    if collection_name in replicating_collections:
-                        del replicating_collections[collection_name]
+                    replicating_collections.pop(collection_name, None)
                     error = result.error_message if result else "Unknown error"
                     failed_collections.append((collection_name, error))
 

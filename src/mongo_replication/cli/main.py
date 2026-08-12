@@ -11,9 +11,11 @@ Usage:
 import signal
 import sys
 from pathlib import Path
+
 import typer
 from rich.console import Console
-from mongo_replication.cli.commands import init, scan, run
+
+from mongo_replication.cli.commands import init, run, scan
 
 # Load environment variables from .env file if it exists
 try:
@@ -67,7 +69,6 @@ def main():
     A job-based replication system with PII detection and anonymization.
     Each job has its own source, destination, and configuration.
     """
-    pass
 
 
 app.command(name="init")(init.init_command)

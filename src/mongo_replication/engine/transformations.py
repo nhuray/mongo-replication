@@ -13,7 +13,7 @@ import logging
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from bson import ObjectId
 from pydantic import BaseModel
@@ -54,7 +54,7 @@ class TransformResults(BaseModel):
 
     # Per-operation results (keyed by operation type)
     # e.g. {"add_field": TransformOperationResults(...), "anonymize": TransformOperationResults(...)}
-    operations: Dict[str, TransformOperationResults] = {}
+    operations: dict[str, TransformOperationResults] = {}
 
     # Performance metrics (Phase 1 optimization)
     non_anonymize_duration_seconds: float = 0.0
@@ -65,7 +65,6 @@ class TransformResults(BaseModel):
 class TransformationError(Exception):
     """Error during transformation processing."""
 
-    pass
 
 
 class TransformationEngine:
@@ -87,7 +86,7 @@ class TransformationEngine:
 
     def __init__(
         self,
-        transforms: List[TransformConfig],
+        transforms: list[TransformConfig],
         error_mode: str = "skip",
     ):
         """Initialize the transformation engine.
@@ -149,7 +148,7 @@ class TransformationEngine:
                 f"{len(self.anonymize_transforms)} anonymize transforms (batch mode)"
             )
 
-    def _create_pii_handler(self, anonymize_transforms: List[AnonymizeTransform]):
+    def _create_pii_handler(self, anonymize_transforms: list[AnonymizeTransform]):
         """Create PII handler from anonymize transforms.
 
         Args:
@@ -158,8 +157,8 @@ class TransformationEngine:
         Returns:
             PIIHandler instance
         """
-        from mongo_replication.engine.pii import create_pii_handler_from_config
         from mongo_replication.config.models import PIIFieldAnonymization
+        from mongo_replication.engine.pii import create_pii_handler_from_config
 
         # Convert AnonymizeTransform to PIIFieldAnonymization for compatibility
         pii_configs = [
@@ -174,8 +173,8 @@ class TransformationEngine:
         return create_pii_handler_from_config(pii_configs)
 
     def transform_documents(
-        self, documents: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], TransformResults]:
+        self, documents: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], TransformResults]:
         """Transform batch of documents using optimized two-stage pipeline.
 
         PHASE 1 OPTIMIZATION:
@@ -272,8 +271,8 @@ class TransformationEngine:
         return transformed, stats
 
     def _apply_non_anonymize_transforms(
-        self, doc: Dict[str, Any], stats: TransformResults
-    ) -> Dict[str, Any]:
+        self, doc: dict[str, Any], stats: TransformResults
+    ) -> dict[str, Any]:
         """Apply all non-anonymize transforms to a single document.
 
         Args:
@@ -299,8 +298,8 @@ class TransformationEngine:
         return result
 
     def _apply_conditional_anonymize_transforms(
-        self, documents: List[Dict[str, Any]], stats: TransformResults
-    ) -> List[Dict[str, Any]]:
+        self, documents: list[dict[str, Any]], stats: TransformResults
+    ) -> list[dict[str, Any]]:
         """Apply anonymize transforms with condition checking.
 
         This method processes each anonymize transform individually, evaluating
@@ -314,8 +313,8 @@ class TransformationEngine:
         Returns:
             List of transformed documents
         """
-        from mongo_replication.engine.pii import create_pii_handler_from_config
         from mongo_replication.config.models import PIIFieldAnonymization
+        from mongo_replication.engine.pii import create_pii_handler_from_config
 
         result = documents
         op_result = self._get_or_create_operation_result(stats, "anonymize")
@@ -400,8 +399,8 @@ class TransformationEngine:
         return stats.operations[operation_type]
 
     def _apply_transform(
-        self, doc: Dict[str, Any], transform: TransformConfig, stats: TransformResults
-    ) -> Dict[str, Any]:
+        self, doc: dict[str, Any], transform: TransformConfig, stats: TransformResults
+    ) -> dict[str, Any]:
         """Apply single non-anonymize transform to document.
 
         Note: Anonymize transforms are handled separately in batch mode for performance.
@@ -481,7 +480,7 @@ class TransformationEngine:
     # CONDITION EVALUATION
     # =============================================================================
 
-    def _evaluate_condition(self, doc: Dict[str, Any], condition: ConditionConfig) -> bool:
+    def _evaluate_condition(self, doc: dict[str, Any], condition: ConditionConfig) -> bool:
         """Evaluate if condition matches for document.
 
         Args:
@@ -527,7 +526,7 @@ class TransformationEngine:
     # FIELD OPERATIONS
     # =============================================================================
 
-    def _add_field(self, doc: Dict[str, Any], transform: AddFieldTransform) -> Dict[str, Any]:
+    def _add_field(self, doc: dict[str, Any], transform: AddFieldTransform) -> dict[str, Any]:
         """Add new field with value (error if exists).
 
         Args:
@@ -550,7 +549,7 @@ class TransformationEngine:
 
         return doc
 
-    def _set_field(self, doc: Dict[str, Any], transform: SetFieldTransform) -> Dict[str, Any]:
+    def _set_field(self, doc: dict[str, Any], transform: SetFieldTransform) -> dict[str, Any]:
         """Set field value (overwrites if exists).
 
         Args:
@@ -568,7 +567,7 @@ class TransformationEngine:
 
         return doc
 
-    def _remove_field(self, doc: Dict[str, Any], transform: RemoveFieldTransform) -> Dict[str, Any]:
+    def _remove_field(self, doc: dict[str, Any], transform: RemoveFieldTransform) -> dict[str, Any]:
         """Remove one or more fields.
 
         Args:
@@ -585,7 +584,7 @@ class TransformationEngine:
 
         return doc
 
-    def _rename_field(self, doc: Dict[str, Any], transform: RenameFieldTransform) -> Dict[str, Any]:
+    def _rename_field(self, doc: dict[str, Any], transform: RenameFieldTransform) -> dict[str, Any]:
         """Rename a field.
 
         Args:
@@ -617,7 +616,7 @@ class TransformationEngine:
 
         return doc
 
-    def _copy_field(self, doc: Dict[str, Any], transform: CopyFieldTransform) -> Dict[str, Any]:
+    def _copy_field(self, doc: dict[str, Any], transform: CopyFieldTransform) -> dict[str, Any]:
         """Copy field value to another field.
 
         Args:
@@ -651,8 +650,8 @@ class TransformationEngine:
     # =============================================================================
 
     def _regex_replace(
-        self, doc: Dict[str, Any], transform: RegexReplaceTransform
-    ) -> Dict[str, Any]:
+        self, doc: dict[str, Any], transform: RegexReplaceTransform
+    ) -> dict[str, Any]:
         """Apply regex pattern replacement to field.
 
         Args:
@@ -685,7 +684,7 @@ class TransformationEngine:
     # PII ANONYMIZATION
     # =============================================================================
 
-    def _anonymize(self, doc: Dict[str, Any], transform: AnonymizeTransform) -> Dict[str, Any]:
+    def _anonymize(self, doc: dict[str, Any], transform: AnonymizeTransform) -> dict[str, Any]:
         """Apply PII anonymization to field.
 
         Args:
@@ -708,7 +707,7 @@ class TransformationEngine:
     # VALUE RESOLUTION
     # =============================================================================
 
-    def _resolve_value(self, doc: Dict[str, Any], value: Any) -> Any:
+    def _resolve_value(self, doc: dict[str, Any], value: Any) -> Any:
         """Resolve value from template or literal.
 
         Args:
@@ -718,56 +717,83 @@ class TransformationEngine:
         Returns:
             Resolved value
         """
-        # Special values
-        if value == "$now":
-            return datetime.utcnow()
-        elif value == "$null":
-            return None
-
-        # Template strings (contain $)
-        if isinstance(value, str) and "$" in value:
+        # Handle string values
+        if isinstance(value, str):
             return self._resolve_template(doc, value)
 
-        # Literal values
+        # Handle dict values (recursively resolve nested templates)
+        elif isinstance(value, dict):
+            return {k: self._resolve_value(doc, v) for k, v in value.items()}
+
+        # Handle list values (recursively resolve templates in list items)
+        elif isinstance(value, list):
+            return [self._resolve_value(doc, item) for item in value]
+
+        # Literal values (numbers, booleans, None, etc.)
         return value
 
-    def _resolve_template(self, doc: Dict[str, Any], template: str) -> Any:
-        """Resolve template string with field references.
+    def _resolve_template(self, doc: dict[str, Any], template: str) -> Any:
+        """Resolve template string with field references using ${field} syntax.
 
         Supports:
-        - Single field reference: "$fieldName"
-        - Nested field reference: "$address.city"
-        - Concatenation: "$firstName $lastName"
+        - Single field reference: "${fieldName}" → field value
+        - Nested field reference: "${address.city}" → nested field value
+        - Concatenation: "${firstName} ${lastName}" → "John Doe"
+        - Special values: "${now}" → current timestamp, "${null}" → None
+        - Literal strings: Any string without ${...} is returned as-is
 
         Args:
             doc: Document context for field references
-            template: Template string
+            template: Template string (may contain ${...} expressions)
 
         Returns:
             Resolved value
         """
-        # Single field reference: "$fieldName" (no spaces)
-        if template.startswith("$") and " " not in template:
-            field_name = template[1:]
-            return self._get_nested_field(doc, field_name)
+        # Pattern to find ${...} expressions
+        pattern = re.compile(r"\$\{([^}]+)\}")
 
-        # Concatenation: "$field1 $field2"
-        parts = template.split()
-        resolved_parts = []
-        for part in parts:
-            if part.startswith("$"):
-                field_name = part[1:]
-                field_value = self._get_nested_field(doc, field_name)
-                resolved_parts.append(str(field_value) if field_value is not None else "")
+        # Find all ${...} expressions
+        matches = pattern.findall(template)
+
+        if not matches:
+            # No template expressions, return as literal string
+            return template
+
+        # If entire string is a single ${field}, return the field value directly (preserve type)
+        if len(matches) == 1 and template == f"${{{matches[0]}}}":
+            field_ref = matches[0]
+
+            # Handle special values
+            if field_ref == "now":
+                return datetime.utcnow()
+            elif field_ref == "null":
+                return None
+
+            # Return field value with its original type
+            return self._get_nested_field(doc, field_ref)
+
+        # Multiple expressions or mixed text: perform string substitution
+        result = template
+        for field_ref in matches:
+            # Handle special values
+            if field_ref == "now":
+                field_value = datetime.utcnow()
+            elif field_ref == "null":
+                field_value = None
             else:
-                resolved_parts.append(part)
-        return " ".join(resolved_parts)
+                field_value = self._get_nested_field(doc, field_ref)
+
+            # Convert to string for substitution
+            value_str = str(field_value) if field_value is not None else ""
+            result = result.replace(f"${{{field_ref}}}", value_str)
+
+        return result
 
     # =============================================================================
     # NESTED FIELD UTILITIES
     # =============================================================================
 
-    def _get_nested_field(self, doc: Dict[str, Any], field_path: str) -> Any:
+    def _get_nested_field(self, doc: dict[str, Any], field_path: str) -> Any:
         """Get value from nested field path using dot notation.
 
         Args:
@@ -787,7 +813,7 @@ class TransformationEngine:
 
         return current
 
-    def _set_nested_field(self, doc: Dict[str, Any], field_path: str, value: Any) -> None:
+    def _set_nested_field(self, doc: dict[str, Any], field_path: str, value: Any) -> None:
         """Set value at nested field path, creating intermediate dicts as needed.
 
         Args:
@@ -813,7 +839,7 @@ class TransformationEngine:
         # Set final value
         current[parts[-1]] = value
 
-    def _delete_nested_field(self, doc: Dict[str, Any], field_path: str) -> None:
+    def _delete_nested_field(self, doc: dict[str, Any], field_path: str) -> None:
         """Delete field at nested path, cleaning up empty parent objects.
 
         Args:

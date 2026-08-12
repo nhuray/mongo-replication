@@ -5,7 +5,7 @@ analyze large collections while maintaining representative coverage.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 from pymongo.collection import Collection
@@ -20,9 +20,9 @@ class SamplingResult(BaseModel):
     collection_name: str
     total_documents: int
     sampled_documents: int
-    sample_docs: List[Dict[str, Any]]
+    sample_docs: list[dict[str, Any]]
     sampling_strategy: str  # "all", "random", "stratified"
-    date_field_used: Optional[str] = None
+    date_field_used: str | None = None
 
 
 class CollectionSampler:
@@ -49,7 +49,7 @@ class CollectionSampler:
         self,
         database: Database,
         sample_size: int = 100,
-        exclude_patterns: Optional[List[str]] = None,
+        exclude_patterns: list[str] | None = None,
     ):
         """
         Initialize collection sampler.
@@ -135,8 +135,8 @@ class CollectionSampler:
 
     def sample_all_collections(
         self,
-        collection_names: Optional[List[str]] = None,
-    ) -> Dict[str, SamplingResult]:
+        collection_names: list[str] | None = None,
+    ) -> dict[str, SamplingResult]:
         """
         Sample documents from multiple collections.
 
@@ -166,7 +166,7 @@ class CollectionSampler:
 
         return results
 
-    def _find_date_field(self, collection: Collection) -> Optional[str]:
+    def _find_date_field(self, collection: Collection) -> str | None:
         """
         Find a date field suitable for stratified sampling.
 
@@ -195,7 +195,7 @@ class CollectionSampler:
         self,
         collection: Collection,
         date_field: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Perform stratified sampling: 50% recent, 50% older documents.
 
@@ -233,7 +233,7 @@ class CollectionSampler:
 
         return all_docs
 
-    def _random_sample(self, collection: Collection) -> List[Dict[str, Any]]:
+    def _random_sample(self, collection: Collection) -> list[dict[str, Any]]:
         """
         Perform random sampling using MongoDB $sample aggregation.
 
@@ -272,7 +272,7 @@ class CollectionSampler:
 
         return False
 
-    def _get_nested_field(self, doc: Dict, field_path: str) -> Any:
+    def _get_nested_field(self, doc: dict, field_path: str) -> Any:
         """
         Get value from nested field using dot notation.
 

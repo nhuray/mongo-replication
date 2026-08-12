@@ -5,7 +5,7 @@ destination collections to maintain performance characteristics.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pymongo.collection import Collection
@@ -20,7 +20,7 @@ class IndexInfo(BaseModel):
     name: str
     """Index name."""
 
-    keys: List[tuple]
+    keys: list[tuple]
     """Index key specification as list of (field, direction) tuples."""
 
     unique: bool = False
@@ -32,19 +32,19 @@ class IndexInfo(BaseModel):
     background: bool = False
     """Whether index was created in background (deprecated in MongoDB 4.2+)."""
 
-    expire_after_seconds: Optional[int] = None
+    expire_after_seconds: int | None = None
     """TTL in seconds for TTL indexes."""
 
-    partial_filter_expression: Optional[Dict[str, Any]] = None
+    partial_filter_expression: dict[str, Any] | None = None
     """Partial filter expression for partial indexes."""
 
-    collation: Optional[Dict[str, Any]] = None
+    collation: dict[str, Any] | None = None
     """Collation options for index."""
 
-    version: Optional[int] = None
+    version: int | None = None
     """Index version."""
 
-    extra_options: Dict[str, Any] = Field(default_factory=dict)
+    extra_options: dict[str, Any] = Field(default_factory=dict)
     """Any other index options not explicitly captured."""
 
 
@@ -63,7 +63,7 @@ class IndexManager:
     - Hashed indexes
     """
 
-    def get_indexes(self, collection: Collection) -> List[IndexInfo]:
+    def get_indexes(self, collection: Collection) -> list[IndexInfo]:
         """Get all indexes from a collection.
 
         Args:
@@ -130,7 +130,7 @@ class IndexManager:
         self,
         source_collection: Collection,
         dest_collection: Collection,
-    ) -> tuple[int, int, List[str]]:
+    ) -> tuple[int, int, list[str]]:
         """Replicate all indexes from source to destination collection.
 
         Creates indexes on destination to match source. Index creation is
@@ -178,7 +178,7 @@ class IndexManager:
         self,
         collection: Collection,
         index_info: IndexInfo,
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """Create a single index on a collection.
 
         Args:
@@ -224,7 +224,7 @@ class IndexManager:
         except OperationFailure as e:
             return False, str(e)
         except Exception as e:
-            return False, f"{type(e).__name__}: {str(e)}"
+            return False, f"{type(e).__name__}: {e!s}"
 
     def _get_index_type_description(self, index_info: IndexInfo) -> str:
         """Get a human-readable description of the index type.

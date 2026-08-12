@@ -12,7 +12,7 @@ The anonymization operators are configured via YAML (presidio.yaml).
 
 import copy
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
@@ -34,8 +34,8 @@ class PresidioAnonymizer:
 
     def __init__(
         self,
-        presidio_config_path: Optional[str] = None,
-        operator_overrides: Optional[Dict[str, OperatorConfig]] = None,
+        presidio_config_path: str | None = None,
+        operator_overrides: dict[str, OperatorConfig] | None = None,
     ):
         """
         Initialize the anonymizer.
@@ -63,9 +63,9 @@ class PresidioAnonymizer:
 
     def apply_anonymization(
         self,
-        document: Dict[str, Any],
-        pii_field_strategy: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        document: dict[str, Any],
+        pii_field_strategy: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """
         Apply anonymization to a document based on PII field strategy mappings.
 
@@ -96,9 +96,9 @@ class PresidioAnonymizer:
 
     def apply_multi_entity_anonymization(
         self,
-        document: Dict[str, Any],
-        field_operators: Dict[str, List[Dict[str, Any]]],
-    ) -> Dict[str, Any]:
+        document: dict[str, Any],
+        field_operators: dict[str, list[dict[str, Any]]],
+    ) -> dict[str, Any]:
         """
         Apply multi-entity anonymization to a document.
 
@@ -149,7 +149,7 @@ class PresidioAnonymizer:
         self,
         text: str,
         operator_name: str,
-        entity_type: Optional[str] = None,
+        entity_type: str | None = None,
     ) -> str:
         """
         Anonymize a text value using a specific operator.
@@ -190,8 +190,8 @@ class PresidioAnonymizer:
 
     def _build_field_operators(
         self,
-        pii_field_strategy: Optional[Dict[str, str]],
-    ) -> Dict[str, OperatorConfig]:
+        pii_field_strategy: dict[str, str] | None,
+    ) -> dict[str, OperatorConfig]:
         """
         Build mapping of field paths to OperatorConfig objects.
 
@@ -201,7 +201,7 @@ class PresidioAnonymizer:
         Returns:
             Dictionary mapping field paths to OperatorConfig objects
         """
-        field_operators: Dict[str, OperatorConfig] = {}
+        field_operators: dict[str, OperatorConfig] = {}
 
         # Apply PII field strategies
         if pii_field_strategy:
@@ -217,8 +217,8 @@ class PresidioAnonymizer:
     def _build_operator_config(
         self,
         operator_name: str,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> Optional[OperatorConfig]:
+        params: dict[str, Any] | None = None,
+    ) -> OperatorConfig | None:
         """
         Convert a strategy name to an OperatorConfig.
 
@@ -243,7 +243,7 @@ class PresidioAnonymizer:
         return OperatorConfig(operator_name, final_params)
 
     def _anonymize_field(
-        self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
+        self, document: dict[str, Any], field_path: str, operator_config: OperatorConfig
     ) -> None:
         """
         Anonymize a specific field in a document using Presidio.
@@ -268,7 +268,7 @@ class PresidioAnonymizer:
             document[field_path] = anonymized_value
 
     def _anonymize_nested_field(
-        self, document: Dict[str, Any], field_path: str, operator_config: OperatorConfig
+        self, document: dict[str, Any], field_path: str, operator_config: OperatorConfig
     ) -> None:
         """
         Anonymize a nested field using dot notation.
@@ -387,7 +387,7 @@ class PresidioAnonymizer:
 _default_anonymizer = None
 
 
-def get_anonymizer(presidio_config_path: Optional[str] = None) -> PresidioAnonymizer:
+def get_anonymizer(presidio_config_path: str | None = None) -> PresidioAnonymizer:
     """
     Get or create a PresidioAnonymizer instance.
 
@@ -411,10 +411,10 @@ def get_anonymizer(presidio_config_path: Optional[str] = None) -> PresidioAnonym
 
 
 def apply_anonymization(
-    document: Dict[str, Any],
-    pii_field_strategy: Optional[Dict[str, str]] = None,
-    presidio_config_path: Optional[str] = None,
-) -> Dict[str, Any]:
+    document: dict[str, Any],
+    pii_field_strategy: dict[str, str] | None = None,
+    presidio_config_path: str | None = None,
+) -> dict[str, Any]:
     """
     Convenience function to anonymize a document.
 

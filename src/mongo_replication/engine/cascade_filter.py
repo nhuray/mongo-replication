@@ -1,9 +1,10 @@
 """Cascade filter building for selective replication."""
 
 import logging
-from typing import Dict, List, Any, Set
-from pymongo.database import Database
+from typing import Any
+
 from bson import ObjectId
+from pymongo.database import Database
 
 from mongo_replication.engine.relationships import RelationshipGraph
 
@@ -14,11 +15,11 @@ class CascadeResult:
     """Result of cascade filter building with metadata."""
 
     def __init__(self):
-        self.filters: Dict[str, Dict[str, Any]] = {}
-        self.doc_counts: Dict[str, int] = {}
-        self.skipped: Set[str] = set()
+        self.filters: dict[str, dict[str, Any]] = {}
+        self.doc_counts: dict[str, int] = {}
+        self.skipped: set[str] = set()
 
-    def add_collection(self, collection: str, match_filter: Dict[str, Any], doc_count: int):
+    def add_collection(self, collection: str, match_filter: dict[str, Any], doc_count: int):
         """Add a collection's filter and document count."""
         self.filters[collection] = match_filter
         self.doc_counts[collection] = doc_count
@@ -30,7 +31,7 @@ class CascadeResult:
         return sum(self.doc_counts.values())
 
     @property
-    def skipped_collections(self) -> Set[str]:
+    def skipped_collections(self) -> set[str]:
         """Alias for skipped for backward compatibility."""
         return self.skipped
 
@@ -58,7 +59,7 @@ class CascadeFilterBuilder:
         self.source_db = source_db
         self.graph = graph
 
-    def build_filters(self, root_collection: str, root_ids: List[str]) -> CascadeResult:
+    def build_filters(self, root_collection: str, root_ids: list[str]) -> CascadeResult:
         """
         Build match filters for all collections in relationship chain.
 
@@ -178,7 +179,7 @@ class CascadeFilterBuilder:
         return result
 
     def build_filters_from_query(
-        self, root_collection: str, root_query: Dict[str, Any]
+        self, root_collection: str, root_query: dict[str, Any]
     ) -> CascadeResult:
         """
         Build match filters for all collections starting from a MongoDB query.
@@ -298,7 +299,7 @@ class CascadeFilterBuilder:
 
         return result
 
-    def _convert_to_object_ids(self, ids: List[str], collection: str, field: str) -> List[ObjectId]:
+    def _convert_to_object_ids(self, ids: list[str], collection: str, field: str) -> list[ObjectId]:
         """
         Convert string IDs to ObjectIds with validation.
 
@@ -327,8 +328,8 @@ class CascadeFilterBuilder:
         return object_ids
 
     def _query_field_values(
-        self, collection: str, match_filter: Dict[str, Any], field: str
-    ) -> List[Any]:
+        self, collection: str, match_filter: dict[str, Any], field: str
+    ) -> list[Any]:
         """
         Query source DB and extract unique field values.
 
