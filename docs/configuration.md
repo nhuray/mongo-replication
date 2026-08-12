@@ -680,32 +680,41 @@ The `value` field in `add_field` and `set_field` supports multiple data types:
 
 ##### Template Values
 
-Fields support template strings with field references and special values:
+Fields support template strings with field references and special values using `${...}` syntax:
 
 ```yaml
 # Single field reference
 - type: add_field
   field: "name_copy"
-  value: "$name"
+  value: "${name}"
 
 # Nested field reference
 - type: add_field
   field: "city"
-  value: "$address.city"
+  value: "${address.city}"
 
-# Concatenation (space-separated)
+# Concatenation
 - type: add_field
   field: "full_name"
-  value: "$first_name $last_name"
+  value: "${first_name} ${last_name}"
 
 # Special values
 - type: add_field
   field: "created_at"
-  value: "$now"  # Current timestamp
+  value: "${now}"  # Current timestamp
 
 - type: add_field
   field: "deleted_at"
-  value: "$null"  # Null value
+  value: "${null}"  # Null value
+
+# Literal values (without ${}) are treated as-is
+- type: set_field
+  field: "password"
+  value: "$2a$10$abc123..."  # Bcrypt hash - treated as literal
+
+- type: set_field
+  field: "price"
+  value: "$100"  # Dollar amount - treated as literal
 ```
 
 **Mixing Templates with Objects:**
@@ -715,12 +724,12 @@ Templates work inside object values:
 - type: add_field
   field: "audit"
   value:
-    user: "$user.email"
-    timestamp: "$now"
+    user: "${user.email}"
+    timestamp: "${now}"
     action: "created"
     metadata:
-      ip_address: "$request.ip"
-      user_agent: "$request.user_agent"
+      ip_address: "${request.ip}"
+      user_agent: "${request.user_agent}"
 ```
 
 ##### Conditional Execution

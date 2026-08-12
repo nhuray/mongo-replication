@@ -709,50 +709,77 @@ class TransformationEngine:
         Returns:
             Resolved value
         """
-        # Special values
-        if value == "$now":
-            return datetime.utcnow()
-        elif value == "$null":
-            return None
-
-        # Template strings (contain $)
-        if isinstance(value, str) and "$" in value:
+        # Handle string values
+        if isinstance(value, str):
             return self._resolve_template(doc, value)
 
-        # Literal values
+        # Handle dict values (recursively resolve nested templates)
+        elif isinstance(value, dict):
+            return {k: self._resolve_value(doc, v) for k, v in value.items()}
+
+        # Handle list values (recursively resolve templates in list items)
+        elif isinstance(value, list):
+            return [self._resolve_value(doc, item) for item in value]
+
+        # Literal values (numbers, booleans, None, etc.)
         return value
 
     def _resolve_template(self, doc: Dict[str, Any], template: str) -> Any:
-        """Resolve template string with field references.
+        """Resolve template string with field references using ${field} syntax.
 
         Supports:
-        - Single field reference: "$fieldName"
-        - Nested field reference: "$address.city"
-        - Concatenation: "$firstName $lastName"
+        - Single field reference: "${fieldName}" → field value
+        - Nested field reference: "${address.city}" → nested field value
+        - Concatenation: "${firstName} ${lastName}" → "John Doe"
+        - Special values: "${now}" → current timestamp, "${null}" → None
+        - Literal strings: Any string without ${...} is returned as-is
 
         Args:
             doc: Document context for field references
-            template: Template string
+            template: Template string (may contain ${...} expressions)
 
         Returns:
             Resolved value
         """
-        # Single field reference: "$fieldName" (no spaces)
-        if template.startswith("$") and " " not in template:
-            field_name = template[1:]
-            return self._get_nested_field(doc, field_name)
+        # Pattern to find ${...} expressions
+        pattern = re.compile(r"\$\{([^}]+)\}")
 
-        # Concatenation: "$field1 $field2"
-        parts = template.split()
-        resolved_parts = []
-        for part in parts:
-            if part.startswith("$"):
-                field_name = part[1:]
-                field_value = self._get_nested_field(doc, field_name)
-                resolved_parts.append(str(field_value) if field_value is not None else "")
+        # Find all ${...} expressions
+        matches = pattern.findall(template)
+
+        if not matches:
+            # No template expressions, return as literal string
+            return template
+
+        # If entire string is a single ${field}, return the field value directly (preserve type)
+        if len(matches) == 1 and template == f"${{{matches[0]}}}":
+            field_ref = matches[0]
+
+            # Handle special values
+            if field_ref == "now":
+                return datetime.utcnow()
+            elif field_ref == "null":
+                return None
+
+            # Return field value with its original type
+            return self._get_nested_field(doc, field_ref)
+
+        # Multiple expressions or mixed text: perform string substitution
+        result = template
+        for field_ref in matches:
+            # Handle special values
+            if field_ref == "now":
+                field_value = datetime.utcnow()
+            elif field_ref == "null":
+                field_value = None
             else:
-                resolved_parts.append(part)
-        return " ".join(resolved_parts)
+                field_value = self._get_nested_field(doc, field_ref)
+
+            # Convert to string for substitution
+            value_str = str(field_value) if field_value is not None else ""
+            result = result.replace(f"${{{field_ref}}}", value_str)
+
+        return result
 
     # =============================================================================
     # NESTED FIELD UTILITIES

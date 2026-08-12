@@ -285,7 +285,7 @@ transforms:
   # Add a new field
   - type: add_field
     field: processed_at
-    value: "$now"  # Current timestamp
+    value: "${now}"  # Current timestamp
 
   # Set/overwrite a field
   - type: set_field
@@ -305,29 +305,29 @@ transforms:
 
 ### 2. Template Syntax
 
-Reference other fields and use special values:
+Reference other fields and use special values using `${...}` syntax:
 
 ```yaml
 transforms:
   # Copy from another field
   - type: set_field
     field: backup_email
-    value: "$email"
+    value: "${email}"
 
   # Set to current timestamp
   - type: add_field
     field: migrated_at
-    value: "$now"
+    value: "${now}"
 
   # Set to null
   - type: set_field
     field: deprecated_field
-    value: "$null"
+    value: "${null}"
 
-  # Combine fields (with regex)
+  # Combine fields
   - type: set_field
     field: full_name
-    value: "$first_name $last_name"
+    value: "${first_name} ${last_name}"
 ```
 
 ### 3. Conditional Execution
