@@ -5,7 +5,7 @@ provides automatic fallback to _id when the configured field is not found.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from pymongo.collection import Collection
 
@@ -48,7 +48,7 @@ class CursorValidator:
         self,
         collection: Collection,
         collection_name: str,
-        cursor_field: Optional[str],
+        cursor_field: str | None,
         write_disposition: str,
     ) -> str:
         """Validate cursor field and return the actual field to use.
@@ -92,7 +92,7 @@ class CursorValidator:
         )
         return self.fallback_cursor
 
-    def get_field_value(self, document: dict, field_path: str) -> Optional[Any]:
+    def get_field_value(self, document: dict, field_path: str) -> Any | None:
         """Extract field value from document, supporting nested paths.
 
         Args:

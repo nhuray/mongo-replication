@@ -1,6 +1,6 @@
 """Tests for the scan command cursor field detection."""
 
-from typing import Dict, Any
+from typing import Any
 
 from mongo_replication.cli.commands.scan import detect_cursor_field
 
@@ -74,7 +74,7 @@ class TestDetectCursorField:
 
     def test_empty_document_returns_none(self):
         """Test that empty document returns None."""
-        doc: Dict[str, Any] = {}
+        doc: dict[str, Any] = {}
         cursor_fields = ["updated_at", "updatedAt"]
 
         result = detect_cursor_field("users", doc, cursor_fields)

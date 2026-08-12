@@ -8,7 +8,7 @@ with support for three write strategies (merge, append, replace), PII redaction
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pymongo import ReplaceOne
@@ -101,9 +101,9 @@ class ReplicationResult(BaseModel):
     documents_processed: int
     batches_processed: int
     duration_seconds: float = 0.0
-    error_message: Optional[str] = None
-    cursor_field_used: Optional[str] = None
-    write_disposition: Optional[str] = None
+    error_message: str | None = None
+    cursor_field_used: str | None = None
+    write_disposition: str | None = None
 
     # Transformation statistics
     documents_transformed: int = 0
@@ -111,18 +111,17 @@ class ReplicationResult(BaseModel):
 
     # Per-operation transform results
     # e.g. {"add_field": TransformOperationResults(...), "anonymize": TransformOperationResults(...)}
-    transform_operations: Dict[str, TransformOperationResults] = Field(default_factory=dict)
+    transform_operations: dict[str, TransformOperationResults] = Field(default_factory=dict)
 
     # Index replication statistics
     indexes_replicated: int = 0
     indexes_failed: int = 0
-    index_errors: List[str] = Field(default_factory=list)
+    index_errors: list[str] = Field(default_factory=list)
 
 
 class ReplicationError(Exception):
     """Custom exception for replication errors."""
 
-    pass
 
 
 class CollectionReplicator:
@@ -160,8 +159,8 @@ class CollectionReplicator:
 
     @staticmethod
     def _convert_operations_to_dict(
-        operations: Dict[str, TransformOperationResults],
-    ) -> Dict[str, Dict[str, Any]]:
+        operations: dict[str, TransformOperationResults],
+    ) -> dict[str, dict[str, Any]]:
         """Convert TransformOperationResults to dict for storage.
 
         Args:
@@ -183,13 +182,13 @@ class CollectionReplicator:
     def replicate(
         self,
         state_id,
-        cursor_field: Optional[str],
+        cursor_field: str | None,
         write_disposition: str,
         primary_key: str = "_id",
-        transformation_engine: Optional[TransformationEngine] = None,
+        transformation_engine: TransformationEngine | None = None,
         batch_size: int = 1000,
-        match_filter: Optional[Dict[str, Any]] = None,
-        cursor_initial_value: Optional[datetime] = None,
+        match_filter: dict[str, Any] | None = None,
+        cursor_initial_value: datetime | None = None,
     ) -> ReplicationResult:
         """Replicate the collection from source to destination.
 
@@ -318,7 +317,7 @@ class CollectionReplicator:
 
         except Exception as e:
             duration = time.time() - start_time
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{type(e).__name__}: {e!s}"
             logger.error(f"❌ {self.collection_name}: Failed - {error_msg}")
 
             # Mark as failed in state
@@ -340,7 +339,7 @@ class CollectionReplicator:
                 write_disposition=write_disposition,
             )
 
-    def _build_query(self, cursor_field: str) -> Dict[str, Any]:
+    def _build_query(self, cursor_field: str) -> dict[str, Any]:
         """Build query for incremental loading based on last cursor value and match filter.
 
         Combines incremental cursor filter with user-defined match filter using $and.
@@ -399,7 +398,7 @@ class CollectionReplicator:
         cursor_field: str,
         batch_size: int,
         skip: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch a batch of documents from source.
 
         All BSON types are preserved in the returned documents.
@@ -424,8 +423,8 @@ class CollectionReplicator:
 
     def _apply_transformations(
         self,
-        documents: List[Dict[str, Any]],
-    ) -> tuple[List[Dict[str, Any]], TransformResults]:
+        documents: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], TransformResults]:
         """Apply transformation pipeline to documents.
 
         Args:
@@ -448,8 +447,8 @@ class CollectionReplicator:
 
     def _aggregate_operation_results(
         self,
-        accumulated: Dict[str, TransformOperationResults],
-        new_results: Dict[str, TransformOperationResults],
+        accumulated: dict[str, TransformOperationResults],
+        new_results: dict[str, TransformOperationResults],
     ) -> None:
         """Aggregate operation results from a batch into accumulated totals.
 
@@ -474,7 +473,7 @@ class CollectionReplicator:
 
     def _write_batch_merge(
         self,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         primary_key: str,
     ) -> int:
         """Write batch using merge strategy (upsert by primary key).
@@ -511,7 +510,7 @@ class CollectionReplicator:
 
     def _write_batch_append(
         self,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
     ) -> int:
         """Write batch using append strategy (insert only).
 
@@ -550,9 +549,9 @@ class CollectionReplicator:
 
     def _write_batch_replace(
         self,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         is_first_batch: bool,
-    ) -> tuple[int, int, int, List[str]]:
+    ) -> tuple[int, int, int, list[str]]:
         """Write batch using replace strategy (drop + insert on first batch).
 
         Args:
@@ -603,7 +602,7 @@ class CollectionReplicator:
         total_transforms_applied = 0
 
         # Aggregate operation results across batches
-        aggregated_operations: Dict[str, TransformOperationResults] = {}
+        aggregated_operations: dict[str, TransformOperationResults] = {}
 
         # Index statistics (captured from first batch)
         indexes_replicated = 0
@@ -688,7 +687,7 @@ class CollectionReplicator:
         total_transforms_applied = 0
 
         # Aggregate operation results across batches
-        aggregated_operations: Dict[str, TransformOperationResults] = {}
+        aggregated_operations: dict[str, TransformOperationResults] = {}
 
         # Get starting cursor value from state
         # After this initial query, we track cursor locally for this run
@@ -793,7 +792,7 @@ class CollectionReplicator:
         total_transforms_applied = 0
 
         # Aggregate operation results across batches
-        aggregated_operations: Dict[str, TransformOperationResults] = {}
+        aggregated_operations: dict[str, TransformOperationResults] = {}
 
         # Get starting cursor value from state
         query = self._build_query(cursor_field)

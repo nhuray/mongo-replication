@@ -2,10 +2,9 @@
 Interactive collection selection using questionary.
 """
 
-from typing import List, Optional
+
 import questionary
 from questionary import Style
-
 
 # Custom style for questionary
 custom_style = Style(
@@ -25,9 +24,9 @@ custom_style = Style(
 
 
 def select_collections(
-    available_collections: List[str],
-    default_selected: Optional[List[str]] = None,
-) -> List[str]:
+    available_collections: list[str],
+    default_selected: list[str] | None = None,
+) -> list[str]:
     """
     Interactively select collections using checkboxes.
 
@@ -91,9 +90,9 @@ def confirm_action(message: str, default: bool = True) -> bool:
 
 def select_single(
     message: str,
-    choices: List[str],
-    default: Optional[str] = None,
-) -> Optional[str]:
+    choices: list[str],
+    default: str | None = None,
+) -> str | None:
     """
     Select a single option from a list.
 

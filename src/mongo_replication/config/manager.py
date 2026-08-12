@@ -7,16 +7,16 @@ with support for defaults merging and validation.
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mongo_replication.config.models import (
-    Config,
-    ScanConfig,
     CollectionConfig,
+    Config,
     ReplicationConfig,
+    ScanConfig,
     SchemaRelationshipConfig,
 )
 
@@ -60,7 +60,7 @@ def _get_jinja_env() -> Environment:
 
 def get_collection_config(
     config: ReplicationConfig, collection_name: str
-) -> Optional[CollectionConfig]:
+) -> CollectionConfig | None:
     """
     Get configuration for a specific collection.
 
@@ -121,7 +121,7 @@ def load_config(config_path: Path) -> Config:
     try:
         config = Config.model_validate(merged_config)
     except Exception as e:
-        raise ValueError(f"Invalid configuration in {config_path}: {str(e)}")
+        raise ValueError(f"Invalid configuration in {config_path}: {e!s}")
 
     return config
 
@@ -195,7 +195,7 @@ def load_schema_relationships(config_path: Path) -> list[SchemaRelationshipConfi
     return full_config.schema_relationships
 
 
-def _render_config_template(data: Dict[str, Any]) -> str:
+def _render_config_template(data: dict[str, Any]) -> str:
     """
     Render configuration to YAML string using Jinja2 template.
 
@@ -229,7 +229,7 @@ def save_config(config: Config, output_path: Path) -> None:
     logger.info(f"Saved configuration to {output_path}")
 
 
-def load_defaults() -> Dict[str, Any]:
+def load_defaults() -> dict[str, Any]:
     """
     Load default configuration from defaults.yaml.
 
@@ -248,7 +248,7 @@ def load_defaults() -> Dict[str, Any]:
     return defaults or {}
 
 
-def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """
     Deep merge two dictionaries, with override taking precedence.
 

@@ -119,9 +119,9 @@ exclude_lines = [
 ]
 
 [tool.taskipy.tasks]
-format = "uv tool run ruff format"
-check = "uv tool run ruff check --fix"
-lint = "uv tool run ruff check --fix"
+format = "uv run ruff format"
+check = "uv run ruff check --fix"
+lint = "uv run ruff check --fix"
 build = "uv run python -m build"
 test = "uv run pytest"
 publish = "uv run twine upload dist/*"

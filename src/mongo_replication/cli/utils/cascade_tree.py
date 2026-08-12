@@ -1,8 +1,8 @@
 """Tree visualization for cascade replication."""
 
-from typing import Dict, Optional, Set
-from rich.tree import Tree
+
 from rich.text import Text
+from rich.tree import Tree
 
 
 class CascadeTreeBuilder:
@@ -10,7 +10,7 @@ class CascadeTreeBuilder:
 
     @staticmethod
     def build_dry_run_tree(
-        tree_structure: Dict, doc_counts: Dict[str, int], skipped: Set[str]
+        tree_structure: dict, doc_counts: dict[str, int], skipped: set[str]
     ) -> Tree:
         """
         Build tree for dry-run showing what will be replicated.
@@ -24,7 +24,7 @@ class CascadeTreeBuilder:
             Rich Tree object for display
         """
 
-        def build_node(node_data: Dict, parent_tree: Optional[Tree] = None) -> Tree:
+        def build_node(node_data: dict, parent_tree: Tree | None = None) -> Tree:
             collection = node_data["name"]
             count = doc_counts.get(collection, 0)
             is_skipped = collection in skipped
@@ -53,12 +53,12 @@ class CascadeTreeBuilder:
 
     @staticmethod
     def build_progress_tree(
-        tree_structure: Dict,
-        doc_counts: Dict[str, int],
-        statuses: Dict[
+        tree_structure: dict,
+        doc_counts: dict[str, int],
+        statuses: dict[
             str, str
         ],  # collection -> 'pending'|'replicating'|'completed'|'failed'|'skipped'
-        errors: Dict[str, str] = None,  # collection -> error message
+        errors: dict[str, str] = None,  # collection -> error message
     ) -> Tree:
         """
         Build tree for progress tracking during replication.
@@ -74,7 +74,7 @@ class CascadeTreeBuilder:
         """
         errors = errors or {}
 
-        def build_node(node_data: Dict, parent_tree: Optional[Tree] = None) -> Tree:
+        def build_node(node_data: dict, parent_tree: Tree | None = None) -> Tree:
             collection = node_data["name"]
             count = doc_counts.get(collection, 0)
             status = statuses.get(collection, "pending")
@@ -124,11 +124,11 @@ class CascadeTreeBuilder:
     @staticmethod
     def build_summary_tree(
         root_collection: str,
-        tree_structure: Dict,
-        doc_counts: Dict[str, int],
-        successful: Set[str],
-        failed: Set[str],
-        skipped: Set[str],
+        tree_structure: dict,
+        doc_counts: dict[str, int],
+        successful: set[str],
+        failed: set[str],
+        skipped: set[str],
     ) -> Tree:
         """
         Build tree for final summary after replication.
@@ -145,7 +145,7 @@ class CascadeTreeBuilder:
             Rich Tree object for display
         """
 
-        def build_node(node_data: Dict, parent_tree: Optional[Tree] = None) -> Tree:
+        def build_node(node_data: dict, parent_tree: Tree | None = None) -> Tree:
             collection = node_data["name"]
             count = doc_counts.get(collection, 0)
 

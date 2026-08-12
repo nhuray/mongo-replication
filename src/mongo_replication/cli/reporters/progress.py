@@ -2,13 +2,14 @@
 Progress bar utilities using tqdm.
 """
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
+
 from tqdm import tqdm
 
 
 def create_progress_bar(
-    iterable: Optional[Iterable] = None,
-    total: Optional[int] = None,
+    iterable: Iterable | None = None,
+    total: int | None = None,
     desc: str = "",
     unit: str = "it",
     **kwargs,

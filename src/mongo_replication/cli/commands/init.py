@@ -7,36 +7,35 @@ Usage:
 
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Annotated
 
 import questionary
 import typer
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
 from questionary import Style
-from typing_extensions import Annotated
 
 from mongo_replication.cli.utils.output import (
-    print_banner,
-    print_success,
-    print_error,
-    print_warning,
-    print_step,
     console,
+    print_banner,
+    print_error,
+    print_step,
+    print_success,
+    print_warning,
 )
-from mongo_replication.config.manager import save_config, load_defaults
+from mongo_replication.config.manager import load_defaults, save_config
 from mongo_replication.config.models import (
-    ScanConfig,
-    ScanDiscoveryConfig,
-    ScanSamplingConfig,
-    ScanPIIAnalysisConfig,
-    ScanCursorDetectionConfig,
     Config,
     ReplicationConfig,
     ReplicationDiscoveryConfig,
+    ScanConfig,
+    ScanCursorDetectionConfig,
+    ScanDiscoveryConfig,
+    ScanPIIAnalysisConfig,
+    ScanSamplingConfig,
 )
-from mongo_replication.engine.connection import ConnectionManager
 from mongo_replication.config.presidio_config import PresidioConfig
+from mongo_replication.engine.connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +57,8 @@ custom_style = Style(
 
 
 def load_entity_strategies_from_config(
-    presidio_config_path: Optional[str] = None,
-) -> Dict[str, str]:
+    presidio_config_path: str | None = None,
+) -> dict[str, str]:
     """Load entity type to strategy mappings from Presidio YAML config.
 
     Args:
@@ -119,7 +118,7 @@ def validate_connection(uri: str, db_name: str) -> bool:
         return False
 
 
-def get_collections_from_source(uri: str, db_name: str) -> Optional[List[str]]:
+def get_collections_from_source(uri: str, db_name: str) -> list[str] | None:
     """Get list of collections from source database.
 
     Args:
@@ -143,7 +142,7 @@ def get_collections_from_source(uri: str, db_name: str) -> Optional[List[str]]:
 def init_command(
     job: Annotated[str, typer.Argument(help="Job ID (e.g., 'prod_db', 'staging_db')")],
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output",
             "-o",
@@ -183,7 +182,7 @@ def init_command(
         raise typer.Exit(code=1)
 
 
-def _run_init_wizard(job: str, output: Optional[Path]) -> None:
+def _run_init_wizard(job: str, output: Path | None) -> None:
     """Run the interactive init wizard (internal implementation)."""
     print_banner("SETUP CONFIGURATION", Job=job)
 

@@ -1,24 +1,24 @@
 """Unit tests for new configuration models (ScanConfig, RepConfig)."""
 
-import pytest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import pytest
 from pydantic import ValidationError
 
-from mongo_replication.config.models import (
-    ScanConfig,
-    ScanDiscoveryConfig,
-    ScanSamplingConfig,
-    ScanPIIAnalysisConfig,
-    Config,
-    PIIFieldAnonymization,
-)
 from mongo_replication.config.manager import (
     load_config,
-    load_scan_config,
     load_replication_config,
+    load_scan_config,
     save_config,
+)
+from mongo_replication.config.models import (
+    Config,
+    PIIFieldAnonymization,
+    ScanConfig,
+    ScanDiscoveryConfig,
+    ScanPIIAnalysisConfig,
+    ScanSamplingConfig,
 )
 
 
@@ -36,7 +36,7 @@ class TestScanDiscoveryConfig:
         """Test with include/exclude patterns."""
         config = ScanDiscoveryConfig(
             include_patterns=["^users.*", "^transactions.*"],
-            exclude_patterns=["^system\.", "^_.*"],
+            exclude_patterns=[r"^system\.", "^_.*"],
         )
 
         assert len(config.include_patterns) == 2
@@ -400,8 +400,8 @@ class TestConfigTemplateSerialization:
 
     def test_save_and_load_with_transforms(self):
         """Test saving and loading config with transforms format."""
-        from mongo_replication.config.models import ReplicationConfig, Config
-        from mongo_replication.config.manager import save_config, load_config
+        from mongo_replication.config.manager import load_config, save_config
+        from mongo_replication.config.models import Config, ReplicationConfig
 
         # Create config with transforms
         collections_dict = {
@@ -469,8 +469,8 @@ class TestConfigTemplateSerialization:
 
     def test_template_with_multiple_transform_types(self):
         """Test that template handles multiple transform types."""
-        from mongo_replication.config.models import ReplicationConfig, Config
         from mongo_replication.config.manager import save_config
+        from mongo_replication.config.models import Config, ReplicationConfig
 
         # Test with various transform types
         collections_dict = {

@@ -7,10 +7,9 @@ This module defines the configuration schema with two main sections:
 
 import re
 from datetime import datetime
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator, RootModel
-
+from pydantic import BaseModel, Field, RootModel, field_validator, model_validator
 
 # =============================================================================
 # SCAN CONFIG MODELS
@@ -20,10 +19,10 @@ from pydantic import BaseModel, Field, field_validator, model_validator, RootMod
 class ScanDiscoveryConfig(BaseModel):
     """Configuration for collection discovery during scan."""
 
-    include_patterns: List[str] = Field(default_factory=list)
+    include_patterns: list[str] = Field(default_factory=list)
     """Regex patterns for collections to include (empty = include all)."""
 
-    exclude_patterns: List[str] = Field(default_factory=list)
+    exclude_patterns: list[str] = Field(default_factory=list)
     """Regex patterns for collections to exclude."""
 
 
@@ -54,7 +53,7 @@ class ScanPIIAnalysisConfig(BaseModel):
     confidence_threshold: float = 0.85
     """Minimum confidence score for PII detection (0.0-1.0)."""
 
-    entity_types: List[str] = Field(
+    entity_types: list[str] = Field(
         default_factory=lambda: [
             "EMAIL_ADDRESS",
             "PHONE_NUMBER",
@@ -68,7 +67,7 @@ class ScanPIIAnalysisConfig(BaseModel):
     )
     """PII entity types to detect."""
 
-    default_strategies: Dict[str, str] = Field(
+    default_strategies: dict[str, str] = Field(
         default_factory=lambda: {
             "EMAIL_ADDRESS": "smart_mask",
             "PHONE_NUMBER": "smart_mask",
@@ -85,10 +84,10 @@ class ScanPIIAnalysisConfig(BaseModel):
     )
     """Default anonymization strategy per entity type."""
 
-    allowlist: List[str] = Field(default_factory=list)
+    allowlist: list[str] = Field(default_factory=list)
     """Field patterns to exclude from PII detection (e.g., 'metadata.*', '*.created_at')."""
 
-    presidio_config: Optional[str] = None
+    presidio_config: str | None = None
     """Path to Presidio YAML configuration file for custom PII recognizers.
 
     This allows you to:
@@ -124,7 +123,7 @@ class ScanPIIAnalysisConfig(BaseModel):
 class ScanCursorDetectionConfig(BaseModel):
     """Configuration for cursor field detection during scan."""
 
-    cursor_fields: List[str] = Field(
+    cursor_fields: list[str] = Field(
         default_factory=lambda: ["updated_at", "updatedAt", "meta.updated_at", "meta.updatedAt"]
     )
     """List of cursor field candidates to try (checked in priority order during scan)."""
@@ -187,7 +186,7 @@ class TransformStep(BaseModel):
     type: str
     """Transform type discriminator."""
 
-    condition: Optional[ConditionConfig] = None
+    condition: ConditionConfig | None = None
     """Optional condition - transform only applies if condition is true."""
 
 
@@ -220,7 +219,7 @@ class RemoveFieldTransform(TransformStep):
 
     type: Literal["remove_field"] = "remove_field"
 
-    field: str | List[str]
+    field: str | list[str]
     """Field path(s) to remove (supports dot notation for nested fields)."""
 
 
@@ -275,7 +274,7 @@ class RegexReplaceTransform(TransformStep):
         try:
             re.compile(v)
         except re.error as e:
-            raise ValueError(f"Invalid regex pattern '{v}': {str(e)}")
+            raise ValueError(f"Invalid regex pattern '{v}': {e!s}")
         return v
 
 
@@ -290,21 +289,13 @@ class AnonymizeTransform(TransformStep):
     operator: str
     """Anonymization operator name (e.g., 'mask_email', 'hash', 'smart_mask')."""
 
-    params: Optional[Dict[str, Any]] = None
+    params: dict[str, Any] | None = None
     """Optional parameters to pass to the operator."""
 
 
 # Union type for all transform configurations (discriminated by 'type' field)
 TransformConfig = Annotated[
-    Union[
-        AddFieldTransform,
-        SetFieldTransform,
-        RemoveFieldTransform,
-        RenameFieldTransform,
-        CopyFieldTransform,
-        RegexReplaceTransform,
-        AnonymizeTransform,
-    ],
+    AddFieldTransform | SetFieldTransform | RemoveFieldTransform | RenameFieldTransform | CopyFieldTransform | RegexReplaceTransform | AnonymizeTransform,
     Field(discriminator="type"),
 ]
 
@@ -315,10 +306,10 @@ class ReplicationDiscoveryConfig(BaseModel):
     replicate_all: bool = True
     """If true, auto-discover and replicate all collections not explicitly excluded."""
 
-    include_patterns: List[str] = Field(default_factory=list)
+    include_patterns: list[str] = Field(default_factory=list)
     """Regex patterns for collections to include (empty = include all)."""
 
-    exclude_patterns: List[str] = Field(default_factory=list)
+    exclude_patterns: list[str] = Field(default_factory=list)
     """Regex patterns for collections to exclude."""
 
 
@@ -361,7 +352,7 @@ class ReplicationPerformanceConfig(BaseModel):
 class ReplicationDefaultsConfig(BaseModel):
     """Default replication settings for all collections."""
 
-    cursor_field: Optional[str] = None
+    cursor_field: str | None = None
     """Default cursor field to use for incremental loading."""
 
     cursor_fallback_field: str = "_id"
@@ -427,7 +418,7 @@ class PIIFieldAnonymization(BaseModel):
     operator: str
     """Anonymization operator name (e.g., 'mask_email', 'fake_phone', 'smart_mask')."""
 
-    params: Optional[Dict[str, Any]] = None
+    params: dict[str, Any] | None = None
     """Optional parameters to pass to the operator (including 'entity_type' if needed)."""
 
 
@@ -441,24 +432,24 @@ class CollectionConfig(ReplicationDefaultsConfig):
     name: str
     """Collection name."""
 
-    cursor_field: Optional[str] = None
+    cursor_field: str | None = None
     """Field to use for incremental loading (overrides defaults)."""
 
-    cursor_initial_value: Optional[datetime] = None
+    cursor_initial_value: datetime | None = None
     """Initial cursor value for first-time replication (overrides defaults)."""
 
-    batch_size: Optional[int] = None
+    batch_size: int | None = None
     """Batch size for processing documents (overrides performance.batch_size)."""
 
-    match: Optional[Dict[str, Any]] = None
+    match: dict[str, Any] | None = None
     """MongoDB match filter to apply during replication."""
 
-    transforms: List[TransformConfig] = Field(default_factory=list)
+    transforms: list[TransformConfig] = Field(default_factory=list)
     """Transformation pipeline to apply to documents (executed in order)."""
 
     @field_validator("batch_size")
     @classmethod
-    def validate_batch_size_override(cls, v: Optional[int]) -> Optional[int]:
+    def validate_batch_size_override(cls, v: int | None) -> int | None:
         """Validate batch_size is at least 1 if specified."""
         if v is not None and v < 1:
             raise ValueError(f"batch_size must be >= 1, got {v}")
@@ -494,13 +485,13 @@ class CollectionConfig(ReplicationDefaultsConfig):
 class CollectionsConfig(RootModel):
     """Configuration for collections to replicate."""
 
-    root: Dict[str, CollectionConfig] = Field(default_factory=dict)
+    root: dict[str, CollectionConfig] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
     def set_name(cls, data):
         """Set the name of the collection config."""
-        result: Dict[str, CollectionConfig] = {}
+        result: dict[str, CollectionConfig] = {}
         if isinstance(data, dict):
             # Move the dictionary key into the 'name' field of the value dict
             for k, v in data.items():
@@ -517,7 +508,7 @@ class CollectionsConfig(RootModel):
         """Check if a collection exists."""
         return key in self.root
 
-    def get(self, key: str, default=None) -> Optional[CollectionConfig]:
+    def get(self, key: str, default=None) -> CollectionConfig | None:
         """Get a collection by name with optional default."""
         return self.root.get(key, default)
 
@@ -592,13 +583,13 @@ class ReplicationConfig(BaseModel):
 class Config(BaseModel):
     """Root configuration object with scan and replication sections."""
 
-    scan: Optional[ScanConfig] = None
+    scan: ScanConfig | None = None
     """Configuration for PII scanning (optional)."""
 
     replication: Optional["ReplicationConfig"] = None
     """Configuration for replication (optional)."""
 
-    schema_relationships: List[SchemaRelationshipConfig] = Field(default_factory=list)
+    schema_relationships: list[SchemaRelationshipConfig] = Field(default_factory=list)
     """Collection relationships for cascading replication (optional)."""
 
     @model_validator(mode="after")

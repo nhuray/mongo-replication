@@ -5,9 +5,9 @@ Includes PII analysis, cursor field detection, and schema relationships.
 """
 
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 def generate_scan_report(
     job_id: str,
-    pii_analyses: Dict[str, CollectionPIIAnalysis],
+    pii_analyses: dict[str, CollectionPIIAnalysis],
     output_path: Path,
-    cursor_fields: Optional[Dict[str, Any]] = None,
-    schema_relationships: Optional[List[Any]] = None,
+    cursor_fields: dict[str, Any] | None = None,
+    schema_relationships: list[Any] | None = None,
     total_samples: int = 0,
 ) -> None:
     """

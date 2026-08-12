@@ -6,7 +6,6 @@ and applies include/exclude regex patterns for filtering.
 
 import logging
 import re
-from typing import List, Set
 
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -17,11 +16,11 @@ logger = logging.getLogger(__name__)
 class DiscoveryResult(BaseModel):
     """Result of collection discovery process."""
 
-    all_collections: List[str]
-    included_collections: List[str]
-    excluded_collections: List[str]
-    configured_collections: Set[str]
-    auto_discovered_collections: Set[str]
+    all_collections: list[str]
+    included_collections: list[str]
+    excluded_collections: list[str]
+    configured_collections: set[str]
+    auto_discovered_collections: set[str]
 
     @property
     def total_found(self) -> int:
@@ -66,9 +65,9 @@ class CollectionDiscovery:
         self,
         source_db: Database,
         replicate_all: bool = True,
-        include_patterns: List[str] | None = None,
-        exclude_patterns: List[str] | None = None,
-        state_collections: List[str] | None = None,
+        include_patterns: list[str] | None = None,
+        exclude_patterns: list[str] | None = None,
+        state_collections: list[str] | None = None,
     ):
         """Initialize collection discovery.
 
@@ -94,7 +93,7 @@ class CollectionDiscovery:
         self._include_regex = [re.compile(pattern) for pattern in self.include_patterns]
         self._exclude_regex = [re.compile(pattern) for pattern in self.exclude_patterns]
 
-    def _matches_any_pattern(self, collection_name: str, patterns: List[re.Pattern]) -> bool:
+    def _matches_any_pattern(self, collection_name: str, patterns: list[re.Pattern]) -> bool:
         """Check if collection name matches any regex pattern.
 
         Args:
@@ -126,7 +125,7 @@ class CollectionDiscovery:
         # Otherwise, only include if matches include patterns
         return self._matches_any_pattern(collection_name, self._include_regex)
 
-    def discover_collections(self, configured_collections: Set[str]) -> DiscoveryResult:
+    def discover_collections(self, configured_collections: set[str]) -> DiscoveryResult:
         """Discover collections from source database and apply filters.
 
         Args:
@@ -167,7 +166,7 @@ class CollectionDiscovery:
 
         return result
 
-    def get_excluded_collections(self, all_collections: List[str]) -> List[str]:
+    def get_excluded_collections(self, all_collections: list[str]) -> list[str]:
         """Get list of collections that would be excluded.
 
         Useful for validation and debugging.

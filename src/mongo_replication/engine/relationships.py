@@ -1,6 +1,5 @@
 """Relationship graph management for cascading replication."""
 
-from typing import List, Dict, Set, Optional
 from collections import defaultdict, deque
 
 from pydantic import BaseModel
@@ -26,7 +25,7 @@ class RelationshipGraph:
           └─> addresses
     """
 
-    def __init__(self, relationships: List[Relationship]):
+    def __init__(self, relationships: list[Relationship]):
         """
         Initialize graph from relationships.
 
@@ -34,8 +33,8 @@ class RelationshipGraph:
             relationships: List of parent-child relationships
         """
         self.relationships = relationships
-        self._children_map: Dict[str, List[Relationship]] = defaultdict(list)
-        self._parent_map: Dict[str, Relationship] = {}
+        self._children_map: dict[str, list[Relationship]] = defaultdict(list)
+        self._parent_map: dict[str, Relationship] = {}
         self._build_maps()
 
     def _build_maps(self) -> None:
@@ -53,7 +52,7 @@ class RelationshipGraph:
                 )
             self._parent_map[rel.child] = rel
 
-    def get_descendants(self, root_collection: str) -> List[str]:
+    def get_descendants(self, root_collection: str) -> list[str]:
         """
         Get all descendant collections in breadth-first order.
 
@@ -87,7 +86,7 @@ class RelationshipGraph:
 
         return descendants
 
-    def get_parent_relationship(self, child_collection: str) -> Optional[Relationship]:
+    def get_parent_relationship(self, child_collection: str) -> Relationship | None:
         """
         Get the parent relationship for a child collection.
 
@@ -99,7 +98,7 @@ class RelationshipGraph:
         """
         return self._parent_map.get(child_collection)
 
-    def get_children_relationships(self, parent_collection: str) -> List[Relationship]:
+    def get_children_relationships(self, parent_collection: str) -> list[Relationship]:
         """
         Get all direct child relationships for a parent.
 
@@ -111,7 +110,7 @@ class RelationshipGraph:
         """
         return self._children_map.get(parent_collection, [])
 
-    def validate_collections(self, existing_collections: Set[str]) -> None:
+    def validate_collections(self, existing_collections: set[str]) -> None:
         """
         Validate that all collections in relationships exist.
 
@@ -164,7 +163,7 @@ class RelationshipGraph:
 
         return False
 
-    def get_tree_structure(self, root_collection: str) -> Dict[str, any]:
+    def get_tree_structure(self, root_collection: str) -> dict[str, any]:
         """
         Get tree structure for visualization.
 
@@ -182,7 +181,7 @@ class RelationshipGraph:
             }
         """
 
-        def build_tree(collection: str, visited: Set[str]) -> Dict[str, any]:
+        def build_tree(collection: str, visited: set[str]) -> dict[str, any]:
             if collection in visited:
                 return {"name": collection, "children": [], "is_cycle": True}
 
@@ -209,7 +208,7 @@ class SchemaRelationshipAnalyzer:
     → Inferred relationship: customers → orders
     """
 
-    def __init__(self, collection_samples: Dict[str, List[Dict]]):
+    def __init__(self, collection_samples: dict[str, list[dict]]):
         """
         Initialize analyzer with document samples.
 
@@ -220,7 +219,7 @@ class SchemaRelationshipAnalyzer:
         self.collection_samples = collection_samples
         self.collection_names = set(collection_samples.keys())
 
-    def infer_relationships(self) -> List[Relationship]:
+    def infer_relationships(self) -> list[Relationship]:
         """
         Infer relationships between collections based on field names.
 
@@ -264,7 +263,7 @@ class SchemaRelationshipAnalyzer:
 
         return unique_relationships
 
-    def _extract_fields_from_samples(self, samples: List[Dict]) -> Set[str]:
+    def _extract_fields_from_samples(self, samples: list[dict]) -> set[str]:
         """
         Extract all field paths from sample documents.
 
@@ -281,7 +280,7 @@ class SchemaRelationshipAnalyzer:
 
         return fields
 
-    def _extract_fields_recursive(self, obj: any, prefix: str = "") -> Set[str]:
+    def _extract_fields_recursive(self, obj: any, prefix: str = "") -> set[str]:
         """
         Recursively extract field paths from a document.
 
@@ -305,7 +304,7 @@ class SchemaRelationshipAnalyzer:
 
         return fields
 
-    def _match_field_to_collection(self, field_path: str) -> Optional[str]:
+    def _match_field_to_collection(self, field_path: str) -> str | None:
         """
         Try to match a field name to a collection name.
 
@@ -338,7 +337,7 @@ class SchemaRelationshipAnalyzer:
 
         return None
 
-    def _extract_collection_references(self, field_name: str) -> List[str]:
+    def _extract_collection_references(self, field_name: str) -> list[str]:
         """
         Extract potential collection names from a field name.
 
@@ -401,7 +400,7 @@ class SchemaRelationshipAnalyzer:
         snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
         return snake
 
-    def _deduplicate_relationships(self, relationships: List[Relationship]) -> List[Relationship]:
+    def _deduplicate_relationships(self, relationships: list[Relationship]) -> list[Relationship]:
         """
         Remove duplicate relationships (same parent-child pair).
 

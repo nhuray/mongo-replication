@@ -1,13 +1,14 @@
 """Unit tests for cascade replication feature."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 from bson import ObjectId
 
-from mongo_replication.config.models import SchemaRelationshipConfig
-from mongo_replication.engine.relationships import Relationship, RelationshipGraph
-from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
 from mongo_replication.cli.commands.run import parse_ids_option, parse_query_option
+from mongo_replication.config.models import SchemaRelationshipConfig
+from mongo_replication.engine.cascade_filter import CascadeFilterBuilder, CascadeResult
+from mongo_replication.engine.relationships import Relationship, RelationshipGraph
 
 
 class TestSchemaRelationshipConfig:

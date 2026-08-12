@@ -27,7 +27,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -48,7 +47,7 @@ class JobConfig(BaseModel):
     job_id: str
     source_uri: str
     destination_uri: str
-    config_path: Optional[Path] = None
+    config_path: Path | None = None
     enabled: bool = True
 
     def __repr__(self) -> str:
@@ -69,7 +68,7 @@ class JobManager:
     )
 
     @staticmethod
-    def discover_jobs() -> List[JobConfig]:
+    def discover_jobs() -> list[JobConfig]:
         """Discover all enabled replication jobs from environment variables.
 
         Scans environment for variables matching the pattern:
@@ -85,7 +84,7 @@ class JobManager:
             ValueError: If no enabled jobs are found or required variables are missing
         """
         # Group environment variables by job ID
-        job_vars: Dict[str, Dict[str, str]] = {}
+        job_vars: dict[str, dict[str, str]] = {}
 
         for key, value in os.environ.items():
             match = JobManager.JOB_PATTERN.match(key)
@@ -217,7 +216,7 @@ class JobManager:
         )
 
     @staticmethod
-    def list_jobs() -> List[str]:
+    def list_jobs() -> list[str]:
         """List all enabled job IDs.
 
         Returns:

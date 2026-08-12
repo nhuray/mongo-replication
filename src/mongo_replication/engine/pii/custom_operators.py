@@ -9,9 +9,8 @@ anonymization capabilities with:
 
 import logging
 import re
-from typing import Dict, Optional
 
-from mimesis import Address, Internet, Person, Payment
+from mimesis import Address, Internet, Payment, Person
 from presidio_anonymizer.operators import Operator, OperatorType
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 class FakeEmailOperator(Operator):
     """Generate realistic fake email addresses using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake email address.
 
         Args:
@@ -33,9 +32,8 @@ class FakeEmailOperator(Operator):
         person = Person()
         return person.email(unique=True)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -49,7 +47,7 @@ class FakeEmailOperator(Operator):
 class FakeNameOperator(Operator):
     """Generate realistic fake names using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake full name.
 
         Args:
@@ -62,9 +60,8 @@ class FakeNameOperator(Operator):
         person = Person()
         return person.full_name()
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -78,7 +75,7 @@ class FakeNameOperator(Operator):
 class FakePhoneOperator(Operator):
     """Generate realistic fake phone numbers using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake phone number.
 
         Args:
@@ -91,9 +88,8 @@ class FakePhoneOperator(Operator):
         person = Person()
         return person.phone_number()
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -107,7 +103,7 @@ class FakePhoneOperator(Operator):
 class FakeAddressOperator(Operator):
     """Generate realistic fake addresses using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake address.
 
         Args:
@@ -120,9 +116,8 @@ class FakeAddressOperator(Operator):
         address = Address()
         return address.address()
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -136,7 +131,7 @@ class FakeAddressOperator(Operator):
 class FakeSSNOperator(Operator):
     """Generate realistic fake SSN using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake SSN.
 
         Args:
@@ -150,9 +145,8 @@ class FakeSSNOperator(Operator):
         # Generate SSN format: XXX-XX-XXXX
         return person.identifier(mask="###-##-####")
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -166,7 +160,7 @@ class FakeSSNOperator(Operator):
 class FakeCreditCardOperator(Operator):
     """Generate realistic fake credit card numbers using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake credit card number.
 
         Args:
@@ -179,9 +173,8 @@ class FakeCreditCardOperator(Operator):
         payment = Payment()
         return payment.credit_card_number()
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -198,7 +191,7 @@ class FakeIBANOperator(Operator):
     Generates a valid IBAN format with random country codes.
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake IBAN.
 
         Args:
@@ -226,9 +219,8 @@ class FakeIBANOperator(Operator):
 
         return f"{country}{check_digits}{account}"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -242,7 +234,7 @@ class FakeIBANOperator(Operator):
 class FakeUSBankAccountOperator(Operator):
     """Generate realistic fake US bank account numbers using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake US bank account number.
 
         Args:
@@ -258,9 +250,8 @@ class FakeUSBankAccountOperator(Operator):
         account = person.identifier(mask="##########")
         return f"Routing: {routing}, Account: {account}"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -280,7 +271,7 @@ class FakeCABankAccountOperator(Operator):
     - 7-12 digit account number
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake Canadian bank account number.
 
         Args:
@@ -297,9 +288,8 @@ class FakeCABankAccountOperator(Operator):
         account = person.identifier(mask="##########")
         return f"{transit}-{institution}-{account}"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -313,7 +303,7 @@ class FakeCABankAccountOperator(Operator):
 class FakeIPAddressOperator(Operator):
     """Generate realistic fake IP addresses using Mimesis."""
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate a fake IP address.
 
         Args:
@@ -327,9 +317,8 @@ class FakeIPAddressOperator(Operator):
         # Generate a random IPv4 address
         return internet.ip_v4()
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -384,9 +373,9 @@ class SmartMaskOperator(Operator):
     }
 
     # Map entity types to operator instances (lazy-loaded)
-    _operator_cache: Dict[str, Operator] = {}
+    _operator_cache: dict[str, Operator] = {}
 
-    def _get_operator(self, operator_name: str) -> Optional[Operator]:
+    def _get_operator(self, operator_name: str) -> Operator | None:
         """Get or create operator instance."""
         if operator_name not in self._operator_cache:
             operator_map = {
@@ -449,7 +438,7 @@ class SmartMaskOperator(Operator):
 
         return "GENERIC"
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Apply smart masking based on detected or provided entity type.
 
         Args:
@@ -500,9 +489,8 @@ class SmartMaskOperator(Operator):
             else text_str[:keep_first] + "*" * masked_length
         )
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -553,9 +541,9 @@ class SmartFakeOperator(Operator):
     }
 
     # Map entity types to operator instances (lazy-loaded)
-    _operator_cache: Dict[str, Operator] = {}
+    _operator_cache: dict[str, Operator] = {}
 
-    def _get_operator(self, operator_name: str) -> Optional[Operator]:
+    def _get_operator(self, operator_name: str) -> Operator | None:
         """Get or create operator instance."""
         if operator_name not in self._operator_cache:
             operator_map = {
@@ -616,7 +604,7 @@ class SmartFakeOperator(Operator):
 
         return "GENERIC"
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Generate fake data based on detected or provided entity type.
 
         Args:
@@ -647,9 +635,8 @@ class SmartFakeOperator(Operator):
         person = Person()
         return person.identifier(mask="##########")
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -734,7 +721,7 @@ class MaskEmailOperator(Operator):
         john.smith@example.com -> jo******th@*********** (keep_domain=False, domain masked)
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask email address.
 
         Args:
@@ -783,7 +770,7 @@ class MaskEmailOperator(Operator):
         except Exception:
             return "***@***.com"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters."""
         if params:
             if "keep_domain" in params and not isinstance(params["keep_domain"], bool):
@@ -810,7 +797,7 @@ class MaskPhoneOperator(Operator):
     Example: +1 (555) 123-4567 -> +* (***) ***-4567
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask phone number.
 
         Args:
@@ -846,9 +833,8 @@ class MaskPhoneOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -867,7 +853,7 @@ class MaskCreditCardOperator(Operator):
     Example: 4242 4242 4242 4242 -> **** **** **** 4242
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask credit card number.
 
         Args:
@@ -903,9 +889,8 @@ class MaskCreditCardOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -925,7 +910,7 @@ class MaskSSNOperator(Operator):
     Example: 123456789 -> *****6789
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask SSN.
 
         Args:
@@ -961,9 +946,8 @@ class MaskSSNOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -980,7 +964,7 @@ class MaskIPAddressOperator(Operator):
     Example: 192.168.1.1 -> 192.***.*.1
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask IP address.
 
         Args:
@@ -1000,9 +984,8 @@ class MaskIPAddressOperator(Operator):
             # Fallback for invalid IPs
             return "***.***.***.***"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1019,7 +1002,7 @@ class MaskIBANOperator(Operator):
     Example: GB82WEST12345698765432 -> GB******************5432
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask IBAN.
 
         Args:
@@ -1040,9 +1023,8 @@ class MaskIBANOperator(Operator):
 
         return f"{country_code}{masked_middle}{last_four}"
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1062,7 +1044,7 @@ class MaskPersonOperator(Operator):
     Example: Mary -> M***
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask person name.
 
         Args:
@@ -1086,9 +1068,8 @@ class MaskPersonOperator(Operator):
 
         return " ".join(masked_words)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1106,7 +1087,7 @@ class MaskLocationOperator(Operator):
     Example: 123 Main Street -> 123 Mai*** Str****
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask location/address.
 
         Args:
@@ -1130,9 +1111,8 @@ class MaskLocationOperator(Operator):
 
         return " ".join(masked_words)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1151,7 +1131,7 @@ class MaskUSBankAccountOperator(Operator):
     Example: Routing: 123456789, Account: 9876543210 -> Routing: *****6789, Account: ******3210
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask US bank account.
 
         Args:
@@ -1188,9 +1168,8 @@ class MaskUSBankAccountOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1209,7 +1188,7 @@ class MaskCABankAccountOperator(Operator):
     Example: 12345-678-9012345 -> *****-***-***2345
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask Canadian bank account.
 
         Args:
@@ -1246,9 +1225,8 @@ class MaskCABankAccountOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1270,7 +1248,7 @@ class MaskSINOperator(Operator):
         123456789 -> ******789
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask Canadian SIN.
 
         Args:
@@ -1306,9 +1284,8 @@ class MaskSINOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""
@@ -1331,7 +1308,7 @@ class MaskTINOperator(Operator):
         12345-6789 -> *****-6789 (preserves dashes)
     """
 
-    def operate(self, text: str = None, params: Dict = None) -> str:
+    def operate(self, text: str = None, params: dict = None) -> str:
         """Mask Canadian TIN.
 
         Args:
@@ -1367,9 +1344,8 @@ class MaskTINOperator(Operator):
 
         return "".join(result)
 
-    def validate(self, params: Dict = None) -> None:
+    def validate(self, params: dict = None) -> None:
         """Validate parameters (no params needed)."""
-        pass
 
     def operator_name(self) -> str:
         """Return operator name."""

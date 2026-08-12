@@ -10,8 +10,8 @@ This module coordinates the entire replication process:
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -29,14 +29,14 @@ logger = logging.getLogger(__name__)
 
 
 # Progress callback type: (collection_name, status, result_or_error)
-ProgressCallback = Callable[[str, str, Optional[ReplicationResult]], None]
+ProgressCallback = Callable[[str, str, ReplicationResult | None], None]
 
 
 class OrchestrationResult(BaseModel):
     """Result of orchestrating replication for all collections."""
 
     discovery: DiscoveryResult
-    collection_results: Dict[str, ReplicationResult]
+    collection_results: dict[str, ReplicationResult]
     total_duration_seconds: float
 
     @property
@@ -45,14 +45,14 @@ class OrchestrationResult(BaseModel):
         return len(self.collection_results)
 
     @property
-    def successful_collections(self) -> List[str]:
+    def successful_collections(self) -> list[str]:
         """Collections that completed successfully."""
         return [
             name for name, result in self.collection_results.items() if result.status == "completed"
         ]
 
     @property
-    def failed_collections(self) -> List[str]:
+    def failed_collections(self) -> list[str]:
         """Collections that failed."""
         return [
             name for name, result in self.collection_results.items() if result.status == "failed"
@@ -151,7 +151,7 @@ class ReplicationOrchestrator:
     def _build_collection_config(
         self,
         collection_name: str,
-        explicit_config: Optional[CollectionConfig] = None,
+        explicit_config: CollectionConfig | None = None,
     ) -> CollectionConfig:
         """Build configuration for a collection.
 
@@ -253,7 +253,7 @@ class ReplicationOrchestrator:
             if state_id:
                 self.state_mgr.fail_collection(
                     state_id=state_id,
-                    error_message=f"Unexpected error: {type(e).__name__}: {str(e)}",
+                    error_message=f"Unexpected error: {type(e).__name__}: {e!s}",
                 )
 
             return ReplicationResult(
@@ -262,12 +262,12 @@ class ReplicationOrchestrator:
                 documents_processed=0,
                 batches_processed=0,
                 duration_seconds=0,
-                error_message=f"Unexpected error: {type(e).__name__}: {str(e)}",
+                error_message=f"Unexpected error: {type(e).__name__}: {e!s}",
             )
 
     def replicate(
         self,
-        progress_callback: Optional[ProgressCallback] = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> OrchestrationResult:
         """Execute replication for all collections.
 
@@ -310,7 +310,7 @@ class ReplicationOrchestrator:
 
             # Step 2: Build configurations
             logger.info("\n⚙️  Step 2: Building collection configurations...")
-            collection_configs: Dict[str, CollectionConfig] = {}
+            collection_configs: dict[str, CollectionConfig] = {}
 
             for coll_name in discovery_result.included_collections:
                 explicit_config = self.config.collections.get(coll_name)
@@ -349,7 +349,7 @@ class ReplicationOrchestrator:
                 f"\n🔄 Step 3: Replicating {len(collection_configs)} collections (max {max_workers} parallel)..."
             )
 
-            collection_results: Dict[str, ReplicationResult] = {}
+            collection_results: dict[str, ReplicationResult] = {}
 
             # Use ThreadPoolExecutor for parallel processing
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -367,7 +367,7 @@ class ReplicationOrchestrator:
 
                 # Notify start for all collections
                 if progress_callback:
-                    for coll_name in collection_configs.keys():
+                    for coll_name in collection_configs:
                         progress_callback(coll_name, "started", None)
 
                 # Process results as they complete

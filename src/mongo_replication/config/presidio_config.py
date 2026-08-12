@@ -6,7 +6,6 @@ including both recognizers (for analysis) and operators (for anonymization).
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List, Set
 
 import yaml
 from presidio_anonymizer.entities import OperatorConfig
@@ -25,7 +24,7 @@ class PresidioConfig:
     that extends Presidio's configuration format.
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """Initialize configuration loader.
 
         Args:
@@ -60,7 +59,7 @@ class PresidioConfig:
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML in {self.config_path}: {e}")
 
-    def get_operator_configs(self) -> Dict[str, OperatorConfig]:
+    def get_operator_configs(self) -> dict[str, OperatorConfig]:
         """Parse anonymization_operators from YAML and convert to OperatorConfig objects.
 
         This method reads the 'anonymization_operators' section from the YAML config
@@ -94,7 +93,7 @@ class PresidioConfig:
 
         return operator_configs
 
-    def get_supported_entity_types(self) -> List[str]:
+    def get_supported_entity_types(self) -> list[str]:
         """Get all supported entity types from anonymizer_registry.
 
         Parses the anonymizer_registry section and extracts all unique entity types
@@ -105,7 +104,7 @@ class PresidioConfig:
             Example: ["EMAIL_ADDRESS", "PHONE_NUMBER", "PERSON", ...]
         """
         registry = self.config.get("anonymizer_registry", {})
-        entity_types: Set[str] = set()
+        entity_types: set[str] = set()
 
         for operator_name, operator_config in registry.items():
             if isinstance(operator_config, dict):
@@ -116,8 +115,8 @@ class PresidioConfig:
         return sorted(entity_types)
 
     def get_operator_examples(
-        self, operator_name: str, entity_type: Optional[str] = None
-    ) -> List[Dict[str, str]]:
+        self, operator_name: str, entity_type: str | None = None
+    ) -> list[dict[str, str]]:
         """Get example inputs/outputs for a specific operator.
 
         Args:
@@ -141,7 +140,7 @@ class PresidioConfig:
 
         return []
 
-    def get_operators_for_entity_type(self, entity_type: str) -> List[str]:
+    def get_operators_for_entity_type(self, entity_type: str) -> list[str]:
         """Get all operators that support a specific entity type.
 
         Args:
@@ -163,7 +162,7 @@ class PresidioConfig:
         return operators
 
 
-def load_presidio_config(config_path: Optional[str] = None) -> PresidioConfig:
+def load_presidio_config(config_path: str | None = None) -> PresidioConfig:
     """Convenience function to load Presidio configuration.
 
     Args:

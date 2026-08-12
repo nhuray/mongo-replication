@@ -11,7 +11,7 @@ to preserve type fidelity across replication runs.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from bson import ObjectId
 from pymongo.database import Database
@@ -155,8 +155,8 @@ class StateManager:
         documents_processed: int,
         documents_succeeded: int,
         documents_failed: int,
-        error_summary: Optional[Dict[str, str]] = None,
-        failed_collections: Optional[List[str]] = None,
+        error_summary: dict[str, str] | None = None,
+        failed_collections: list[str] | None = None,
     ) -> None:
         """Mark a run as completed successfully.
 
@@ -245,7 +245,7 @@ class StateManager:
         )
         logger.error(f"Failed run {run_id}: {error_message}")
 
-    def get_last_successful_run(self) -> Optional[Dict[str, Any]]:
+    def get_last_successful_run(self) -> dict[str, Any] | None:
         """Get the most recent successful run.
 
         Returns:
@@ -253,7 +253,7 @@ class StateManager:
         """
         return self.runs_collection.find_one({"status": "completed"}, sort=[("startedAt", -1)])
 
-    def get_running_runs(self) -> List[Dict[str, Any]]:
+    def get_running_runs(self) -> list[dict[str, Any]]:
         """Get list of currently running runs.
 
         Useful for detecting stuck runs.
@@ -345,7 +345,7 @@ class StateManager:
         documents_failed: int,
         documents_transformed: int = 0,
         transforms_applied: int = 0,
-        transform_operations: Optional[Dict[str, Dict[str, Any]]] = None,
+        transform_operations: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Mark a collection replication as completed.
 
@@ -416,7 +416,7 @@ class StateManager:
         documents_failed: int = 0,
         documents_transformed: int = 0,
         transforms_applied: int = 0,
-        transform_operations: Optional[Dict[str, Dict[str, Any]]] = None,
+        transform_operations: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Mark a collection replication as failed.
 
@@ -499,7 +499,7 @@ class StateManager:
             }
         )
 
-    def get_last_cursor_value(self, collection_name: str) -> Optional[Any]:
+    def get_last_cursor_value(self, collection_name: str) -> Any | None:
         """Get the last cursor value for incremental loading.
 
         Looks up the most recent completed state for this collection.
@@ -523,7 +523,7 @@ class StateManager:
             return state.get("lastCursorValue")
         return None
 
-    def get_running_collections(self, run_id: ObjectId) -> List[str]:
+    def get_running_collections(self, run_id: ObjectId) -> list[str]:
         """Get list of collections currently marked as running for a specific run.
 
         Useful for detecting stuck replications.
@@ -539,7 +539,7 @@ class StateManager:
         )
         return [doc["collection"] for doc in cursor]
 
-    def get_failed_collections(self, run_id: ObjectId) -> List[Dict[str, Any]]:
+    def get_failed_collections(self, run_id: ObjectId) -> list[dict[str, Any]]:
         """Get list of collections that failed in a specific run.
 
         Args:

@@ -1,23 +1,24 @@
 """Unit tests for TransformationEngine."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from bson import ObjectId
 
+from mongo_replication.config.models import (
+    AddFieldTransform,
+    AnonymizeTransform,
+    ConditionConfig,
+    CopyFieldTransform,
+    RegexReplaceTransform,
+    RemoveFieldTransform,
+    RenameFieldTransform,
+    SetFieldTransform,
+)
 from mongo_replication.engine.transformations import (
     TransformationEngine,
     TransformationError,
     TransformResults,
-)
-from mongo_replication.config.models import (
-    AddFieldTransform,
-    SetFieldTransform,
-    RemoveFieldTransform,
-    RenameFieldTransform,
-    CopyFieldTransform,
-    RegexReplaceTransform,
-    AnonymizeTransform,
-    ConditionConfig,
 )
 
 

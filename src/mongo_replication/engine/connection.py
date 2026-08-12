@@ -5,17 +5,16 @@ and destination MongoDB instances using exponential backoff.
 """
 
 import logging
-from typing import Optional
 
 from pymongo import MongoClient
 from pymongo.database import Database
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +55,8 @@ class ConnectionManager:
         self._validate_different_databases()
 
         # Connection instances (lazy initialization)
-        self._source_client: Optional[MongoClient] = None
-        self._dest_client: Optional[MongoClient] = None
+        self._source_client: MongoClient | None = None
+        self._dest_client: MongoClient | None = None
 
     def _validate_different_databases(self) -> None:
         """Validate that source and destination point to different databases.

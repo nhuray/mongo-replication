@@ -1,6 +1,7 @@
 """Unit tests for bulk write error summarization."""
 
 from unittest.mock import MagicMock
+
 from pymongo.errors import BulkWriteError
 
 from mongo_replication.engine.replicator import _summarize_bulk_write_error

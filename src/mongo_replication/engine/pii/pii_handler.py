@@ -6,7 +6,7 @@ Use the scan command to generate PII field configurations.
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class PIIHandler:
 
     def __init__(
         self,
-        pii_anonymization: Optional[Union[List, Dict[str, str]]] = None,
+        pii_anonymization: list | dict[str, str] | None = None,
     ):
         """
         Initialize PII handler.
@@ -32,7 +32,7 @@ class PIIHandler:
                 - Dict[str, str]: Legacy format (field->operator mapping)
         """
         # Normalize to internal format: Dict[field_path, List[Dict[operator, params]]]
-        self.field_operators: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        self.field_operators: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
         if pii_anonymization:
             if isinstance(pii_anonymization, dict):
@@ -67,8 +67,8 @@ class PIIHandler:
 
     def process_documents(
         self,
-        documents: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        documents: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """
         Process documents with PII anonymization.
 
@@ -101,7 +101,7 @@ class PIIHandler:
         return redacted
 
 
-def create_pii_handler_from_config(pii_anonymization: Union[List, Dict[str, str]]) -> PIIHandler:
+def create_pii_handler_from_config(pii_anonymization: list | dict[str, str]) -> PIIHandler:
     """
     Create a PII handler from collection configuration.
 

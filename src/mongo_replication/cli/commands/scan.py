@@ -7,34 +7,33 @@ Usage:
 
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Annotated, Any
 
 import typer
-from typing_extensions import Annotated
 
 from mongo_replication.cli.interactive.selectors import select_collections
-from mongo_replication.cli.reporters.scan_report import generate_scan_report
 from mongo_replication.cli.reporters.progress import progress_wrapper
+from mongo_replication.cli.reporters.scan_report import generate_scan_report
 from mongo_replication.cli.utils.output import (
+    console,
     print_banner,
-    print_success,
     print_error,
-    print_warning,
     print_info,
     print_step,
+    print_success,
     print_summary,
-    console,
+    print_warning,
 )
-from mongo_replication.config.manager import save_config, load_config
+from mongo_replication.config.manager import load_config, save_config
 from mongo_replication.config.models import (
+    AnonymizeTransform,
+    CollectionConfig,
+    Config,
+    ReplicationConfig,
     ScanConfig,
     ScanDiscoveryConfig,
-    ScanSamplingConfig,
     ScanPIIAnalysisConfig,
-    Config,
-    CollectionConfig,
-    AnonymizeTransform,
-    ReplicationConfig,
+    ScanSamplingConfig,
     SchemaRelationshipConfig,
 )
 from mongo_replication.engine.connection import ConnectionManager
@@ -44,8 +43,8 @@ from mongo_replication.engine.relationships import SchemaRelationshipAnalyzer
 
 
 def detect_cursor_field(
-    collection_name: str, sample_document: Dict[str, Any], cursor_fields: List[str]
-) -> Optional[str]:
+    collection_name: str, sample_document: dict[str, Any], cursor_fields: list[str]
+) -> str | None:
     """
     Detect which cursor field exists in a collection by examining a sample document.
 
@@ -71,7 +70,7 @@ def detect_cursor_field(
     if not sample_document:
         return None
 
-    def get_nested_field(doc: Dict[str, Any], field_path: str) -> Any:
+    def get_nested_field(doc: dict[str, Any], field_path: str) -> Any:
         """Get a nested field value from a document using dot notation."""
         parts = field_path.split(".")
         current = doc
@@ -107,7 +106,7 @@ def detect_cursor_field(
 def scan_command(
     job: Annotated[str, typer.Argument(help="Job ID to scan (e.g., 'prod_db')")],
     output: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--output",
             "-o",
@@ -115,7 +114,7 @@ def scan_command(
         ),
     ] = None,
     collections: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--collections",
             help="Comma-separated list of collections to scan (default: all)",
@@ -130,7 +129,7 @@ def scan_command(
         ),
     ] = False,
     sample_size: Annotated[
-        Optional[int],
+        int | None,
         typer.Option(
             "--sample-size",
             "-s",
@@ -138,7 +137,7 @@ def scan_command(
         ),
     ] = None,
     confidence_threshold: Annotated[
-        Optional[float],
+        float | None,
         typer.Option(
             "--confidence",
             "-c",
@@ -146,7 +145,7 @@ def scan_command(
         ),
     ] = None,
     language: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--language",
             "-l",
@@ -266,7 +265,7 @@ def scan_command(
             "SCAN SOURCE DATABASE",
             Job=job,
             **{"Sample Size": f"{final_sample_size} docs/collection"},
-            **{"Confidence": f"{final_confidence:.0%}"},
+            Confidence=f"{final_confidence:.0%}",
             Language=final_language.upper(),
             **{"PII Analysis": pii_status},
             Interactive="Yes" if interactive else "No",
