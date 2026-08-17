@@ -1,6 +1,46 @@
 # CHANGELOG
 
 
+## v4.1.0 (2026-08-17)
+
+### Features
+
+* feat: Add wildcard pattern matching for anonymize transformations (#28)
+
+feat: add wildcard pattern matching for anonymize transformations
+
+Add support for wildcard patterns in anonymize field specifications,
+enabling pattern-based field matching for PII anonymization.
+
+Features:
+- Suffix wildcards: 'metadata.*' (all fields under metadata)
+- Prefix wildcards: '*.email' (all fields ending with .email)
+- Middle wildcards: 'user.*.sinNumber' (user.<anything>.sinNumber)
+- Multiple wildcards: 'data.*.*.value' (deeply nested patterns)
+- Fast-path optimization for exact matches (0% overhead)
+
+Implementation:
+- Created shared field_utils.py with pattern matching utilities
+- Refactored PIIHandler to expand wildcard patterns at runtime
+- Eliminated code duplication across pii_analyzer and presidio_analyzer
+- Added _has_wildcard_patterns flag for performance optimization
+
+Testing:
+- Added 18 unit tests for pattern matching utilities
+- Added 12 unit tests for PIIHandler wildcard functionality
+- Added 6 integration tests demonstrating real-world usage
+- All 531 tests pass (525 unit + 6 integration)
+
+Performance:
+- Zero overhead for non-wildcard configurations (fast path)
+- ~5-10% overhead for wildcard pattern expansion
+- Patterns expanded per-document based on actual schema
+
+Breaking Changes: None
+
+Closes #[issue-number] ([`ca7f866`](https://github.com/nhuray/mongo-replication/commit/ca7f8661ecccfc7d0ffa79de506c79ebe3129c9f))
+
+
 ## v4.0.0 (2026-08-12)
 
 ### Breaking
@@ -41,6 +81,8 @@ Co-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.c
 Co-authored-by: nhuray <958983+nhuray@users.noreply.github.com> ([`5baf376`](https://github.com/nhuray/mongo-replication/commit/5baf37600e661543cd880770239af04de552190e))
 
 ### Chores
+
+* chore(release): 4.0.0 [skip ci] ([`bf66af5`](https://github.com/nhuray/mongo-replication/commit/bf66af53117fb9139a82f033d403ed9656f0ceb1))
 
 * chore: update uv.lock to version 3.1.0 ([`62b45b0`](https://github.com/nhuray/mongo-replication/commit/62b45b06b32b312af9ec11a6bd8a83c1559fe422))
 
