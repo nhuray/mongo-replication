@@ -281,12 +281,27 @@ class RegexReplaceTransform(TransformStep):
 
 
 class AnonymizeTransform(TransformStep):
-    """Apply PII anonymization to a field."""
+    """Apply PII anonymization to a field.
+
+    Supports wildcard patterns for matching multiple fields:
+    - Exact match: 'user.email'
+    - Suffix wildcard: 'metadata.*' (all fields under metadata)
+    - Prefix wildcard: '*.email' (all fields ending with .email)
+    - Middle wildcard: 'user.*.email' (user.<anything>.email)
+    """
 
     type: Literal["anonymize"] = "anonymize"
 
     field: str
-    """Field path to anonymize (supports dot notation for nested fields)."""
+    """Field path to anonymize. Supports dot notation and wildcard patterns (*).
+
+    Examples:
+        - 'email' - exact field
+        - 'user.email' - nested field
+        - 'metadata.*' - all fields under metadata
+        - '*.sinNumber' - all fields ending with sinNumber
+        - 'user.*.email' - user.<anything>.email
+    """
 
     operator: str
     """Anonymization operator name (e.g., 'mask_email', 'hash', 'smart_mask')."""
@@ -297,7 +312,13 @@ class AnonymizeTransform(TransformStep):
 
 # Union type for all transform configurations (discriminated by 'type' field)
 TransformConfig = Annotated[
-    AddFieldTransform | SetFieldTransform | RemoveFieldTransform | RenameFieldTransform | CopyFieldTransform | RegexReplaceTransform | AnonymizeTransform,
+    AddFieldTransform
+    | SetFieldTransform
+    | RemoveFieldTransform
+    | RenameFieldTransform
+    | CopyFieldTransform
+    | RegexReplaceTransform
+    | AnonymizeTransform,
     Field(discriminator="type"),
 ]
 

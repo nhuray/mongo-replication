@@ -180,16 +180,19 @@ class TestPresidioAnalyzer:
 
     def test_allowlist_wildcard_patterns(self, analyzer):
         """Test various wildcard patterns in allowlist."""
+        # Import the shared utility function
+        from mongo_replication.engine.pii.field_utils import matches_pattern
+
         # Test the pattern matching directly
-        assert analyzer._matches_pattern("metadata.created_at", "metadata.*")
-        assert analyzer._matches_pattern("metadata.user_id", "metadata.*")
-        assert analyzer._matches_pattern("_id", "_id")
-        assert analyzer._matches_pattern("user.id", "*.id")
-        assert analyzer._matches_pattern("account.id", "*.id")
+        assert matches_pattern("metadata.created_at", "metadata.*")
+        assert matches_pattern("metadata.user_id", "metadata.*")
+        assert matches_pattern("_id", "_id")
+        assert matches_pattern("user.id", "*.id")
+        assert matches_pattern("account.id", "*.id")
 
         # Should not match
-        assert not analyzer._matches_pattern("user_email", "metadata.*")
-        assert not analyzer._matches_pattern("email", "*.id")
+        assert not matches_pattern("user_email", "metadata.*")
+        assert not matches_pattern("email", "*.id")
 
     def test_entity_type_filtering(self, analyzer):
         """Test detection of specific entity types only."""

@@ -17,6 +17,8 @@ from typing import Any, Optional
 from presidio_analyzer import AnalyzerEngine, AnalyzerEngineProvider
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
+from mongo_replication.engine.pii.field_utils import matches_pattern
+
 logger = logging.getLogger(__name__)
 
 
@@ -333,7 +335,7 @@ class PresidioAnalyzer:
             should_skip = False
 
             for pattern in allowlist_patterns:
-                if self._matches_pattern(field_path, pattern):
+                if matches_pattern(field_path, pattern):
                     should_skip = True
                     logger.debug(
                         f"Skipping field '{field_path}' (matches allowlist pattern '{pattern}')"
@@ -344,54 +346,6 @@ class PresidioAnalyzer:
                 filtered[field_path] = value
 
         return filtered
-
-    def _matches_pattern(self, field_path: str, pattern: str) -> bool:
-        """
-        Check if a field path matches a pattern.
-
-        Supports simple wildcard matching:
-        - "metadata.*" matches "metadata.created_at", "metadata.user_id", etc.
-        - "_id" matches exactly "_id"
-        - "*.id" matches "user.id", "account.id", etc.
-
-        Args:
-            field_path: The field path to check
-            pattern: The pattern to match against
-
-        Returns:
-            True if the field matches the pattern
-        """
-        # Exact match
-        if field_path == pattern:
-            return True
-
-        # Wildcard patterns
-        if "*" in pattern:
-            # Convert glob pattern to regex-like logic
-            pattern_parts = pattern.split("*")
-
-            # Pattern starts with wildcard: "*.id"
-            if pattern.startswith("*"):
-                if field_path.endswith(pattern[1:]):
-                    return True
-
-            # Pattern ends with wildcard: "metadata.*"
-            if pattern.endswith("*"):
-                if field_path.startswith(pattern[:-1]):
-                    return True
-
-            # Pattern has wildcard in middle: "user.*.email"
-            # For simplicity, we'll just check if all non-wildcard parts are present in order
-            current_pos = 0
-            for part in pattern_parts:
-                if part:  # Skip empty parts from consecutive wildcards
-                    pos = field_path.find(part, current_pos)
-                    if pos == -1:
-                        return False
-                    current_pos = pos + len(part)
-            return True
-
-        return False
 
     def get_supported_entity_types(self, presidio_config_path: str | None = None) -> set[str]:
         """
