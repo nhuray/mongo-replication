@@ -367,3 +367,196 @@ class TestPIIFieldAnonymizationWithParams:
             "entity_type": "EMAIL_ADDRESS",
             "masking_char": "*",
         }
+
+
+class TestPIIHandlerWildcardPatterns:
+    """Test PIIHandler wildcard pattern matching and expansion."""
+
+    def test_init_with_wildcard_patterns(self):
+        """Test initialization with wildcard patterns sets the flag."""
+        pii_anonymization = [
+            PIIFieldAnonymization(
+                field="user.*.email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
+            ),
+            PIIFieldAnonymization(
+                field="metadata.*", operator="redact", params={"entity_type": "ANY"}
+            ),
+        ]
+
+        handler = PIIHandler(pii_anonymization=pii_anonymization)
+
+        assert handler._has_wildcard_patterns is True
+        assert len(handler.field_operators) == 2
+
+    def test_init_without_wildcard_patterns(self):
+        """Test initialization without wildcard patterns doesn't set the flag."""
+        pii_anonymization = [
+            PIIFieldAnonymization(
+                field="user.email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
+            ),
+        ]
+
+        handler = PIIHandler(pii_anonymization=pii_anonymization)
+
+        assert handler._has_wildcard_patterns is False
+
+    def test_expand_patterns_suffix_wildcard(self):
+        """Test pattern expansion with suffix wildcard (metadata.*)."""
+        handler = PIIHandler(pii_anonymization={"metadata.*": "redact"})
+
+        doc = {
+            "name": "John",
+            "metadata": {"created_at": "2024-01-01", "updated_at": "2024-01-02", "user_id": "123"},
+        }
+
+        expanded = handler._expand_patterns(doc)
+
+        # Should match all fields under metadata
+        assert "metadata.created_at" in expanded
+        assert "metadata.updated_at" in expanded
+        assert "metadata.user_id" in expanded
+        # Should not match fields outside metadata
+        assert "name" not in expanded
+
+    def test_expand_patterns_prefix_wildcard(self):
+        """Test pattern expansion with prefix wildcard (*.email)."""
+        handler = PIIHandler(pii_anonymization={"*.email": "mask_email"})
+
+        doc = {
+            "user": {"email": "user@test.com", "name": "John"},
+            "contact": {"email": "contact@test.com", "phone": "123"},
+            "profile": {"bio": "Hello"},
+        }
+
+        expanded = handler._expand_patterns(doc)
+
+        # Should match all fields ending with .email
+        assert "user.email" in expanded
+        assert "contact.email" in expanded
+        # Should not match non-email fields
+        assert "user.name" not in expanded
+        assert "contact.phone" not in expanded
+        assert "profile.bio" not in expanded
+
+    def test_expand_patterns_middle_wildcard(self):
+        """Test pattern expansion with middle wildcard (user.*.sinNumber)."""
+        handler = PIIHandler(pii_anonymization={"user.*.sinNumber": "hash"})
+
+        doc = {
+            "user": {
+                "forms": {"sinNumber": "123-456-789", "type": "tax"},
+                "profile": {"sinNumber": "987-654-321", "name": "John"},
+                "account": {"id": "abc123"},
+            }
+        }
+
+        expanded = handler._expand_patterns(doc)
+
+        # Should match user.*.sinNumber patterns
+        assert "user.forms.sinNumber" in expanded
+        assert "user.profile.sinNumber" in expanded
+        # Should not match other fields
+        assert "user.forms.type" not in expanded
+        assert "user.profile.name" not in expanded
+        assert "user.account.id" not in expanded
+
+    def test_expand_patterns_with_arrays(self):
+        """Test pattern expansion with arrays."""
+        handler = PIIHandler(pii_anonymization={"contacts.email": "mask_email"})
+
+        doc = {
+            "contacts": [
+                {"email": "a@test.com", "name": "Alice"},
+                {"email": "b@test.com", "name": "Bob"},
+            ]
+        }
+
+        expanded = handler._expand_patterns(doc)
+
+        # Should match email fields in array
+        # Pattern is exact match, not wildcard, so it should work directly
+        assert "contacts.email" in expanded
+
+    def test_expand_patterns_mixed_exact_and_wildcard(self):
+        """Test pattern expansion with both exact and wildcard patterns."""
+        handler = PIIHandler(
+            pii_anonymization={
+                "user.email": "mask_email",  # Exact match
+                "user.*.sinNumber": "hash",  # Wildcard
+            }
+        )
+
+        doc = {
+            "user": {
+                "email": "user@test.com",
+                "forms": {"sinNumber": "123-456-789"},
+                "profile": {"sinNumber": "987-654-321"},
+            }
+        }
+
+        expanded = handler._expand_patterns(doc)
+
+        # Both exact and wildcard patterns should be expanded
+        assert "user.email" in expanded
+        assert "user.forms.sinNumber" in expanded
+        assert "user.profile.sinNumber" in expanded
+
+    def test_expand_patterns_no_matches(self):
+        """Test pattern expansion when no fields match."""
+        handler = PIIHandler(pii_anonymization={"user.*.email": "mask_email"})
+
+        doc = {"user": {"name": "John", "phone": "123"}}
+
+        expanded = handler._expand_patterns(doc)
+
+        # No email fields match the pattern
+        assert "user.*.email" not in expanded
+        assert len(expanded) == 0
+
+    def test_process_documents_with_wildcards(self):
+        """Test end-to-end document processing with wildcard patterns."""
+        pii_anonymization = [
+            PIIFieldAnonymization(
+                field="user.*.email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
+            ),
+        ]
+
+        handler = PIIHandler(pii_anonymization=pii_anonymization)
+
+        documents = [
+            {
+                "_id": "1",
+                "user": {
+                    "profile": {"email": "profile@test.com"},
+                    "contact": {"email": "contact@test.com"},
+                },
+            }
+        ]
+
+        # Process documents - this will call the anonymizer
+        # We're mainly testing that the pattern expansion happens correctly
+        result = handler.process_documents(documents)
+
+        # Should return the same number of documents
+        assert len(result) == 1
+        # The actual anonymization is tested in presidio_anonymizer tests
+
+    def test_process_documents_without_wildcards_uses_fast_path(self):
+        """Test that documents without wildcards use the fast path."""
+        pii_anonymization = [
+            PIIFieldAnonymization(
+                field="user.email", operator="mask_email", params={"entity_type": "EMAIL_ADDRESS"}
+            ),
+        ]
+
+        handler = PIIHandler(pii_anonymization=pii_anonymization)
+
+        # _has_wildcard_patterns should be False
+        assert handler._has_wildcard_patterns is False
+
+        documents = [{"_id": "1", "user": {"email": "test@test.com"}}]
+
+        result = handler.process_documents(documents)
+
+        # Should process without calling _expand_patterns
+        assert len(result) == 1

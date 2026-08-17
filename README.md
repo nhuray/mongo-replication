@@ -444,9 +444,25 @@ replication:
           - field: ssn
             type: anonymize
             operator: hash
+
+          # Wildcard patterns for matching multiple fields
+          - field: user.*.sinNumber       # Matches user.forms.sinNumber, user.profile.sinNumber, etc.
+            type: anonymize
+            operator: hash
+          - field: metadata.*             # Matches all fields under metadata
+            type: anonymize
+            operator: redact
+          - field: "*.email"              # Matches all fields ending with .email
+            type: anonymize
+            operator: mask_email
 ```
 
 The scan command automatically detects PII fields and multi-entity fields, configuring operators in confidence order.
+
+**Wildcard Pattern Support**:
+- `metadata.*` - matches all fields under metadata (e.g., `metadata.created_at`, `metadata.user_id`)
+- `*.email` - matches all fields ending with `.email` (e.g., `user.email`, `contact.email`)
+- `user.*.sinNumber` - matches fields like `user.forms.sinNumber`, `user.profile.sinNumber`
 
 ## 💾 State Management
 

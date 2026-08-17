@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from mongo_replication.engine.pii.custom_operators import resolve_smart_operator
+from mongo_replication.engine.pii.field_utils import get_all_field_paths, normalize_array_path
 from mongo_replication.engine.pii.presidio_analyzer import PresidioAnalyzer
 from mongo_replication.engine.pii.sampler import SamplingResult
 
@@ -182,7 +183,7 @@ class PIIAnalysisEngine:
         # Analyze each document
         for doc in sample_docs:
             # Get all field paths
-            doc_fields = self._get_all_field_paths(doc)
+            doc_fields = get_all_field_paths(doc)
             all_fields.update(doc_fields)
 
             # Analyze document for PII
@@ -201,7 +202,7 @@ class PIIAnalysisEngine:
                     entity_info  # Unpack tuple (entity_type, confidence_score)
                 )
                 # Normalize array indices (e.g., "invitations[0].email" -> "invitations.email")
-                normalized_path = self._normalize_array_path(field_path)
+                normalized_path = normalize_array_path(field_path)
                 field_detections[normalized_path][entity_type].append(confidence)
 
                 # Capture sample value (first non-None value per field+entity)
@@ -354,70 +355,6 @@ class PIIAnalysisEngine:
         # Default to smart format-preserving redaction (legacy behavior)
         # Note: "redact" is a legacy operator, new configs should use smart_mask/smart_fake
         return "redact"
-
-    @staticmethod
-    def _normalize_array_path(field_path: str) -> str:
-        """
-        Remove array indices from field path.
-
-        Examples:
-            "invitations[0].invitee.email" -> "invitations.invitee.email"
-            "contacts[5].name" -> "contacts.name"
-            "simple.field" -> "simple.field"
-
-        Args:
-            field_path: Field path with array indices
-
-        Returns:
-            Normalized field path without array indices
-        """
-        import re
-
-        # Remove [N] patterns and the dot that follows (if any)
-        normalized = re.sub(r"\[\d+\]\.?", ".", field_path)
-        # Clean up any double dots that might result
-        normalized = re.sub(r"\.\.+", ".", normalized)
-        # Remove leading/trailing dots
-        return normalized.strip(".")
-
-    def _get_all_field_paths(
-        self,
-        doc: dict[str, Any],
-        parent_path: str = "",
-    ) -> set[str]:
-        """
-        Recursively extract all field paths from a document.
-
-        Args:
-            doc: Document to extract fields from
-            parent_path: Parent path prefix (for recursion)
-
-        Returns:
-            Set of field paths in dot notation
-        """
-        paths = set()
-
-        for key, value in doc.items():
-            # Build current path
-            current_path = f"{parent_path}.{key}" if parent_path else key
-            paths.add(current_path)
-
-            # Recurse into nested dicts
-            if isinstance(value, dict):
-                nested_paths = self._get_all_field_paths(value, current_path)
-                paths.update(nested_paths)
-
-            # Handle arrays (only check first element for schema)
-            elif isinstance(value, list) and value:
-                first_item = value[0]
-                if isinstance(first_item, dict):
-                    # Add array notation
-                    array_path = f"{current_path}[0]"
-                    paths.add(array_path)
-                    nested_paths = self._get_all_field_paths(first_item, array_path)
-                    paths.update(nested_paths)
-
-        return paths
 
     @staticmethod
     def _get_field_value(doc: dict[str, Any], field_path: str) -> Any | None:
